@@ -242,6 +242,41 @@ l lang="de">
         }
         .scanner-flash.lit { opacity: 1; }
 
+        /* ── Barcode Capture-Mode (file://-Fallback) ── */
+        #screen-scanner.capture-mode #video { display: none; }
+        #screen-scanner.capture-mode .scan-frame { display: none; }
+        #screen-scanner.capture-mode .scan-line { display: none; }
+        #screen-scanner.capture-mode #scan-capture-ui { display: flex; }
+
+        #scan-capture-ui {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
+            padding: 2rem;
+        }
+
+        .btn-capture-barcode {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 0.6rem;
+            width: min(72vw, 240px); height: min(72vw, 240px);
+            background: rgba(0,212,170,0.08);
+            border: 2px dashed var(--accent);
+            border-radius: 24px;
+            color: var(--accent);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem; font-weight: 600;
+            cursor: pointer;
+            transition: background 0.18s;
+        }
+        .btn-capture-barcode:active { background: rgba(0,212,170,0.18); }
+        .btn-capture-barcode svg { opacity: 0.85; }
+        .capture-hint {
+            font-size: 0.78rem; color: rgba(255,255,255,0.45);
+            text-align: center; max-width: 240px; line-height: 1.5;
+        }
+
         /* ─────────────────── LOADING ─────────────────── */
         #screen-loading {
             align-items: center; justify-content: center;
@@ -674,8 +709,12 @@ l lang="de">
             border-color: var(--accent); color: var(--accent);
             background: rgba(0,212,170,0.08);
         }
-        .provider-icon { font-size: 1rem; }
     </style>
+
+    <!-- GoatCounter Analytics (cookielos, DSGVO-konform) -->
+    <!-- "DEIN-CODE" durch deinen GoatCounter-Sitecode ersetzen -->
+    <script data-goatcounter="https://isilrond.goatcounter.com/count"
+            async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
 
@@ -729,6 +768,9 @@ l lang="de">
         <!-- Hidden file input für Kamerazugriff -->
         <input type="file" id="photo-input" accept="image/*" capture="environment"
                style="display:none" onchange="handlePhotoFile(this)">
+        <!-- Hidden file input für Barcode-Foto-Fallback -->
+        <input type="file" id="barcode-capture-input" accept="image/*" capture="environment"
+               style="display:none" onchange="handleBarcodeCapture(this)">
     </div>
     <div class="home-footer">
         <button class="btn-text" onclick="showHistory()">
@@ -776,7 +818,19 @@ l lang="de">
 
         <div class="scan-status" id="scan-status">Kamera wird gestartet…</div>
 
-        <div class="scan-bottom">Barcode in den Rahmen halten</div>
+        <!-- Fallback: Barcode-Foto wenn kein Secure Context (file://) -->
+        <div id="scan-capture-ui">
+            <button class="btn-capture-barcode" onclick="triggerBarcodeCapture()">
+                <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                Barcode fotografieren
+            </button>
+            <p class="capture-hint">Barcode möglichst gerade und scharf aufnehmen. ZXing dekodiert automatisch.</p>
+        </div>
+
+        <div class="scan-bottom" id="scan-bottom-hint">Barcode in den Rahmen halten</div>
     </div>
 </div>
 
@@ -2691,6 +2745,16 @@ const DB = {
 let mediaStream = null;
 let detecting   = false;
 let barcodeDetector = null;
+let zxingLoaded = false;
+
+// ── GoatCounter: custom event helper ──────────────────────
+function gcTrack(eventName) {
+    try {
+        if (window.goatcounter && window.goatcounter.count) {
+            window.goatcounter.count({ path: eventName, event: true });
+        }
+    } catch (e) { /* noop */ }
+}
 let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
 let aiProvider  = localStorage.getItem('hs_provider')     || 'anthropic';
@@ -2738,6 +2802,23 @@ function activeKey() {
     return aiProvider === 'mistral' ? mistralKey : apiKey;
 }
 
+// Gibt den tatsächlich nutzbaren Provider zurück (Fallback wenn primärer Key fehlt)
+function resolvedProvider() {
+    if (aiProvider === 'mistral') {
+        if (mistralKey) return 'mistral';
+        if (apiKey)     { toast('Kein Mistral-Key – nutze Claude als Fallback'); return 'anthropic'; }
+        return 'mistral'; // beide leer → normaler Fehler
+    } else {
+        if (apiKey)     return 'anthropic';
+        if (mistralKey) { toast('Kein Claude-Key – nutze Mistral als Fallback'); return 'mistral'; }
+        return 'anthropic';
+    }
+}
+
+function activeKeyForProvider(p) {
+    return p === 'mistral' ? mistralKey : apiKey;
+}
+
 // ═══════════════════════════════════════════════════════════
 // TOAST
 // ═══════════════════════════════════════════════════════════
@@ -2752,14 +2833,33 @@ function toast(msg) {
 // SCANNER
 // ═══════════════════════════════════════════════════════════
 async function startScanner() {
-    if (!('BarcodeDetector' in window)) {
-        toast('Barcode-Scan benötigt Chrome → manuelle Eingabe nutzen');
-        showScreen('screen-manual');
+    showScreen('screen-scanner');
+
+    // Secure Context prüfen (file:// = kein Secure Context auf Android)
+    const isSecure = window.isSecureContext;
+    const hasBarcodeDetector = ('BarcodeDetector' in window);
+
+    if (!isSecure || !hasBarcodeDetector) {
+        // ── Fallback: Capture-Mode ──────────────────────────────
+        const screen = document.getElementById('screen-scanner');
+        screen.classList.add('capture-mode');
+        const statusEl = document.getElementById('scan-status');
+        const hintEl   = document.getElementById('scan-bottom-hint');
+        if (!isSecure) {
+            statusEl.textContent = 'Live-Scan benötigt HTTPS – Foto-Modus aktiv';
+        } else {
+            statusEl.textContent = 'BarcodeDetector nicht verfügbar – Foto-Modus aktiv';
+        }
+        if (hintEl) hintEl.style.display = 'none';
         return;
     }
 
-    showScreen('screen-scanner');
+    // ── Live-Scan (Secure Context + BarcodeDetector) ────────────
+    const screen = document.getElementById('screen-scanner');
+    screen.classList.remove('capture-mode');
     document.getElementById('scan-status').textContent = 'Kamera wird gestartet…';
+    const hintEl = document.getElementById('scan-bottom-hint');
+    if (hintEl) hintEl.style.display = '';
 
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -2783,10 +2883,15 @@ async function startScanner() {
         scanLoop();
 
     } catch (err) {
-        const msg = err.name === 'NotAllowedError'
-            ? 'Kamerazugriff verweigert – bitte erlauben und neu laden'
-            : 'Kamera-Fehler: ' + err.message;
-        document.getElementById('scan-status').textContent = msg;
+        // getUserMedia fehlgeschlagen (z.B. Berechtigung verweigert) → Capture-Fallback
+        if (err.name === 'NotAllowedError') {
+            document.getElementById('scan-status').textContent = 'Kamerazugriff verweigert – Foto-Modus';
+        } else {
+            document.getElementById('scan-status').textContent = 'Kamera-Fehler – Foto-Modus aktiv';
+        }
+        screen.classList.add('capture-mode');
+        const hintEl2 = document.getElementById('scan-bottom-hint');
+        if (hintEl2) hintEl2.style.display = 'none';
     }
 }
 
@@ -2818,6 +2923,8 @@ function stopScanner() {
         mediaStream.getTracks().forEach(t => t.stop());
         mediaStream = null;
     }
+    // Capture-Mode-Klasse entfernen für nächste Verwendung
+    document.getElementById('screen-scanner').classList.remove('capture-mode');
     showScreen('screen-home');
 }
 
@@ -2830,13 +2937,80 @@ function stopTracks() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// BARCODE FOTO-FALLBACK (ZXing – funktioniert auch via file://)
+// ═══════════════════════════════════════════════════════════
+function triggerBarcodeCapture() {
+    document.getElementById('barcode-capture-input').click();
+}
+
+async function loadZXing() {
+    if (zxingLoaded || window.ZXing) { zxingLoaded = true; return; }
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+        s.onload  = () => { zxingLoaded = true; resolve(); };
+        s.onerror = () => reject(new Error('ZXing CDN nicht erreichbar'));
+        document.head.appendChild(s);
+    });
+}
+
+async function handleBarcodeCapture(input) {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+
+    document.getElementById('scan-status').textContent = 'Barcode wird dekodiert…';
+
+    try {
+        await loadZXing();
+    } catch (e) {
+        toast('ZXing nicht geladen – bitte mit Internet verbinden');
+        document.getElementById('scan-status').textContent = 'ZXing-Fehler – manuelle Eingabe nutzen';
+        return;
+    }
+
+    try {
+        const imgEl = new Image();
+        const url   = URL.createObjectURL(file);
+
+        const rawValue = await new Promise((resolve, reject) => {
+            imgEl.onload = async () => {
+                try {
+                    const reader = new ZXing.BrowserMultiFormatReader();
+                    const result = await reader.decodeFromImageElement(imgEl);
+                    URL.revokeObjectURL(url);
+                    resolve(result.getText());
+                } catch (err) {
+                    URL.revokeObjectURL(url);
+                    reject(err);
+                }
+            };
+            imgEl.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Bild ungültig')); };
+            imgEl.src = url;
+        });
+
+        // Flash-Effekt
+        const fl = document.getElementById('scan-flash');
+        fl.classList.add('lit');
+        setTimeout(() => fl.classList.remove('lit'), 200);
+
+        await processBarcode(rawValue);
+
+    } catch (e) {
+        console.warn('ZXing decode:', e);
+        toast('Kein Barcode erkannt – Foto nochmal versuchen oder EAN manuell eingeben');
+        document.getElementById('scan-status').textContent = 'Nicht erkannt – nochmal versuchen';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // PHOTO CAPTURE & CLAUDE VISION
 // ═══════════════════════════════════════════════════════════
 let currentPhotoBase64 = null;
 let currentPhotoMime   = 'image/jpeg';
 
 function capturePhoto() {
-    if (!activeKey()) {
+    if (!activeKeyForProvider(resolvedProvider())) {
         toast('Foto-Analyse benötigt einen API-Schlüssel → Einstellungen');
         showScreen('screen-settings');
         return;
@@ -2868,16 +3042,18 @@ function handlePhotoFile(input) {
 
 async function analyzePhoto() {
     if (!currentPhotoBase64) { toast('Kein Foto vorhanden'); return; }
-    const key = activeKey();
-    if (!key) { toast('API-Schlüssel fehlt → Einstellungen'); return; }
+    const provider = resolvedProvider();
+    const key      = activeKeyForProvider(provider);
+    if (!key) { toast('API-Schlüssel fehlt → Einstellungen'); showScreen('screen-settings'); return; }
 
+    gcTrack('scan_photo');
     showScreen('screen-loading');
-    setLoad('KI liest Zutatenliste…', aiProvider === 'mistral' ? 'Pixtral Vision' : 'Claude Vision');
+    setLoad('KI liest Zutatenliste…', provider === 'mistral' ? 'Pixtral Vision' : 'Claude Vision');
 
     try {
         let extracted = '';
 
-        if (aiProvider === 'mistral') {
+        if (provider === 'mistral') {
             // ── Mistral Pixtral Vision ──────────────────────
             const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
                 method: 'POST',
@@ -2945,6 +3121,7 @@ async function analyzePhoto() {
 // PRODUCT LOOKUP (Open Food Facts)
 // ═══════════════════════════════════════════════════════════
 async function processBarcode(barcode) {
+    gcTrack('scan_barcode');
     stopTracks();
     showScreen('screen-loading');
     setLoad('Produkt wird gesucht…', barcode);
@@ -2954,7 +3131,7 @@ async function processBarcode(barcode) {
 
     try {
         const urls = [
-            `https:,//de.openfoodfacts.org/api/v0/product/${barcode}.json`
+            `https://de.openfoodfacts.org/api/v0/product/${barcode}.json`,
             `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
         ];
         for (const url of urls) {
@@ -3021,8 +3198,8 @@ async function runAnalysis(product, ingredientsText) {
         }
     }
 
-    if (stillUnknown.length > 0 && activeKey()) {
-        setLoad(`KI analysiert ${stillUnknown.length} neue Zutat${stillUnknown.length > 1 ? 'en' : ''}…`, aiProvider === 'mistral' ? 'Mistral Small' : 'Claude Sonnet');
+    if (stillUnknown.length > 0 && activeKeyForProvider(resolvedProvider())) {
+        setLoad(`KI analysiert ${stillUnknown.length} neue Zutat${stillUnknown.length > 1 ? 'en' : ''}…`, resolvedProvider() === 'mistral' ? 'Mistral Small' : 'Claude Sonnet');
         const aiMap = await claudeAnalyze(stillUnknown);
         for (const item of analyzed) {
             if (item.cat === 'unknown' && aiMap[item.name]) {
@@ -6292,7 +6469,8 @@ function classifyIngredient(name) {
 // KI-ANALYSE (Anthropic Claude oder Mistral)
 // ═══════════════════════════════════════════════════════════
 async function claudeAnalyze(ingredients) {
-    const key = activeKey();
+    const provider = resolvedProvider();
+    const key      = activeKeyForProvider(provider);
     if (!key) return {};
 
     const prompt = `Du bist Ernährungsexperte für Histaminunverträglichkeit (HIT).
@@ -6320,7 +6498,7 @@ Antworte AUSSCHLIESSLICH mit gültigem JSON (kein Markdown):
     try {
         let text = '';
 
-        if (aiProvider === 'mistral') {
+        if (provider === 'mistral') {
             // ── Mistral Small ────────────────────────────────
             const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
                 method: 'POST',
@@ -7840,6 +8018,7 @@ function setLoad(msg, sub) {
 async function analyzeManual() {
     const text = document.getElementById('manual-ta').value.trim();
     if (!text) { toast('Bitte Zutaten eingeben'); return; }
+    gcTrack('scan_manual');
     showScreen('screen-loading');
     await runAnalysis(null, text);
 }
