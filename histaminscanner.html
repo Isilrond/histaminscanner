@@ -1,7 +1,5 @@
 <!DOCTYPE html>
-<htm    // ── Präfix-Stripping (muss zuerst!) ──
-    [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
-l lang="de">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -965,7 +963,8 @@ l lang="de">
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
-                <span style="font-size:0.72rem;opacity:0.7">Kein Ersatz für medizinische Beratung.</span>
+                <span style="font-size:0.72rem;opacity:0.7">Kein Ersatz für medizinische Beratung.</span><br>
+                <span style="font-size:0.72rem;opacity:0.55;margin-top:0.4rem;display:inline-block">Letzte Änderung: 05.05.2026 – 16:30</span>
             </div>
         </div>
     </div>
@@ -3257,7 +3256,8 @@ function parseIngredients(inputText) {
 
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
-        // ── "Xsaft/Xpüree aus Ykonzentrat" → "X" (ganz am Anfang, bevor andere Regeln feuern) ──
+        // ── Präfix-Stripping (muss zuerst!) ──
+        [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
         // ── Dish names (must come before generic ingredient norms) ──
         // ── Suppen (Compound X+suppe → Grundzutat) ──
         // ── HOLY Iced Tea spezifisch ──
