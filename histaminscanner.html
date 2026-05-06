@@ -969,6 +969,8 @@
         </div>
     </div>
 
+    <div id="provider-indicator" style="text-align:center;font-size:0.8rem;padding:0.5rem 1rem;opacity:0.9"></div>
+
     <button class="btn-save" onclick="saveSettings()">Einstellungen speichern</button>
 </div>
 
@@ -2762,7 +2764,7 @@ let aiProvider  = localStorage.getItem('hs_provider')     || 'anthropic';
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
 function showScreen(id) {
-    if (id === 'screen-settings') setTimeout(updateCacheStats, 50);
+    if (id === 'screen-settings') { setTimeout(updateCacheStats, 50); setTimeout(updateProviderIndicator, 50); }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     // Textarea leeren wenn man zur Startseite zurückgeht
@@ -2778,6 +2780,7 @@ function showScreen(id) {
 document.getElementById('api-key-inp').value    = apiKey;
 document.getElementById('mistral-key-inp').value = mistralKey;
 selectProvider(aiProvider);   // sync UI on load
+setTimeout(updateProviderIndicator, 100);
 
 function selectProvider(p) {
     aiProvider = p;
@@ -2790,11 +2793,35 @@ function selectProvider(p) {
 function saveSettings() {
     apiKey     = document.getElementById('api-key-inp').value.trim();
     mistralKey = document.getElementById('mistral-key-inp').value.trim();
+
+    // Auto-Auswahl: wenn nur ein Key vorhanden ist, Provider automatisch setzen
+    if (mistralKey && !apiKey) {
+        selectProvider('mistral');
+    } else if (apiKey && !mistralKey) {
+        selectProvider('anthropic');
+    }
+    // Wenn beide oder keiner: Toggle-Auswahl des Users bleibt
+
     localStorage.setItem('hs_api_key',     apiKey);
     localStorage.setItem('hs_mistral_key', mistralKey);
     localStorage.setItem('hs_provider',    aiProvider);
+    updateProviderIndicator();
     toast('Einstellungen gespeichert ✓');
     showScreen('screen-home');
+}
+
+function updateProviderIndicator() {
+    const el = document.getElementById('provider-indicator');
+    if (!el) return;
+    const p = resolvedProvider();
+    const hasKey = activeKeyForProvider(p);
+    if (!hasKey) {
+        el.textContent = '⚠️ Kein API-Schlüssel hinterlegt';
+        el.style.color = '#ff6b6b';
+    } else {
+        el.textContent = `Aktiver Anbieter: ${p === 'mistral' ? 'Mistral AI ✓' : 'Claude (Anthropic) ✓'}`;
+        el.style.color = '#00d4aa';
+    }
 }
 
 function activeKey() {
