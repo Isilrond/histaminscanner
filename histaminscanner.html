@@ -959,7 +959,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v1.2<br>
+                Histaminscanner v1.3<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3123,19 +3123,12 @@ async function analyzePhoto() {
                 })
             });
             const data = await res.json();
-            console.log('Mistral API response:', JSON.stringify(data));
             if (data.error) {
                 toast(`Mistral Fehler: ${data.error.message || JSON.stringify(data.error)}`);
-                document.getElementById('manual-ta').value = 'API-FEHLER:\n' + JSON.stringify(data, null, 2);
-                showScreen('screen-manual');
+                showScreen('screen-photo');
                 return;
             }
             extracted = data.choices?.[0]?.message?.content?.trim() || '';
-            if (!extracted) {
-                document.getElementById('manual-ta').value = 'LEERE ANTWORT:\n' + JSON.stringify(data, null, 2);
-                showScreen('screen-manual');
-                return;
-            }
 
         } else {
             // ── Anthropic Claude Vision ─────────────────────
@@ -3163,7 +3156,7 @@ async function analyzePhoto() {
         }
 
         if (!extracted) {
-            toast('Keine Zutaten erkannt – API hat leere Antwort geliefert. Konsole prüfen.');
+            toast('Keine Zutaten erkannt – bitte deutlicheres Foto');
             showScreen('screen-photo');
             return;
         }
