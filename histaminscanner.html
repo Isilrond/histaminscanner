@@ -1047,14 +1047,6 @@
             </svg>
             Neues Foto aufnehmen
         </button>
-
-        <button class="btn-torch" id="btn-torch-photo" onclick="toggleTorch('photo')" style="display:none;margin:0 auto">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18h6M10 22h4M12 2v1M4.22 4.22l.7.7M1 12h1M23 12h-1M19.07 4.93l-.7.7"/>
-                <path d="M9 9a3 3 0 1 1 6 0c0 1.5-.8 2.5-2 3.5V15h-2v-2.5C9.8 11.5 9 10.5 9 9z"/>
-            </svg>
-            Licht ein/aus
-        </button>
     </div>
 </div>
 
@@ -2781,7 +2773,6 @@ let detecting   = false;
 let barcodeDetector = null;
 let zxingLoaded = false;
 let torchOn     = false;
-let torchStream = null; // separater Stream für Foto-Screen Torch
 
 // ── GoatCounter: custom event helper ──────────────────────
 function gcTrack(eventName) {
@@ -2794,32 +2785,22 @@ function gcTrack(eventName) {
 
 // ── Taschenlampe ──────────────────────────────────────────
 async function toggleTorch(context) {
+    if (context !== 'scanner') return; // Foto: nativer Kamera-Blitz zuständig
     torchOn = !torchOn;
-    const btnId = context === 'scanner' ? 'btn-torch-scanner' : 'btn-torch-photo';
-    const btn   = document.getElementById(btnId);
+    const btn = document.getElementById('btn-torch-scanner');
     if (btn) btn.classList.toggle('on', torchOn);
 
     try {
-        if (context === 'scanner' && mediaStream) {
-            // Barcode-Screen: bestehenden Stream nutzen
-            const track = mediaStream.getVideoTracks()[0];
-            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-
-        } else if (context === 'photo') {
-            // Foto-Screen: separaten Stream nur für Torch öffnen/schließen
-            if (torchOn) {
-                torchStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-                const track = torchStream.getVideoTracks()[0];
-                await track.applyConstraints({ advanced: [{ torch: true }] });
-            } else {
-                if (torchStream) {
-                    torchStream.getTracks().forEach(t => t.stop());
-                    torchStream = null;
-                }
-            }
+        if (!mediaStream) return;
+        const track = mediaStream.getVideoTracks()[0];
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        if (!capabilities.torch) {
+            toast('Taschenlampe wird von diesem Gerät nicht unterstützt');
+            torchOn = false;
+            if (btn) btn.classList.remove('on');
+            return;
         }
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
     } catch (e) {
         toast('Taschenlampe nicht verfügbar');
         torchOn = false;
@@ -2828,15 +2809,9 @@ async function toggleTorch(context) {
 }
 
 function stopTorchStream() {
-    if (torchStream) {
-        torchStream.getTracks().forEach(t => t.stop());
-        torchStream = null;
-    }
     torchOn = false;
     const b1 = document.getElementById('btn-torch-scanner');
-    const b2 = document.getElementById('btn-torch-photo');
     if (b1) b1.classList.remove('on');
-    if (b2) b2.classList.remove('on');
 }
 let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
@@ -2868,9 +2843,6 @@ function showScreen(id) {
                 el.style.color = '';
             }
         }
-        // Torch-Button nur bei Secure Context anzeigen
-        const torchBtn = document.getElementById('btn-torch-photo');
-        if (torchBtn) torchBtn.style.display = window.isSecureContext ? 'flex' : 'none';
     }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -2996,7 +2968,8 @@ async function startScanner() {
             video: {
                 facingMode: { ideal: 'environment' },
                 width:  { ideal: 1920 },
-                height: { ideal: 1080 }
+                height: { ideal: 1080 },
+                advanced: [{ torch: false }]
             }
         });
 
@@ -3187,7 +3160,6 @@ async function analyzePhoto() {
     if (!key) { toast('API-Schlüssel fehlt → Einstellungen öffnen und speichern'); showScreen('screen-settings'); return; }
 
     gcTrack('scan_photo');
-    stopTorchStream();
     showScreen('screen-loading');
     setLoad('KI liest Zutatenliste…', provider === 'mistral' ? 'Pixtral Vision' : 'Claude Vision');
 
