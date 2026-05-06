@@ -964,7 +964,7 @@
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
                 <span style="font-size:0.72rem;opacity:0.7">Kein Ersatz für medizinische Beratung.</span><br>
-                <span style="font-size:0.72rem;opacity:0.55;margin-top:0.4rem;display:inline-block">Letzte Änderung: 06.05.2026 – 15:10</span>
+                <span style="font-size:0.72rem;opacity:0.55;margin-top:0.4rem;display:inline-block">Letzte Änderung: 06.05.2026 – 15:30</span>
             </div>
         </div>
     </div>
@@ -1002,7 +1002,7 @@
         </div>
 
         <div class="photo-info">
-            <strong>🤖 Claude KI liest die Zutatenliste</strong>
+            <strong id="photo-ai-hint">🤖 KI liest die Zutatenliste</strong>
             Die KI erkennt den Text automatisch — auch bei schlechter Beleuchtung oder schrägen Winkeln.
             Stelle sicher, dass die Zutatenliste vollständig im Bild ist.
         </div>
@@ -2765,6 +2765,28 @@ let aiProvider  = localStorage.getItem('hs_provider')     || 'anthropic';
 // ═══════════════════════════════════════════════════════════
 function showScreen(id) {
     if (id === 'screen-settings') { setTimeout(updateCacheStats, 50); setTimeout(updateProviderIndicator, 50); }
+    if (id === 'screen-photo') {
+        // frisch aus localStorage lesen — sicherer als JS-Variable
+        const mk = localStorage.getItem('hs_mistral_key') || '';
+        const ck = localStorage.getItem('hs_api_key')     || '';
+        const el = document.getElementById('photo-ai-hint');
+        if (el) {
+            if (!mk && !ck) {
+                el.textContent = '⚠️ Kein API-Schlüssel gespeichert → Einstellungen';
+                el.style.color = '#ff6b6b';
+            } else if (mk && !ck) {
+                el.textContent = '⚡ Mistral (Pixtral) liest die Zutatenliste';
+                el.style.color = '';
+            } else if (ck && !mk) {
+                el.textContent = '🤖 Claude Vision liest die Zutatenliste';
+                el.style.color = '';
+            } else {
+                const p = resolvedProvider();
+                el.textContent = p === 'mistral' ? '⚡ Mistral (Pixtral) liest die Zutatenliste' : '🤖 Claude Vision liest die Zutatenliste';
+                el.style.color = '';
+            }
+        }
+    }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     // Textarea leeren wenn man zur Startseite zurückgeht
@@ -3065,9 +3087,14 @@ function handlePhotoFile(input) {
 
 async function analyzePhoto() {
     if (!currentPhotoBase64) { toast('Kein Foto vorhanden'); return; }
+
+    // Keys frisch aus localStorage lesen (sicherer als JS-Variable bei neuem Origin)
+    apiKey     = localStorage.getItem('hs_api_key')     || '';
+    mistralKey = localStorage.getItem('hs_mistral_key') || '';
+
     const provider = resolvedProvider();
     const key      = activeKeyForProvider(provider);
-    if (!key) { toast('API-Schlüssel fehlt → Einstellungen'); showScreen('screen-settings'); return; }
+    if (!key) { toast('API-Schlüssel fehlt → Einstellungen öffnen und speichern'); showScreen('screen-settings'); return; }
 
     gcTrack('scan_photo');
     showScreen('screen-loading');
@@ -6493,6 +6520,8 @@ function classifyIngredient(name) {
 // KI-ANALYSE (Anthropic Claude oder Mistral)
 // ═══════════════════════════════════════════════════════════
 async function claudeAnalyze(ingredients) {
+    apiKey     = localStorage.getItem('hs_api_key')     || '';
+    mistralKey = localStorage.getItem('hs_mistral_key') || '';
     const provider = resolvedProvider();
     const key      = activeKeyForProvider(provider);
     if (!key) return {};
