@@ -959,7 +959,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v1.3<br>
+                Histaminscanner v1.4<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3172,6 +3172,56 @@ async function analyzePhoto() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ÜBERSETZUNG (Zutaten → Deutsch via Mistral)
+// ═══════════════════════════════════════════════════════════
+async function translateIngredients(text) {
+    const mk = localStorage.getItem('hs_mistral_key') || '';
+    const ck = localStorage.getItem('hs_api_key')     || '';
+    if (!mk && !ck) return text; // kein Key → Original zurückgeben
+
+    try {
+        setLoad('Zutaten werden übersetzt…', 'Mistral');
+        const provider = mk ? 'mistral' : 'anthropic';
+        const key      = mk || ck;
+
+        let translated = '';
+
+        if (provider === 'mistral') {
+            const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({
+                    model: 'mistral-small-latest',
+                    max_tokens: 500,
+                    messages: [{ role: 'user', content:
+                        `Übersetze diese Zutatenliste ins Deutsche. Gib NUR die übersetzte Liste zurück, keine Erklärungen:\n${text}` }]
+                })
+            });
+            const d = await res.json();
+            translated = d.choices?.[0]?.message?.content?.trim() || '';
+        } else {
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 500,
+                    messages: [{ role: 'user', content:
+                        `Übersetze diese Zutatenliste ins Deutsche. Gib NUR die übersetzte Liste zurück, keine Erklärungen:\n${text}` }]
+                })
+            });
+            const d = await res.json();
+            translated = d.content?.[0]?.text?.trim() || '';
+        }
+
+        return translated || text; // Fallback auf Original wenn Übersetzung leer
+    } catch (e) {
+        console.warn('Übersetzung fehlgeschlagen:', e);
+        return text;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // PRODUCT LOOKUP (Open Food Facts)
 // ═══════════════════════════════════════════════════════════
 async function processBarcode(barcode) {
@@ -3193,10 +3243,14 @@ async function processBarcode(barcode) {
             const d = await r.json();
             if (d.status === 1 && d.product) {
                 product = d.product;
-                ingredientsText =
-                    product.ingredients_text_de ||
-                    product.ingredients_text    ||
-                    product.ingredients_text_en || '';
+                const de = product.ingredients_text_de || '';
+                const any = product.ingredients_text || product.ingredients_text_en || '';
+                if (de) {
+                    ingredientsText = de;
+                } else if (any) {
+                    // Kein deutsches Feld → Mistral übersetzen lassen
+                    ingredientsText = await translateIngredients(any);
+                }
                 break;
             }
         }
