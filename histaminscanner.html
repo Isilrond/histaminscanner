@@ -275,6 +275,25 @@
             text-align: center; max-width: 240px; line-height: 1.5;
         }
 
+        /* ── Torch / Taschenlampe ── */
+        .btn-torch {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 20px;
+            color: rgba(255,255,255,0.7);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.82rem; font-weight: 500;
+            padding: 0.45rem 1rem;
+            cursor: pointer; transition: background 0.18s, color 0.18s;
+        }
+        .btn-torch.on {
+            background: rgba(255,220,50,0.18);
+            border-color: rgba(255,220,50,0.5);
+            color: #ffd632;
+        }
+        .btn-torch svg { flex-shrink: 0; }
+
         /* ─────────────────── LOADING ─────────────────── */
         #screen-loading {
             align-items: center; justify-content: center;
@@ -803,6 +822,13 @@
     <div class="scanner-ui">
         <div class="scan-topbar">
             <span class="scan-title">Barcode scannen</span>
+            <button class="btn-torch" id="btn-torch-scanner" onclick="toggleTorch('scanner')" style="display:none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 18h6M10 22h4M12 2v1M4.22 4.22l.7.7M1 12h1M23 12h-1M19.07 4.93l-.7.7"/>
+                    <path d="M9 9a3 3 0 1 1 6 0c0 1.5-.8 2.5-2 3.5V15h-2v-2.5C9.8 11.5 9 10.5 9 9z"/>
+                </svg>
+                Licht
+            </button>
             <button class="btn-cancel-scan" onclick="stopScanner()">Abbrechen</button>
         </div>
 
@@ -959,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v1.4<br>
+                Histaminscanner v1.5<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1020,6 +1046,14 @@
                 <circle cx="12" cy="13" r="4"/>
             </svg>
             Neues Foto aufnehmen
+        </button>
+
+        <button class="btn-torch" id="btn-torch-photo" onclick="toggleTorch('photo')" style="display:none;margin:0 auto">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18h6M10 22h4M12 2v1M4.22 4.22l.7.7M1 12h1M23 12h-1M19.07 4.93l-.7.7"/>
+                <path d="M9 9a3 3 0 1 1 6 0c0 1.5-.8 2.5-2 3.5V15h-2v-2.5C9.8 11.5 9 10.5 9 9z"/>
+            </svg>
+            Licht ein/aus
         </button>
     </div>
 </div>
@@ -2746,6 +2780,8 @@ let mediaStream = null;
 let detecting   = false;
 let barcodeDetector = null;
 let zxingLoaded = false;
+let torchOn     = false;
+let torchStream = null; // separater Stream für Foto-Screen Torch
 
 // ── GoatCounter: custom event helper ──────────────────────
 function gcTrack(eventName) {
@@ -2754,6 +2790,53 @@ function gcTrack(eventName) {
             window.goatcounter.count({ path: eventName, event: true });
         }
     } catch (e) { /* noop */ }
+}
+
+// ── Taschenlampe ──────────────────────────────────────────
+async function toggleTorch(context) {
+    torchOn = !torchOn;
+    const btnId = context === 'scanner' ? 'btn-torch-scanner' : 'btn-torch-photo';
+    const btn   = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('on', torchOn);
+
+    try {
+        if (context === 'scanner' && mediaStream) {
+            // Barcode-Screen: bestehenden Stream nutzen
+            const track = mediaStream.getVideoTracks()[0];
+            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+
+        } else if (context === 'photo') {
+            // Foto-Screen: separaten Stream nur für Torch öffnen/schließen
+            if (torchOn) {
+                torchStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                const track = torchStream.getVideoTracks()[0];
+                await track.applyConstraints({ advanced: [{ torch: true }] });
+            } else {
+                if (torchStream) {
+                    torchStream.getTracks().forEach(t => t.stop());
+                    torchStream = null;
+                }
+            }
+        }
+    } catch (e) {
+        toast('Taschenlampe nicht verfügbar');
+        torchOn = false;
+        if (btn) btn.classList.remove('on');
+    }
+}
+
+function stopTorchStream() {
+    if (torchStream) {
+        torchStream.getTracks().forEach(t => t.stop());
+        torchStream = null;
+    }
+    torchOn = false;
+    const b1 = document.getElementById('btn-torch-scanner');
+    const b2 = document.getElementById('btn-torch-photo');
+    if (b1) b1.classList.remove('on');
+    if (b2) b2.classList.remove('on');
 }
 let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
@@ -2785,8 +2868,10 @@ function showScreen(id) {
                 el.style.color = '';
             }
         }
+        // Torch-Button nur bei Secure Context anzeigen
+        const torchBtn = document.getElementById('btn-torch-photo');
+        if (torchBtn) torchBtn.style.display = window.isSecureContext ? 'flex' : 'none';
     }
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     // Textarea leeren wenn man zur Startseite zurückgeht
     if (id === 'screen-home') {
@@ -2924,6 +3009,9 @@ async function startScanner() {
 
         document.getElementById('scan-status').textContent = 'Barcode suchen…';
         detecting = true;
+        // Torch-Button einblenden wenn Kamera läuft
+        const torchBtn = document.getElementById('btn-torch-scanner');
+        if (torchBtn) torchBtn.style.display = 'flex';
         scanLoop();
 
     } catch (err) {
@@ -2967,7 +3055,9 @@ function stopScanner() {
         mediaStream.getTracks().forEach(t => t.stop());
         mediaStream = null;
     }
-    // Capture-Mode-Klasse entfernen für nächste Verwendung
+    stopTorchStream();
+    const torchBtn = document.getElementById('btn-torch-scanner');
+    if (torchBtn) torchBtn.style.display = 'none';
     document.getElementById('screen-scanner').classList.remove('capture-mode');
     showScreen('screen-home');
 }
@@ -3096,6 +3186,7 @@ async function analyzePhoto() {
     if (!key) { toast('API-Schlüssel fehlt → Einstellungen öffnen und speichern'); showScreen('screen-settings'); return; }
 
     gcTrack('scan_photo');
+    stopTorchStream();
     showScreen('screen-loading');
     setLoad('KI liest Zutatenliste…', provider === 'mistral' ? 'Pixtral Vision' : 'Claude Vision');
 
