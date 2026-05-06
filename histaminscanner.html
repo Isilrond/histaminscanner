@@ -2872,6 +2872,7 @@ function showScreen(id) {
         const torchBtn = document.getElementById('btn-torch-photo');
         if (torchBtn) torchBtn.style.display = window.isSecureContext ? 'flex' : 'none';
     }
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     // Textarea leeren wenn man zur Startseite zurückgeht
     if (id === 'screen-home') {
