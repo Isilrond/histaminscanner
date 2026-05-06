@@ -964,7 +964,7 @@
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
                 <span style="font-size:0.72rem;opacity:0.7">Kein Ersatz für medizinische Beratung.</span><br>
-                <span style="font-size:0.72rem;opacity:0.55;margin-top:0.4rem;display:inline-block">Letzte Änderung: 05.05.2026 – 16:30</span>
+                <span style="font-size:0.72rem;opacity:0.55;margin-top:0.4rem;display:inline-block">Letzte Änderung: 06.05.2026 – 15:10</span>
             </div>
         </div>
     </div>
@@ -2828,17 +2828,14 @@ function activeKey() {
     return aiProvider === 'mistral' ? mistralKey : apiKey;
 }
 
-// Gibt den tatsächlich nutzbaren Provider zurück (Fallback wenn primärer Key fehlt)
+// Gibt den tatsächlich nutzbaren Provider zurück — rein Key-basiert
 function resolvedProvider() {
-    if (aiProvider === 'mistral') {
-        if (mistralKey) return 'mistral';
-        if (apiKey)     { toast('Kein Mistral-Key – nutze Claude als Fallback'); return 'anthropic'; }
-        return 'mistral'; // beide leer → normaler Fehler
-    } else {
-        if (apiKey)     return 'anthropic';
-        if (mistralKey) { toast('Kein Claude-Key – nutze Mistral als Fallback'); return 'mistral'; }
-        return 'anthropic';
-    }
+    const hasClaude  = !!apiKey;
+    const hasMistral = !!mistralKey;
+    if (hasClaude && hasMistral) return aiProvider; // beide vorhanden → Toggle entscheidet
+    if (hasMistral) return 'mistral';
+    if (hasClaude)  return 'anthropic';
+    return aiProvider; // keiner → Fehler kommt sowieso
 }
 
 function activeKeyForProvider(p) {
