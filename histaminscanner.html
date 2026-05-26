@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v3.5<br>
+                Histaminscanner v4.8<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1208,7 +1208,7 @@ const DB = {
         'seitan','weizengluten','gluten',  // S3 — konzentriertes Weizenprotein
         'schinken','kochschinken','hinterschinken',
         'fischfond',
-        'tintenfisch',
+        'krustentierfond','krustentierextrakt','krustentierpaste', // S3 — konzentrierte Schalen+Tomaten
         'muschel','muscheln',
         'brühe','fleischbrühe','rindfleischextrakt','geflügelextrakt',  // S2-3
         'garnele','königsgarnele','tigergarnele','riesengarnele',  // S2-3 singular forms
@@ -1263,6 +1263,8 @@ const DB = {
     // HISTAMINLIBERATOREN — regen Histaminausschüttung an
     // ═══════════════════════════════════════════════════════
     liberator: [
+        // ── Gewürze Liberatoren ──
+        'sumach','sumak',                               // S1-2 Liberator — war fälschlich in safe_hints
         // ── Obst ──
         'erdbeere','erdbeer','strawberry','wild strawberry',
         'himbeere','himbeer','raspberry','brombeere','blackberry',
@@ -1851,6 +1853,7 @@ const DB = {
         'sauerkirsche','sour cherry','morello',
         'kochschinken','cooked ham',
         'buschbohnen','grüne bohnen','french beans','haricots verts',
+        'romanobohnen','romano bohnen','breite bohnen','flachbohnen',  // S0 grüne Bohnen-Variante
         'glukosesirup','glucosesirup','glucose-fructose-sirup','invertzuckersirup','rohrzuckersirup',
         'natriumhydrogencarbonat','natron','backnatron','e500','natriumcarbonat','natriumcarbonate',
         'ammoniumcarbonat','e503','diphosphat','e450',
@@ -2081,7 +2084,7 @@ const DB = {
         'kräuter','kräutermischung','gummi','e425','konjak','vanillin',
         'ethylvanille','ethylvanillin','vanille','vanillin',  // Vanillin S1
         'kräuter','kräutermischung','kräutermischungen',
-        'lab','mikrobielles lab','tierisches lab',      // S0 Enzymmittel
+        'lab','mikrobielles lab','tierisches lab','labaustauschstoff','mikrobieller labaustauschstoff',  // S0 Enzymmittel
         'milchsäurekulturen','käsereikulturen','fermentationskultur',  // S0
         'gouda','cheddar','emmentaler',                 // S2-3 Hartkäse → via parmesan norm
         'pastinake','pastinaken',                       // S0
@@ -2136,9 +2139,12 @@ const DB = {
         'e576','natriumgluconat',                       // S0
         'e577','kaliumgluconat',                        // S0
         'e578','calciumgluconat',                       // S0
+        'e261','kaliumacetat','e262','natriumacetat',   // S0 Säureregulatoren
+        'e350','natriummalat','e351','kaliummalat','e352','calciummalat',  // S0
         'e579','eisen(ii)-gluconat','eisengluconat',    // S0 (Olivenschwärzen)
         'e585','eisen(ii)-lactat','eisenlactat',        // S0
         'e586','4-hexylresorcin',                       // S0 (Krebstiere)
+        'e385','edta','calciumdinatrium-edta',          // S0 Antioxidans/Stabilisator
         'e553a','magnesiumsilicat','e553b','talkum',    // S0
         'e504ii','magnesiumhydrogencarbonat',           // S0
         'e514ii','natriumhydrogensulfat',               // S0
@@ -3550,7 +3556,7 @@ function parseIngredients(inputText) {
         [/\bbirnen?\b(?!\s*(?:saft|mark|nektar))/gi, 'birne'],
         // ── Käse-Schmelzsalze ──
         [/\bschmelzsalze?\b|\bschmelzkäsezubereitung\b/gi, 'e450'],
-        [/\bmilcheiweiß\b|\bmilcheiweis\b|\bmilchprotein\b(?!\s+\w)/gi, 'milchprotein'],
+        [/\bmilcheiweiß\b|\bmilcheiweis\b|\bmilcheiweib\b|\bmilchprotein\b(?!\s+\w)/gi, 'milchprotein'],
         [/\be452\b|\bpolyphosphat\b|\bnatriumpolyphosphat\b/gi, 'e452'],
         // ── Bärlauch ──
         [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'kräuter'],
@@ -3568,6 +3574,12 @@ function parseIngredients(inputText) {
         [/\bcreatin(?:-monohydrat)?\b|\bkreatin\b/gi, 'vitamine'],
         [/\bl-leucin\b|\bl-isoleucin\b|\bl-valin\b|\bbcaa\b/gi, 'vitamine'],
         [/\bl-glutamin\b|\bl-arginin\b|\bl-lysin\b|\bl-\w+\b/gi, 'vitamine'],  // Aminosäuren
+        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'vitamine'],              // S0 – Stoffwechselprodukt
+        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'vitamine'], // S0 – Aminosäurederivat
+        [/\bzitronenzellen\b|\blemon\s*cells?\b/gi, 'zitrone'],                 // Trübungsmittel aus Zitrone → liberator
+        [/\bzitronenfruchtfleisch\b|\blemon\s*flesh\b|\bzitronenmark\b/gi, 'zitrone'],  // Fruchtfleisch → zitrone S1
+        [/\bkonzentrierter?\s+zitronensaft\b|\bkonzentrierter?\s+limettensaft\b/gi, 'zitrone'], // "konzentrierter Zitronensaft"
+        [/\bschwarzes?\s+karottensaft(?:konzentrat)?\b/gi, 'karotte'],          // "schwarzes Karottensaftkonzentrat"
         [/\bmaltodextri[n]?\b(?:\s+aus\s+\w+)?\b/gi, 'zucker'],             // inkl. Tippfehler 'maltodextin'
         [/\bcollagen(?:peptide?|protein)?\b|\bkollagen\b/gi, 'molke'],
         // ── Gewürze Spezifisch ──
@@ -3580,7 +3592,7 @@ function parseIngredients(inputText) {
         [/\bbohnenkraut\b|\bsavory\b/gi, 'kräuter'],
         [/\bliebstöckel\b|\bmaggi(?:kraut)?\b/gi, 'kräuter'],  // Liebstöckel ≠ Maggi Würze!
         // ── Couscous / Bulgur / Polenta ──
-        [/\bcouscous\b/gi, 'mehl'],
+        [/\bcouscous\b/gi, 'couscous'],
         [/\bbulgur\b/gi, 'mehl'],
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
@@ -3626,6 +3638,8 @@ function parseIngredients(inputText) {
         [/\bgeröstet\b\s*/gi, ''],
         [/\bgehobelt\b\s*/gi, ''],
         [/\bblanchiert[e]?\b\s*/gi, ''],
+        [/\bgeräucherte?[rmns]?\b\s*/gi, ''],                                    // "geräucherte Paprika" → "Paprika"
+        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
         [/\beisen-?iii-?\w+\b/gi, 'mineralstoffe'],
@@ -3687,6 +3701,11 @@ function parseIngredients(inputText) {
         [/\bmarzipan(?:masse|rohmasse|füllung)?\b/gi, 'marzipan'],
         // ── Kulturen weitere ──
         [/\bbifidobacterium\s+\w+\b|\bbifidus\b|\bLactobacillus\s+\w+\b/gi, 'kulturen'],
+        [/\breifungskulture?n?\b|\breifekulturen?\b|\bstarterkulturen?\b/gi, 'kulturen'],  // Wurst-Reifekulturen → safe
+        [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],       // Farbstoff → Liberator S1
+        [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
+        [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
+        [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
         [/\binulin\b|\bchicorée-inulin\b|\bfrukto(?:oligosaccharide|se)?\b/gi, 'inulin'],
         // ── Brot ──
         [/\broggenschrot\b|\bschrot\b(?!\s*\w{5})/gi, 'mehl'],
@@ -3740,7 +3759,7 @@ function parseIngredients(inputText) {
         [/\be491\b|\bsorbitanmonostearat\b/gi, 'e491'],
         [/\bsumach\b|\bsumak\b/gi, 'gewürze'],
         [/\bcayennepfeffer\b|\bcayenne\b/gi, 'gewürze'],
-        [/\bfenchelsamen?\b/gi, 'kräuter'],
+        [/\bfenchel(?:knolle|strunk|salat)?\b/gi, 'fenchel'],
         [/\bamaranth\b(?!\s*(?:farbstoff|e123))/gi, 'hafer'],  // Amaranth-Getreide S0
         [/\bhirse\b(?:brei|flocken|grütze|grieß)?\b/gi, 'hafer'],
         [/\bpuffweizen\b|\bpuffkorn\b|\bpuffreis\b|\bgepuffter\s+\w+\b/gi, 'hafer'],
@@ -3751,7 +3770,7 @@ function parseIngredients(inputText) {
         [/\bsubmolkenpulver\b/gi, 'molke'],                                    // Submolkenpulver → molke S0
         [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'essig'],       // Wein-Branntweinessig → essig S3
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
-        [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'mehl'],
+        [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'seitan'],
         [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
         [/\btaurin\b/gi, 'vitamine'],          // Aminosäure, S0
         [/\bguarana-?extrakt\b|\bguarana\b/gi, 'koffein'],  // = Koffeinquelle ⚠️
@@ -3771,7 +3790,7 @@ function parseIngredients(inputText) {
         [/\bnatriumchlorid\b/gi, 'salz'],
         // ── Keks-/Backwaren-spezifisch ──
         [/\bhirschhornsalz\b|\bammoniumcarbonat\b|\bbackammoniak\b|e503\b/gi, 'e503'],
-        [/\bpottasche\b|\bkaliumcarbonat\b|e501\b/gi, 'e501'],
+        [/\bpottasche\b|\bkaliumcarbonate?\b|e501\b/gi, 'e501'],
         [/\bzitronat\b|\bcitronat\b|\bzedernzucker\b/gi, 'zitronat'],  // eingelegte Zitronenschale S1
         [/\borangeat\b/gi, 'orangeat'],        // eingelegte Orangenschale S1
         [/\banis(?:samen?|pulver|korn)?\b/gi, 'gewürze'],
@@ -3992,6 +4011,8 @@ function parseIngredients(inputText) {
         [/\bkochschinken\b|\bpresschinken\b/gi, 'kochschinken'],
         [/\bnitritpökelsalz\b|\bpökelsalz\b|\bnitrit(?:salz)?\b/gi, 'pökelsalz'],
         [/\bpaprikaextrakt\b|\bpaprikaoleoresin\b/gi, 'gewürze'],
+        [/\bpaprikakonzentrat\b|\bpaprika(?:saft|püree)?konzentrat\b/gi, 'paprika'],   // Paprikakonzentrat → safe
+        [/\berdbeergranulat\b|\berdbeerpulver\b|\berdbeer(?:flocken|chips)\b/gi, 'erdbeere'], // → Liberator S1-2
         [/\bsauerrahm\b|\bsaure\s+sahne\b/gi, 'sahne'],
         [/\bcrème\s+fraîche\b|\bcreme\s+fraiche\b|\bcrèmefraîche\b/gi, 'sahne'],
         // ── Früchte & Säfte ──
@@ -4001,7 +4022,7 @@ function parseIngredients(inputText) {
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
         [/\bholunder(?:blüten?|beeren?|saft)?\b/gi, 'kräuter'],
         // ── Getreidezutaten ──
-        [/\bweizenprot(?:ein|ein)\b|\bweizengluten\b/gi, 'mehl'],
+        [/\bweizenprotein\b|\bweizengluten\b/gi, 'seitan'],
         [/\bweizenfasern?\b|\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
         [/\bvollkornreis\b|\bvollkornreismehl\b/gi, 'reis'],
         [/\bvollkornweizenmehl\b|\bvollkorndinkelmehl\b/gi, 'mehl'],
@@ -4154,7 +4175,7 @@ function parseIngredients(inputText) {
         [/\bgemüsemischung\b/gi, 'gemüse'],
         [/\bmorcheln?\b/gi, 'champignon'],
         [/\bpfifferlinge?\b/gi, 'champignon'],
-        [/\bsteinpilze?\b/gi, 'champignon'],
+        [/\bsteinpilze?\b/gi, 'steinpilz'],
         // ── Paniertes / Fritiertes ──
         [/\bzwiebelringe?\s*(?:paniert)?\b/gi, 'zwiebel'],
         [/\bmozzarella\s*sticks?\b/gi, 'mozzarella'],
@@ -4597,8 +4618,7 @@ function parseIngredients(inputText) {
         [/natürliches apfelsinenaroma\b/gi, 'orangenaroma'],
         [/natürliches butteraroma\b/gi, 'butteraroma'],
         [/butter.{0,3}aroma\b/gi, 'butteraroma'],
-        [/lecithine?\s*\(?soja\)?/gi, 'sojalecithin'],
-        [/sojalecithin\b/gi, 'sojalecithin'],
+        // sojalecithin/lecithin → consolidated to e322 above
         [/deaktivierte hefe\b/gi, 'hefeextrakt'],
         [/inaktivierte hefe\b/gi, 'hefeextrakt'],
         [/karamellisierter\s+zucker\b/gi, 'karamell'],
@@ -4677,10 +4697,8 @@ function parseIngredients(inputText) {
         [/butterreinfett\b/gi,            'butter'],
         [/molkenerzeugnis\b/gi,           'molke'],
         [/molkenpulver\b/gi,              'molke'],
-        [/sojalecithin\b/gi,              'lecithin'],
-        [/sojaalecithin\w*/gi,            'lecithin'],
-        [/lecithine?\b/gi,               'lecithin'],
-        [/lecithin\s+\w+/gi,              'lecithin'],  // 'lecithin soja' → 'lecithin'
+        // sojalecithin/lecithin → consolidated to e322
+        // lecithin soja variants → e322
 
         [/sojalecithine?\b/gi,            'lecithin'],
         [/vanillearoma\b/gi,              'vanille'],
@@ -4820,6 +4838,10 @@ function parseIngredients(inputText) {
         // Milch-Varianten
         [/molkenerzeugnis/gi,            'molke'],
         [/süßmolkenpulver/gi,            'molke'],
+        [/\bsüßmolke\b/gi,               'molke'],                                 // kondensierte Süßmolke
+        [/\bsolaprotein\b/gi,             'sojaprotein'],                           // Tippfehler für Sojaprotein
+        [/\bsaflorkonzentrat\b|\bsaflorfarbstoff\b/gi, 'saflor'],                  // Farbstoff → safe
+        [/\bzitronenkonzentrat\b/gi,      'zitrone'],                              // Zitronenkonzentrat → zitrone S1
         [/magermilchpulver/gi,           'magermilch'],
         [/vollmilchpulver/gi,            'milch'],
         [/milcheiweiss/gi,               'milch'],
@@ -4884,6 +4906,10 @@ function parseIngredients(inputText) {
         [/vollkorn-haferflocken/gi,       'haferflocken'],
         [/hartweizengriess|hartweizengrieß/gi, 'griess'],
         [/reismehl|maismehl|dinkelmehl|hafermehl/gi, 'mehl'],
+        [/\breisgrieß\b|\breisgries\b/gi, 'reis'],                                  // Reisgrieß → reis → safe
+        [/\btraubenkernextrakt\b|\btraubenkerneextrakt\b|\bgrape\s*seed\s*extract\b/gi, 'trauben'], // → Liberator S1
+        [/\bsojasaucenpulver\b|\bsojasoßenpulver\b/gi, 'sojasoße'],                // → high S3
+        [/\be385\b|\bedta\b|\bcalciumdinatrium-?edta\b/gi, 'e385'],                 // Antioxidans → safe
         [/basmatireis|jasminreis|parboiledreis/gi, 'reis'],
         [/trinkwasser/gi,                'wasser'],
         [/kartoffelpüreepulver/gi,       'kartoffel'],
@@ -4904,7 +4930,7 @@ function parseIngredients(inputText) {
         [/\s+(?:für die form|zum frittieren|zum braten|zum backen|zum aufschlagen|zum würzen|zum kochen|zum garnieren|zum belegen|zum bestreuen)\s*[.,]*$/gi, ''],
         [/schinkenwürfel|schinkenwürfeln/gi, 'schinken'],
         [/karamellsirup|karamelisirup/gi, 'karamellsirup'],
-        [/süßmolkenpulver/gi, 'süßmolke'],
+        // süßmolkenpulver → molke (consolidated)
         [/stickstoff\b|e941\b/gi, 'stickstoff'],
         [/meerrettichzubereitung/gi, 'meerrettich'],
         [/\s+und\/?oder\s+\w+/gi, ''],       // "Rapsöl und/oder Sonnenblumenöl" → "Rapsöl"
@@ -5303,6 +5329,9 @@ function parseIngredients(inputText) {
         [/\berythrosin\b|e127\b/gi, 'e127'],
         // ── Enzyme ──
         [/\bamylase[n]?\b/gi, 'amylase'],
+        [/\bhemicellulasen?\b|\bcellulasen?\b|\boxidasen?\b|\bxylanasen?\b|\blipasea?\b|\bprotease[n]?\b/gi, 'amylase'],  // Backmittel-Enzyme → safe S0
+        [/\berdnussmark\b|\bpeanut\s*(?:paste|mark)\b/gi, 'erdnuss'],           // Erdnussmark = Erdnussbutter → Liberator
+        [/\bapfelgranulat\b|\bapfel(?:flocken|gran)\b/gi, 'apfel'],             // Apfelgranulat → apfel → safe
         [/\bprotease[n]?\b/gi, 'protease'],
         [/\blactase\b/gi, 'lactase'],
         [/\binvertase\b|e1103\b/gi, 'e1103'],
@@ -5338,6 +5367,7 @@ function parseIngredients(inputText) {
         // ── Käse / Milch-Varianten ──
         [/\bkäsereikulturen\b|\bmilchsäurekulturen\b|\bfermentationskulturen?\b|\bfermentationskultur\b/gi, 'milchsäurekulturen'],
         [/\b(?:mikrobielles?|tierisches?|veganes?|lammlab|kalbslab)\s*lab\b|\blab\b(?!\s*\w)/gi, 'lab'],
+        [/\blabaustauschstoff\b|\bmikrobieller\s+labaustauschstoff\b/gi, 'lab'],  // S0 Enzym
         [/\bschafsmilch\b|\bstutenmilch\b|\bschafsmilchkäse\b/gi, 'milch'],
         [/\bgouda\b|\bcheddar\b|\bemmentaler\b|\bgauda\b/gi, 'gouda'],
         [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomate'],
@@ -5435,7 +5465,7 @@ function parseIngredients(inputText) {
         [/\bmolkenpermeatpulver\b/gi, 'molke'],
         // ── Glutamat-Varianten ──
         [/\bmonosodiumglutamat\b|\bmononatriumglutamat\b|\bmsg\b|e621\b/gi, 'glutamat'],
-        [/\bdinatrium-?5.?-?ribonukleotide?\b|\bdinatriuminosinat\b|e631\b|e627\b|e635\b/gi, 'e631'],
+        [/\bdinatrium-?5.?-?ribonuk(?:leotide?|leotid)\b|\bdinatriuminosinat\b|e631\b|e627\b|e635\b/gi, 'e631'],
         // ── Säureregulatoren (Plural-Kategorie ohne Klammer) ──
         [/\bsäureregulatoren?\s+e\d+/gi, 'e270'],   // "Säureregulatoren E270" → e270
         [/\bsäureregulatoren?\b(?!\s*\()/gi, ''],    // isoliert ohne Inhalt → entfernen
@@ -5767,7 +5797,7 @@ function parseIngredients(inputText) {
         [/\bmaiskleie\b|\breiskleie\b/gi, 'kleie'],
         // ── Backtriebmittel ──
         [/\bhirschhornsalz\b|\bammoniumcarbonat\b|e503\b/gi, 'hirschhornsalz'],
-        [/\bpottasche\b|\bkaliumcarbonat\b|e501\b/gi, 'backpulver'],
+        // pottasche/kaliumcarbonat → e501 (consolidated above)
         // ── Rauch/Flüssigrauch ──
         [/\bliquid\s+smoke\b|\bflüssig(?:rauch|er\s+rauch)\b/gi, 'rauchextrakt'],
         [/\brauchsalz\b/gi, 'salz'],                        // S0 (Salz mit Rauchgeschmack)
@@ -5920,7 +5950,7 @@ function parseIngredients(inputText) {
         [/\bsucuk\b|\bsujuk\b/gi, 'salami'],         // türkische Salami S3
         [/\bfuet\b|\bchorizo\b(?!\s*mild)/gi, 'salami'],
         [/\bprosciutto\b|\bserrano\b|\biberico\b/gi, 'schinken'],  // Rohschinken S3
-        [/\bguanciale\b|\blardo\b|\bpancetta\b/gi, 'schinken'],   // ital. gepökeltes S3
+        // guanciale/lardo/pancetta → rohschinken (consolidated below)
         [/\blandrauchschinken\b|\bkatenschinken\b|\bschwarzwälder\b/gi, 'schinken'],  // geräuchert S3
         [/\bgeflügelwurst\b|\bhähnchenwurst\b|\bputen(?:wurst|aufschnitt|schinken)?\b/gi, 'wurst'],
         [/\broastbeef\s*(?:aufgeschnitten|gebraten|kalt)?\b/gi, 'rindfleisch'],
@@ -7293,7 +7323,7 @@ const SIGHI_DB = {
         'kardamom','koriander','kümmel','echter kümmel',
         'kurkuma','gelbwurz','curcuma',
         'paprikapulver mild','paprikapulver edelsüß','mildes paprikapulver',
-        'sumach','sumak','schwarzkümmel',
+        'schwarzkümmel',
         'wacholderbeeren',
         'zimt','zimtstangen','zimtpulver',
         // ── Sicher: Essig S0 (histaminärmster) ──
@@ -8017,6 +8047,7 @@ const E_NAMES = {
     'e570':'Fettsäuren','e574':'Gluconsäure','e575':'Glucono-delta-Lacton',
     'e576':'Natriumgluconat','e577':'Kaliumgluconat','e578':'Calciumgluconat',
     'e579':'Eisen(II)-gluconat','e585':'Eisen(II)-lactat','e586':'4-Hexylresorcin',
+    'e385':'Calciumdinatrium-EDTA (Stabilisator)',
     'e951':'Aspartam','e952':'Cyclamat','e954':'Saccharin',
     'e941':'Stickstoff (Schutzgas)','e942':'Distickstoffmonoxid','e943a':'Propan','e944':'Propan/Butan','e948':'Sauerstoff',
     'e955':'Sucralose','e960':'Steviosid (Stevia)','e961':'Neotam',
@@ -8030,6 +8061,8 @@ const E_NAMES = {
     'e341':'Calciumphosphate','e340':'Kaliumphosphate','e339':'Natriumphosphate',
     'e333':'Calciumcitrate','e332':'Kaliumcitrate','e331':'Natriumcitrate',
     'e363':'Bernsteinsäure','e364':'Natriumsuccinat',
+    'e261':'Kaliumacetat','e262i':'Natriumacetat','e262ii':'Natriumdiacetat',
+    'e350':'Natriummalate','e351':'Kaliummalate','e352':'Calciummalate',
     'e450':'Diphosphate','e451':'Triphosphate','e452':'Polyphosphate',
     'e472e':'Mono- und Diacetylweinsäureester',
     'e471':'Mono- und Diglyceride von Speisefettsäuren',
@@ -8524,21 +8557,21 @@ document.addEventListener('visibilitychange', () => {
                 <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-secondary);margin-bottom:8px">☀️ Frühstück</div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
                     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Porridge <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;font-weight:500">Favorit</span></div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Haferflocken · ✅ Hafer-/Mandelmilch · ✅ Heidelbeeren frisch · ✅ Banane · ✅ Zimt, Vanille · ✅ Kürbiskerne</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Rosinen oder Trockenfrüchte — frisches Obst bevorzugen</div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Haferflocken · ✅ Hafer-/Mandelmilch · ✅ Heidelbeeren frisch (S1 mild) · ✅ Banane · ✅ Zimt, Vanille · ✅ Kürbiskerne</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Rosinen oder Trockenfrüchte — frisches Obst bevorzugen. Heidelbeeren in Maßen.</div>
                 </div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
                     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Müsli natur</div>
                     <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kölln Mühlenklassiker Basis/Nuss · ✅ Mandelmilch · ✅ geriebener Apfel · 🟡 Honig sparsam</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Früchte-Müsli, kein Joghurt-Himbeer</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Früchte-Müsli, kein Joghurt-Himbeer, kein Gerstenmalzextrakt!</div>
                 </div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
                     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Rührei auf Toast</div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Eier frisch · ✅ Butter/Ghee · ✅ Dinkel-/Vollkornbrot · ✅ Bärlauch oder Schnittlauch</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Immer frisch — kein aufgewärmtes Rührei</div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Eier frisch · ✅ Butter/Ghee · ✅ Dinkel-/Vollkornbrot (kein Sauerteig!) · ✅ Schnittlauch oder Bärlauch</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Immer frisch — kein aufgewärmtes Rührei. Kein Vollkornbrot mit Sauerteig.</div>
                 </div>
                 <div style="font-size:12px;color:var(--color-text-secondary);padding:8px 10px;border-left:3px solid var(--color-warning);border-radius:0 6px 6px 0;background:var(--color-bg)">
-                    <strong>Getränk:</strong> Rooibostee · Kamillentee · Zichorienkaffee · <em>kein Schwarztee, Kaffee oder Cola — alle hemmen DAO!</em>
+                    <strong>Getränk:</strong> Rooibostee · Kamillentee · Fencheltee · Zichorienkaffee · <em>kein Schwarztee, Kaffee oder Cola — alle hemmen DAO!</em>
                 </div>
             </div>
 
@@ -8551,22 +8584,22 @@ document.addEventListener('visibilitychange', () => {
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Hähnchen + Gemüse <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 5px;border-radius:4px;font-weight:500">Top</span></div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Hähnchenbrustfilet frisch · ✅ Brokkoli, Blumenkohl, Karotte · ✅ Kartoffeln oder Reis · ✅ Olivenöl, Rosmarin, Kurkuma</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Kühlregal-Hähnchen — immer frisch braten</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Kühlregal-Hähnchen — immer frisch braten. Kein Fertiggewürz.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Lachs frisch</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Lachsfilet frisch · ✅ Spargel oder Zucchini · ✅ Basmatireis · ✅ Zitronenschale · ✅ Dill frisch</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Räucherlachs, keine TK-Reste aufwärmen</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Lachsfilet frisch · ✅ Spargel oder Zucchini · ✅ Basmatireis · ✅ Zitronenschale (nicht -saft!) · ✅ Dill frisch</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Räucherlachs, keine TK-Reste aufwärmen. Zitronensaft sparsam.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Linsensuppe</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Rote/grüne Linsen · ✅ Karotte, Pastinake, Porree · ✅ selbst gekochte Gemüsebrühe · ✅ Kurkuma, Kümmel</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Fertigbrühe mit Hefeextrakt</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Fertigbrühe mit Hefeextrakt. Kein Essig, kein Tomatenmark!</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Pasta Kräutersoße</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkel-/Vollkornnudeln · ✅ Zucchini, Brokkoli, Spinat · ✅ Bärlauch oder Basilikum · ✅ Olivenöl</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Tomatensugo, kein Parmesan</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkel-/Vollkornnudeln · ✅ Zucchini, Brokkoli · ✅ Bärlauch oder Basilikum · ✅ Olivenöl · 🟡 Frischkäse</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Tomatensugo, kein Parmesan, kein Spinat (Liberator!).</div>
                     </div>
                 </div>
             </div>
@@ -8584,16 +8617,16 @@ document.addEventListener('visibilitychange', () => {
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Risotto mit Erbsen</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Arborio-Reis · ✅ Erbsen, Zucchini · ✅ selbst gekochte Gemüsebrühe · ✅ Olivenöl · 🟡 etwas Butter</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Weißwein — durch mehr Brühe ersetzen</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Weißwein — durch mehr Brühe ersetzen. Kein Parmesan.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Wraps mit Hähnchen</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelwrap · ✅ Hähnchen frisch · ✅ Feldsalat, Gurke, Paprika · ✅ Avocado · 🟡 Quark-Kräuter-Dip</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Senf, kein Ketchup, keine Fertigsauce</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelwrap · ✅ Hähnchen frisch · ✅ Feldsalat, Gurke, Paprika frisch · ✅ Quark-Kräuter-Dip</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Senf, kein Ketchup. Avocado nur sehr frisch und unreif — besser weglassen!</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Gemüsesuppe</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kürbis, Karotte, Pastinake · ✅ Kartoffeln · ✅ selbst gekochte Brühe · ✅ Ingwer, Kurkuma · ✅ Kokosmilch</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kürbis, Karotte, Pastinake · ✅ Kartoffeln · ✅ selbst gekochte Brühe · ✅ Ingwer, Kurkuma · 🟡 Kokosmilch in Maßen</div>
                     </div>
                 </div>
             </div>
@@ -8606,7 +8639,8 @@ document.addEventListener('visibilitychange', () => {
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Snacks unterwegs</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Reiswaffeln natur · ✅ Wasa/Finn Crisp · ✅ Cashews/Mandeln natur · ✅ Banane, Apfel, Heidelbeeren · 🟡 Nakd Cashew Bar</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Reiswaffeln natur · ✅ Wasa/Finn Crisp natur · ✅ Cashews/Mandeln natur · ✅ Banane, Apfel, Heidelbeeren · 🟡 Nakd Cashew Bar</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Chips mit Hefeextrakt, Käse oder Sour Cream. Keine Energy Drinks!</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Dips &amp; Aufstriche</div>
@@ -8630,13 +8664,14 @@ document.addEventListener('visibilitychange', () => {
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Fleisch &amp; Wurst</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.8">
-                            🔴 Salami, Sucuk, Chorizo, Fuet<br>
+                            🔴 Salami, Sucuk, Chorizo, Fuet, Pepperoni<br>
                             🔴 Bifi, Beef Jerky, Jack Links<br>
                             🔴 Rohschinken: Prosciutto, Serrano, Iberico, Schwarzwälder<br>
                             🔴 Leberwurst, Teewurst, Blutwurst, Leberkäse<br>
                             🔴 Innereien: Leber, Nieren, Kutteln<br>
                             🔴 Sülze, Presskopf, Schwartenmagen, Corned Beef<br>
-                            🔴 Döner-Fleisch, Gyros fertig
+                            🔴 Döner-Fleisch, Gyros fertig, Bacon/Speck gepökelt<br>
+                            🔴 Kochschinken mit E250 (Natriumnitrit!)
                         </div>
                     </div>
 
@@ -8648,30 +8683,34 @@ document.addEventListener('visibilitychange', () => {
                             🔴 Thunfisch Dose, Ölsardinen, Makrele Dose<br>
                             🔴 Kaviar, Seelachskaviar, Lumpenfischrogen<br>
                             🔴 Sprottenpaste, Sardellenpaste, Anchovis<br>
-                            🔴 Garnelen, Muscheln, Tintenfisch
+                            🔴 Garnelen, Muscheln, Tintenfisch, Hummer<br>
+                            🔴 Fischsauce, Austernsoße, Bouillabaisse
                         </div>
                     </div>
 
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
-                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Käse</div>
+                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Käse &amp; Milchprodukte</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.8">
                             🔴 Parmesan, Grana Padano, Pecorino<br>
                             🔴 Camembert, Brie, Münsterkäse, Limburger<br>
                             🔴 Blauschimmel: Roquefort, Gorgonzola, Stilton<br>
-                            🔴 Gouda alt, Cheddar, Gruyère<br>
-                            🔴 Obatzda, Tzatziki aus dem Supermarkt
+                            🔴 Gouda alt, Cheddar (gereift), Gruyère<br>
+                            🟠 Kefir, Sauerrahm, Crème fraîche (leicht fermentiert)<br>
+                            🔴 Obatzda, Tzatziki Supermarkt, Labneh, Ayran
                         </div>
                     </div>
 
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
-                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Saucen &amp; Fermentiertes</div>
+                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Saucen, Würze &amp; Fermentiertes</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.8">
                             🔴 Tomatenmark, Tomatensauce, Ketchup<br>
                             🔴 Sojasoße, Teriyaki, Worcestershire, Fischsoße<br>
-                            🔴 Essig aller Art: Balsamico, Weinessig, Apfelessig<br>
+                            🔴 Essig aller Art: Balsamico, Weinessig, Apfelessig, Branntweinessig<br>
                             🔴 Sauerkraut, Kimchi, eingelegte Gurken, Kapern<br>
                             🔴 Hoisin, Doubanjiang, XO-Sauce, Miso<br>
-                            🔴 Ajvar, Letscho, Tapenade, Kapernsud
+                            🔴 Ajvar, Letscho, Tapenade, Kapernsud<br>
+                            🔴 Hefeextrakt (Marmite, Cenovis, in Fertigsoßen!)<br>
+                            🔴 Glutamat (E621), E627, E631 — dreifacher DAO-Hemmer
                         </div>
                     </div>
 
@@ -8679,23 +8718,26 @@ document.addEventListener('visibilitychange', () => {
                         <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Getränke</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.8">
                             🔴 Rotwein, Weißwein, Sekt, Prosecco, Champagner<br>
-                            🔴 Bier, Dunkelbier, Weizenbier, Radler<br>
+                            🔴 Bier, Dunkelbier, Weizenbier, Radler, Malzbier<br>
+                            🔴 Sake, Mirin, alkohol. Reisgetränke<br>
                             🔴 Kombucha, Wasserkefir, Kvass<br>
                             🔴 Sherry, Madeira, Marsala, Portwein<br>
-                            ⚠️ Schwarztee, Kaffee, Espresso, Mate — DAO-Hemmer!<br>
-                            ⚠️ Cola, Pepsi, Energy Drinks — DAO-Hemmer!
+                            ⚠️ Schwarztee, Grüntee, Kaffee, Espresso, Mate — DAO-Hemmer!<br>
+                            ⚠️ Cola, Pepsi, Energy Drinks — Phosphorsäure + Koffein!
                         </div>
                     </div>
 
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
-                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Früchte, Snacks &amp; Süßes</div>
+                        <div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--color-high);margin-bottom:6px">Früchte, Snacks &amp; Fertigprodukte</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.8">
                             🔴 Tomaten (roh oder verarbeitet — immer S3!)<br>
-                            🔴 Getrocknete Feigen, Pflaumen, Aprikosen<br>
-                            🟠 Erdbeeren, Himbeeren, Ananas, Kiwi (Liberatoren)<br>
-                            🔴 Kölln Frucht-/Joghurt-Himbeer-Müsli<br>
-                            🔴 Schokoladenriegel, Nutella, Himbeermarmelade<br>
-                            🔴 Chips Sour Cream/Käse
+                            🔴 Avocado (S2-3 — steigt mit Reife!), Guacamole<br>
+                            🔴 Getrocknete Feigen, Pflaumen, Aprikosen (E220!)<br>
+                            🟠 Erdbeeren, Himbeeren, Ananas, Kiwi (Liberatoren S1-2)<br>
+                            🔴 Seitan, Weizengluten-Produkte (S3!)<br>
+                            🔴 Instant-Nudeln, Fix-Soßen (Glutamat + Hefeextrakt)<br>
+                            🔴 Chips mit Käse/Sour Cream/BBQ (Hefeextrakt!)<br>
+                            🔴 Schokoladenriegel, Nutella, Himbeermarmelade
                         </div>
                     </div>
 
@@ -8704,11 +8746,13 @@ document.addEventListener('visibilitychange', () => {
 
             <!-- Grundregeln -->
             <div style="background:var(--color-warning-bg,rgba(255,193,7,.1));border-radius:8px;padding:10px 12px;border-left:3px solid var(--color-warning)">
-                <div style="font-size:13px;font-weight:600;margin-bottom:6px">⚡ Die 3 wichtigsten Grundregeln</div>
+                <div style="font-size:13px;font-weight:600;margin-bottom:6px">⚡ Die 5 wichtigsten Grundregeln</div>
                 <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.9">
                     <strong>1. Frische über alles:</strong> Histamin steigt bei jedem Lagerungsschritt. Reste einfrieren statt kühlen.<br>
                     <strong>2. Brühe selbst kochen:</strong> Fertigbrühen haben fast alle Hefeextrakt — starker DAO-Hemmer.<br>
-                    <strong>3. Kein DAO-Hemmer morgens:</strong> Kaffee, Schwarztee und Cola vor dem Frühstück blockieren den Histaminabbau für Stunden.
+                    <strong>3. Kein DAO-Hemmer morgens:</strong> Kaffee, Schwarztee und Cola vor dem Frühstück blockieren den Histaminabbau für Stunden.<br>
+                    <strong>4. Zutatenlisten lesen:</strong> Branntweinessig, Tomatenmark, Hefeextrakt und E250 verstecken sich in fast allen Fertigprodukten.<br>
+                    <strong>5. Summationseffekt beachten:</strong> Auch S1-Zutaten können sich summieren — nicht alles auf einmal kombinieren!
                 </div>
             </div>
         </div>
