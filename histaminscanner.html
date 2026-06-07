@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.13<br>
+                Histaminscanner v5.16<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2435,6 +2435,11 @@ const DB = {
     
         'e331','trinatriumcitrat','natriumcitrat',  // S0 Säureregulator
         'aroma','aromen','aromastoffe','natürliches aroma','geschmacksgebender blend',  // S0 neutral
+        'vanillin','ethylvanillin','vanillearoma','natürliches vanillearoma',             // S0 sehr sicher (einfaches Molekül)
+        // Folgende Aromaformen sind bewusst NICHT in safe_hints — sie sind problematischer:
+        // aromaextrakt → dao_blocker (konzentrierte Lösungsmittelextrakte)
+        // natürliches erdbeer/himbeer/kirsch/zitrusaroma → liberator (Ausgangsfrucht = Liberator)
+        // fleischaroma/rauchschinkenaroma → hefeextrakt-verdacht → klassifiziert als hefeextrakt
     
         'stevia','stevioglyceride','stevioglycoside','steviol glycoside',  // S0 Stevia-Süßungsmittel
     
@@ -3542,7 +3547,14 @@ function parseIngredients(inputText) {
         [/\bhanföl\b|\bhanfsamen?\b|\bhemp\s*(?:oil|seed)?\b/gi, 'pflanzenöl'],
         [/\bavocadoöl\b|\bavocado\s*öl\b/gi, 'pflanzenöl'],
         [/\btrüffelaroma\b|\btrüffelextrakt\b/gi, 'aroma'],
-        [/\bnatürliches?\s+\w+aroma\b/gi, 'aroma'],                        // "natürliches Käsearoma", "natürliches Nelkenaroma" etc.
+        // ── Aroma-Differenzierung nach HIT-Relevanz ─────────────────────
+        // Aromaextrakt = konzentrierter Lösungsmittel-Auszug → dao_blocker-Verdacht
+        [/\baromaextrakt\b|\bflavour\s*extract\b/gi, 'hefeextrakt'],
+        // Liberator-Fruchtaromen → als Frucht klassifizieren
+        [/\bnatürliches?\s+(?:erdbeer|himbeer|kirsch|johannisbeer)\s*aroma\b/gi, 'erdbeere'],
+        [/\bnatürliches?\s+(?:zitrus|orangen?|zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],
+        // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
+        [/\b(?:fleisch|schinken|speck|rauchschinken|hühner?|rind|schwein)aroma\b/gi, 'hefeextrakt'],
         [/\b(?:käse|nelken?|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|rauch|obst|frucht)aroma\b/gi, 'aroma'],
         // ── Käse-Spezifisch ──
         [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'kräuter'],
@@ -3551,7 +3563,12 @@ function parseIngredients(inputText) {
         // ── Malz / Brauzutaten ──
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
         [/\bmono-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
-        [/^mono-?$|^di-?$|^und$|^von$|^speisefettsäuren?$/gi, ''],  // Splitting-Artefakte
+        [/\bmono-\s*und\s+di|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
+        [/^mono-?$|^di-?$|^tri-?$|^und$|^von$|^speisefettsäuren?$/gi, ''],  // Splitting-Artefakte
+        [/\bdi-\s+(?=und|oder|\w)/gi, ''],                           // "Di- und" → strip "di-"
+        [/\btriphosphate?\b/gi, 'e451'],                                        // Triphosphate = E451 → safe
+        [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
+        [/\bvitamin\s*[abc]\d?\b/gi, 'vitamine'],                     // Vitamin A, B, C
         [/\s+aus\s+/gi, ' '],                                          // "Pfirsichsaft aus Konzentrat" → space
         [/\.?\s*oder\s*:/gi, ' '],                                     // "oder:" Produkt-Varianten-Trenner
         [/\bzutaten\s*:/gi, ''],                                        // Label "Zutaten:"
@@ -4108,6 +4125,12 @@ function parseIngredients(inputText) {
         [/\bmilchfett\b|\bbutterfett\b/gi, 'butter'],
         // ── Hartweizengrieß / Semola ──
         [/\bhartweizengrieß\b|\bsemola\b|\bdurum\b|\bhartweizenmehl\b/gi, 'mehl'],
+        [/\bweizengrieß?\w*|\bdinkelgrieß?\w*|\bweizengrie[sß]\w*/gi, 'mehl'],      // Weizengrieß (ß-Grenzproblem)
+        [/\bbackteig\b|\bfrittierteig\b|\bpanierteig\b/gi, 'mehl'],                   // Backteig = Mehlbasis → safe
+        [/\bhafervollkorn(?:flocken?|mehl|grütze)?\b/gi, 'hafer'],                    // Hafervollkorn-Komposita
+        [/\b(\w+)püree\b/gi, '$1'],                                                    // Bananenpüree → Banane, Heidelbeerpüree → Heidelbeere
+        [/\bentrahmte?\b\s*/gi, ''],                                                   // Adjektiv "entrahmt" → strip
+        [/\bmilchprotein(?:erzeugnis|konzentrat|isolat)?\b/gi, 'milchprotein'],        // Komposita
         // ── Spezielle Fleisch-Zutaten ──
         [/\brinderhackfleisch\b|\brinder-?hackfleisch\b/gi, 'hackfleisch'],
         [/\bschweinehackfleisch\b|\bschweine-?hackfleisch\b/gi, 'hackfleisch'],
@@ -5138,6 +5161,11 @@ function parseIngredients(inputText) {
         [/\borangenaroma\b/gi, 'aroma'],
         [/\bvanillearoma\b/gi, 'vanillin'],
         [/\bhimbeераroma\b/gi, 'aroma'],
+        [/\b(?:erdbeer|himbeer|kirsch|johannisbeer|zitrus|orangen?|zitronen?|limetten?)aroma\b/gi, (m) => {
+            if (/erdbeer|himbeer|kirsch|johannisbeer/.test(m)) return 'erdbeere';
+            return 'zitrone';
+        }],  // Liberator-Fruchtaromen → als Frucht klassifizieren
+        [/\b(?:fleisch|schinken|speck|rauchschinken|hühner?|rind|schwein)aroma\b/gi, 'hefeextrakt'],  // Hefeextrakt-Verdacht
         [/\b(\w{4,})aroma\b/gi, 'aroma'],       // generisch: XYZaroma → aroma
         // ── Backzutaten ──
         [/vanillepuddingpulver\b|puddingpulver\b/gi, 'stärke'],   // = Maisstärke + Vanillin
@@ -7691,7 +7719,7 @@ function getIngredientInfo(name, cat) {
             return 'S3 — Champagner: bis 670 µg/l Histamin! Wird teils aus roten Trauben hergestellt. Schlimmer als normaler Sekt — Trockener Weißwein enthält kaum Histamin, aber Alkohol selbst = DAO-Blocker!';
         if (n.match(/bier\b|beer\b|ale\b|lager\b|stout|porter|weizenbier|malzbier/))
             return 'SIGHI 2 H A L B — Bier histaminhaltig. Untergärig (Pils, Lager, Export) besser als obergärig (Weizen, Kölsch, Stout, IPA). Radler/Cola-Bier meiden!';
-        if (n.match(/sake|mead|met|cider/))
+        if (n.match(/\bsake\b|\bmead\b|\bmet\b|\bcider\b|\bkwas\b|\bkombucha\b/))
             return 'Alkoholisches Gärungsprodukt mit relevantem Histamingehalt';
         if (n.match(/whisky|whiskey|rum\b|gin\b|vodka|tequila|schnaps|likör|brandy|cognac|grappa/))
             return 'Alkohol hemmt das DAO-Enzym direkt — auch destillierte Spirituosen meiden';
@@ -8043,7 +8071,7 @@ function getIngredientInfo(name, cat) {
         if (n.match(/zitronensäure|citric acid|e330/))
             return '⚠️ SIGHI 1 — E330/Zitronensäure: kein gesicherter DAO-Hemmer (NMI-Portal 2025), aber laut SIGHI auf Stufe 1 (Vorsicht)';
         if (n.match(/\baroma\b|natürliches aroma|aromen|aromastoffe/))
-            return '⚠️ Pauschalwarnung: Hinter "Aroma" oder "natürliches Aroma" verstecken sich oft histaminrelevante Quellen wie Hefeextrakt (S3) oder Gerstenmalzextrakt (S2). Als unbekannt behandeln — kein Vertrauensvorschuss!';
+            return '⚠️ Aroma-Ampel bei HIT: „Aroma" synthetisch = meist verträglich. „Natürliches Aroma" aus Fermentation = biogene Amine möglich. Fruchtaroma von Liberatoren (Erdbeere/Zitrus) = meiden. „Aromaextrakt" = konzentriert, suspekt. Fleisch-/Schinkenaroma = Hefeextrakt-Verdacht!';
         if (n.match(/vanillin\b|vanillinzucker/))
             return 'Synthetisches Vanillin: künstliches Aroma, laut Histaminta bei HIT unverträglich';
         if (n.match(/\be63[0-3]\b|inosinat/))
