@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.29<br>
+                Histaminscanner v5.31<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1585,7 +1585,7 @@ const DB = {
         'weinsteinbackpulver','cream of tartar',
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe','instant-hefe','dry yeast',
         'gewürze','gewürzmischung','kräuter','kräutermischung',
-        'nelken','cloves','kardamom','cardamom',
+        // kardamom/nelken → liberator, NICHT safe_hints!
         'koriander','coriander',
         'lorbeer','bay leaf','wacholder','juniper','piment','allspice',
         'fenchelsamen','fennel seeds','sternanis','star anise',
@@ -2230,7 +2230,7 @@ const DB = {
         'ras el hanout','garam masala','berbere','baharat','tandoori',  // S0-1
         'cajun','chimichurri','gyros gewürz','döner gewürz',           // S0-1
         // Einzelgewürze
-        'sumach','sumak',                    // S1-2 (Säure wie Zitrone)
+        // sumach/sumak → liberator S1-2, NICHT safe_hints!
         'asafoetida','hing',                 // S0 (Ferula-Harz)
         'schwarzkümmel','nigella','kalonji', // S0
         'galgant','galangal',                // S0 (Ingwerwurzel)
@@ -2343,7 +2343,7 @@ const DB = {
         'proteinriegel',                     // S0-1 je nach Inhalt
         'frucht','fruchtriegel','fruchtschnitte',  // S0-1
         'nussriegel',                        // S0-1
-        'seetang','nori snack',              // S0-1
+        // seetang/nori → liberator S2-3, NICHT safe_hints!
     
         // Kaffee
         // → dao_blocker via koffein
@@ -2627,7 +2627,7 @@ const DB = {
         // Keks-Spezifika
         'hirschhornsalz','e503',              // S0 Backtriebmittel
         'pottasche','e501',                   // S0 Backtriebmittel
-        'anis','nelken','kardamom','pistazien', // S0 Gewürze/Nüsse
+        'anis','pistazien',  // nelken/kardamom → liberator! // S0 Gewürze/Nüsse
         // Energy Drinks
         'taurin',                             // S0 Aminosäure
         'guarana',                            // ⚠️ Koffeinquelle (unten)
@@ -2645,7 +2645,7 @@ const DB = {
         'e340','dipotassiumphosphat','dikaliumphosphat',  // S0
         'e412','guarkernmehl','guargummi',    // S0 Verdickungsmittel
         'e491','sorbitanmonostearat',         // S0 Emulgator Hefe
-        'sumach','sumak',                     // S0-1 Gewürz
+        // sumach/sumak → liberator, NICHT safe_hints!
         'cayennepfeffer','cayenne',           // S1-2 scharfes Gewürz
         'fenchelsamen',                       // S0
         'amaranth','gepuffter amaranth',      // S0 Pseudogetreide
@@ -2678,7 +2678,7 @@ const DB = {
         'destillierter essig',               // S2-3 (Essig)
     
         // Kaffee
-        'röstkaffee','arabica','robusta','kaffeeextrakt',  // ⚠️ (aber in safe_hints → überschrieben durch dao_blocker)
+        // röstkaffee/arabica/robusta/kaffeeextrakt → dao_blocker, NICHT safe_hints!
         // Tee-Zutaten
         'pfefferminzblätter','hagebutten','rosenfrüchte',  // S0
         'zitronengras','zitronenmelisse','zitronenverbene', // S0
@@ -3527,6 +3527,11 @@ function parseIngredients(inputText) {
         // ── Kaffee-Varianten ──
         // ── Früchte (fehlende Varianten) ──
         // ── Adjektiv-Prefixe strippen (getrocknet, gefriergetrocknet, etc.) ──
+        [/\bgesalzen(?:e[rmns]?)?\b\s*/gi, ''],                // "gesalzene Butter" → "Butter"
+        [/\bgezuckert(?:e[rmns]?)?\b\s*/gi, ''],               // "gezuckerte Kondensmilch" → "Kondensmilch"
+        [/\bfettarm(?:e[rmns]?)?\b\s*/gi, ''],                 // "fettarmer Kakao" → "Kakao"
+        [/\bfettreich(?:e[rmns]?)?\b\s*/gi, ''],               // "fettreiche Sahne" → strip
+        [/\bfrisch(?:e[rmns]?)?\b\s*(?=\w{4})/gi, ''],        // "frische Sahne" → "Sahne" (nur vor echtem Wort)
         // ── Milch-Varianten ──
         // ── Milch-Pulver Varianten ──
         // ── Compound-Fixes (trennende Wörter) ──
@@ -3565,7 +3570,7 @@ function parseIngredients(inputText) {
         [/\bnatürliches?\s+(?:zitrus|orangen?|zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],
         // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
         [/\b(?:fleisch|schinken|speck|rauchschinken|hühner?|rind|schwein)aroma\b/gi, 'hefeextrakt'],
-        [/\b(?:käse|nelken?|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|rauch|obst|frucht)aroma\b/gi, 'aroma'],
+        [/\b(?:käse|nelken?|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
         // ── Käse-Spezifisch ──
         [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'kräuter'],
         [/\blabneh\b/gi, 'joghurt'],
@@ -3829,8 +3834,8 @@ function parseIngredients(inputText) {
         [/\bdikaliumphosphat\b|\bdipotassiumphosphat\b|\bdipotassium\s*phosphat\b|e340ii\b/gi, 'e340'],
         [/\bguarkernmehl\b|\bguargummi\b|\bguar\b|e412\b/gi, 'e412'],
         [/\be491\b|\bsorbitanmonostearat\b/gi, 'e491'],
-        [/\bsumach\b|\bsumak\b/gi, 'gewürze'],
-        [/\bcayennepfeffer\b|\bcayenne\b/gi, 'gewürze'],
+        [/\bsumach\b|\bsumak\b/gi, 'sumach'],  // S1-2 Zitrusnote → liberator (kommt später nochmal)
+        [/\bcayennepfeffer\b|\bcayenne\b/gi, 'chili'],  // S1-2 Mastzellen-Trigger → chili
         [/\bfenchel(?:knolle|strunk|salat)?\b/gi, 'fenchel'],
         [/\bamaranth\b(?!\s*(?:farbstoff|e123))/gi, 'hafer'],  // Amaranth-Getreide S0
         [/\bhirse\b(?:brei|flocken|grütze|grieß)?\b/gi, 'hafer'],
@@ -3867,7 +3872,7 @@ function parseIngredients(inputText) {
         [/\borangeat\b/gi, 'orangeat'],        // eingelegte Orangenschale S1
         [/\banis(?:samen?|pulver|korn)?\b/gi, 'gewürze'],
         [/\bnelken?\b|\bgewürznelken?\b/gi, 'nelke'],  // Liberator S1-2 — NICHT zu gewürze!
-        [/\bkardamom(?:pulver|samen?|kapseln?)?\b/gi, 'gewürze'],
+        [/\bkardamom(?:pulver|samen?|kapseln?)?\b/gi, 'kardamom'],  // S1 Liberator — NICHT gewürze!
         [/\bpistazien?\b/gi, 'haselnuss'],     // Pistazie = Nuss S0
         // ── Funktionelle Zutaten Energy Drinks ──
         [/\btaurin\b|\baminosäure\s+taurin\b/gi, 'vitamine'],
@@ -3882,7 +3887,7 @@ function parseIngredients(inputText) {
         [/\bbockshornklee(?:samen?|extrakt|pulver)?\b/gi, 'bockshornklee'],  // Liberator S2 — NICHT zu gewürze!
         [/\bkoriander(?:samen?|blätter|pulver|kraut)?\b/gi, 'gewürze'],
         [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b|\bedelsüß\b/gi, 'gewürze'],
-        [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'gewürze'],
+        [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'rauchextrakt'],  // S1-2 Liberator
         // ── Öle (spezifisch) ──
         [/\bleinöl\b|\blein(?:samen)?öl\b|\bflachsöl\b/gi, 'pflanzenöl'],
         [/\bwalnussöl\b|\bnussöl\b/gi, 'pflanzenöl'],
@@ -3909,8 +3914,8 @@ function parseIngredients(inputText) {
         // ── Plant-Based Spezifika ──
         [/\bmethylcellulose\b|\bmethylcellulose\b|e461\b/gi, 'e461'],
         [/\bkartoffelfasern?\b|\bkartoffelzellstoff\b/gi, 'stärke'],
-        [/\bflüssigrauch\b|\brauchextrakt\b|\brauchgeschmack\b/gi, 'gewürze'],  // S1-2 Rauch
-        [/\braucharomen?\b|\brauch(?:würz)?aroma\b/gi, 'gewürze'],               // Raucharoma = Raucharomen → S1-2
+        [/\bflüssigrauch\b|\brauchextrakt\b|\brauchgeschmack\b/gi, 'rauchextrakt'],  // S1-2 Rauch
+        [/\braucharomen?\b|\brauch(?:würz)?aroma\b/gi, 'rauchextrakt'],  // S1-2 Liberator → rauchextrakt
         [/\bweizenröstmalz(?:mehl)?\b|\bröstmalzmehl\b/gi, 'malz'],             // Weizenröstmalzmehl → malz → high S2
         [/\be262\s*\(i\)\b|\be262i\b/gi, 'e262'],                               // E262(i) Natriumacetat → safe
         [/\borangenextrakt\b|\borangen(?:schalen)?öl\b|\bzitrusfruchtextrakt\b/gi, 'orange'], // orange → liberator
@@ -3971,7 +3976,7 @@ function parseIngredients(inputText) {
         [/\bweinessig\b|\bapfelweinessig\b|\bweißweinessig\b|\brotwei(?:n)?essig\b/gi, 'essig'],
         [/\bmalzessig\b|\bbierlessig\b/gi, 'essig'],
         [/\bnatriumbenzoat\b|e211\b/gi, 'e211'],               // Konservierungsstoff
-        [/\btamarinde(?:paste|extrakt|konzentrat)?\b/gi, 'gewürze'],
+        [/\btamarinde(?:paste|extrakt|konzentrat)?\b/gi, 'essig'],  // S2-3 — hoher Säure-/Histamingehalt → essig-Kategorie
         [/\banchovis(?:paste|extrakt|filet|öl)?\b/gi, 'sardelle'],  // S3!
         [/\bpassionsfrucht(?:saft|mark|konzentrat|aroma)?\b/gi, 'maracuja'],
         [/\bananassaft(?:konzentrat)?\b|\bananas\s+(?:saft|konzentrat)\b/gi, 'ananas'],
@@ -4101,7 +4106,7 @@ function parseIngredients(inputText) {
         [/\bkamille\b|\bkamillenblüten?\b|\bchamomile\b/gi, 'kräuter'],
         [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
-        [/\bholunder(?:blüten?|beeren?|saft)?\b/gi, 'kräuter'],
+        [/\bholunder(?:blüten?|beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter!
         // ── Getreidezutaten ──
         [/\bweizenprotein\b|\bweizengluten\b/gi, 'seitan'],
         [/\bweizenfasern?\b|\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
@@ -4111,7 +4116,7 @@ function parseIngredients(inputText) {
         [/\bkaramellzucker\b|\bkaramellisierter\s+zucker\b|\bkaramellsirup\b/gi, 'zucker'],
         [/\breissirup\b|\breis(?:saft)?sirup\b/gi, 'zucker'],
         [/\bhefeextrakt\b|\bhefe-?extrakt\b/gi, 'hefeextrakt'],  // DAO-Hemmer!
-        [/\bmuskat(?:nuss)?\b|\bmace\b/gi, 'gewürze'],
+        [/\bmuskat(?:nuss)?\b|\bmace\b/gi, 'muskatnuss'],  // S1-2 Liberator — NICHT gewürze!
         [/\bschwarz(?:er)?\s+pfeffer\b|\bweißer\s+pfeffer\b/gi, 'gewürze'],
         [/\bthymian\b|\bthyme\b/gi, 'kräuter'],
         [/\bpetersilje?\b|\bpetersilie\b/gi, 'kräuter'],
@@ -6243,7 +6248,7 @@ function parseIngredients(inputText) {
         [/\berdnussflips?\b|\berdnuss\s*häppchen\b/gi, 'keks'],
         [/\bsalzstangen?\b|\bpretzel\s*sticks?\b/gi, 'keks'],
         [/\bmini\s+reiswaffeln?\b|\breischips?\b|\breisgalletten?\b/gi, 'keks'],
-        [/\bseetang(?:chips|snack|blätter)?\b|\bnori\s*(?:snack|chips|blätter)?\b/gi, 'kräuter'],
+        [/\bseetang(?:chips|snack|blätter)?\b|\bnori\s*(?:snack|chips|blätter)?\b/gi, 'seetang'],  // S2-3 — histaminreich, NICHT kräuter!
         [/\bgrünkohl(?:chips)?\b/gi, 'kohl'],
         [/\bgemüsechips?\b|\brote.?beete.?chips?\b/gi, 'gemüse'],
         // ── Riegel ──
