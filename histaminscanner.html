@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.16<br>
+                Histaminscanner v5.29<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1333,6 +1333,16 @@ const DB = {
         'kelp','seetang',
         'borlotti','edelschimmelkäse',
         'bockshornklee',
+        // ── Käse-Liberatoren (jung gereift, S1-2) ──────────────────────
+        'milchkäse','junger gouda','gouda jung',   // S1-2 — weniger als Hartkäse, aber kein Safe-Käse!
+        // ── Gewürz-Liberatoren (aus safe_hints korrigiert) ──────────────
+        'zimt','zimtpulver','cinnamon',             // S1-2 Liberator
+        'nelke','nelken','gewürznelke','cloves',     // S1-2 Liberator
+        'curry','currypulver','madras curry',        // S1 Liberator (Kurkuma-basiert)
+        'kurkuma','turmeric','curcuma',              // S1 Liberator
+        'ingwer','ginger','ingwerpulver',            // S1 leichter Liberator
+        'muskat','muskatnuss','macis','muskatblüte', // S1-2 Liberator
+        'kardamom','cardamom',                       // S1 leichter Liberator
         'limonade','limonadengetränke','coca-cola',
         'ovomaltine',
         'pampelmuse','satsuma',
@@ -1705,7 +1715,7 @@ const DB = {
         'blaubeere','blueberry','heidelbeere',
         'wassermelone','watermelon','melone','zuckermelone','honeydew',
         'cantaloupe','galia-melone',
-        'kirsche','cherry','süßkirsche',
+        'kirsche','kirsch','cherry','süßkirsche',
         'aprikose','apricot','marillen',
         'pfirsich','peach','nektarine','nectarine','plattpfirsich','saturnpfirsich','donutpfirsich',
         'pflaume (frisch)','plum (fresh)',
@@ -1734,13 +1744,13 @@ const DB = {
         'popcorn',
         'pfeffer','pepper','schwarzer pfeffer','weißer pfeffer',
         'paprikapulver','sweet paprika','paprika powder',
-        'kurkuma','turmeric','ingwer','ginger','kardamom','cardamom',
+        // kurkuma/ingwer/kardamom → in liberator[], NICHT safe_hints!
         'kümmel','caraway','fenchelsamen','fennel seeds',
-        'anis','anise','sternanis','star anise','nelken','cloves',
+        'anis','anise','sternanis','star anise',
+        // nelken → liberator S1-2, NICHT safe_hints!
         'vanille','vanilla','vanilleschote','vanillinzucker','vanillezucker',
         'vanilleextrakt',
-
-        'zimt','zimtpulver','zimt (wenig)','safran','saffron',
+        // zimt → liberator S1-2, NICHT safe_hints!
         'honig','honey','agavendicksaft','agave syrup','ahornsirup','maple syrup',
         'stevia','erythrit','erythritol','xylitol','xylit',
         'gelatine','gelatin','agar','carrageen','pectin','pektin',
@@ -2005,7 +2015,7 @@ const DB = {
         'krokant',  // S0 = gebrannte Nüsse + Zucker
         'butterweich','butter weich',  // S0
     
-        'curry','currypulver','madras curry',      // S0-1 Kurkuma-basiert
+        // curry/currypulver → liberator S1, NICHT safe_hints!
         'brot','fladenbrot','naan','ciabatta',     // S0
         'linsen','rote linsen','gelbe linsen',     // S0
         'basmatireis','reis','basmati',            // S0
@@ -2107,10 +2117,10 @@ const DB = {
         'tintenfisch','sepia','calamari',              // S2-3 Meeresfrüchte
         'muschel','muscheln',                          // S3 sehr hoch
         'fischfilet','seelachs','kabeljau',            // S1 frisch (TK weniger)
-        'bockshornklee',                               // S1
-        'nelke','nelken',                              // S0
+        // bockshornklee → liberator S2, NICHT safe_hints!
+        // nelke/nelken → liberator S1-2, NICHT safe_hints!
         'lorbeer','lorbeers',                          // S0
-        'majoran',                                     // S0
+        'majoran',                                     // S0-1 (mild)
         'thymian','oregano','safran',                  // S0
         'liebstöckel','maggikraut',                   // S0
         'fenchel','fenchelsamen',                      // S0
@@ -2167,7 +2177,7 @@ const DB = {
     
         'zitronenpulver','zitronenschale',          // S1
         'liebstöckel','liebstöckelwurzel','maggikraut',  // S0
-        'muskat','muskatnussöl','macis','muskatblüte',   // S0
+        // muskat/muskatnuss → liberator S1-2, NICHT safe_hints!
         'röstzwiebeln','rote zwiebeln',             // S0
         // sauerrahm → Liberator, speck → high S3 — beide hier FALSCH
         'hackfleisch','fleischklößchen','frikadelle',  // S0-1 frisch
@@ -2517,7 +2527,7 @@ const DB = {
         'reissirup',                            // S0 Süßungsmittel
         'karamellzucker',                       // S0
         // crème fraîche/sauerrahm → Liberator S1-2, nicht safe!
-        'muskat','muskatnuss',                  // S0
+        // muskat/muskatnuss → liberator S1-2, NICHT safe_hints!
     
         // Kulturen/Lab (alle S0-1 da Fermentierungsreste minimal)
         'kulturen','milchsäurebakterienkulturen','joghurtkulturen','kefirkulturen',
@@ -2601,7 +2611,7 @@ const DB = {
         'buttermilchpulver',                 // S1 (Buttermilch leicht sauer)
         'bbq-würzung','sauerrahmwürzung','paprikawürzung',  // S0-1
         // Gewürze
-        'bockshornklee',                     // S0
+        // bockshornklee → liberator S2, NICHT safe_hints!
         'koriander',                         // S0
         'paprikapulver','paprika gemahlen',  // S0
         'rauchpulver','rauchaoma',           // S0-1
@@ -3604,6 +3614,7 @@ function parseIngredients(inputText) {
         [/\bpfirsichnektar\b|\bpfirsichmark\b|\bpfirsichsaft(?:aus)?\b/gi, 'pfirsich'],  // "saftaus" Artefakt
         [/\bweizen(?:roggen|dinkel)?sauerteig\b|\bsauerteig(?:brot|starter|weizen)?\b/gi, 'sauerteig'], // Komposita
         [/\bkirschnektar\b|\bkirschmark\b|\bkirschsaft\b/gi, 'kirsche'],
+        [/\bkirsch\b(?!en?\b|extrakt|likör|wasser)/gi, 'kirsche'],     // "Kirsch" allein → kirsche
         [/\bbirnensaft\b|\bbirnenmark\b/gi, 'birne'],
         [/\bbirnen?\b(?!\s*(?:saft|mark|nektar))/gi, 'birne'],
         // ── Käse-Schmelzsalze ──
@@ -3752,10 +3763,10 @@ function parseIngredients(inputText) {
         [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'kräuter'],
         [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'kräuter'],
         [/\bzitronengras\b|\bzitronenverbene\b|\bzitronenmelisse\b/gi, 'kräuter'],
-        [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'gewürze'],
+        [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'zimt'],  // Liberator S1-2 — NICHT zu gewürze!
         [/\borgangen?schale\b|\bzitronenschale\b|\blimettenschale\b/gi, 'kräuter'],
         [/\bbergamotte(?:öl|extrakt|schale)?\b/gi, 'kräuter'],
-        [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'kräuter'],
+        [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'süßholz'],  // DAO-Hemmer — NICHT kräuter!
         // ── Schokolade Spezifika ──
         [/\brosenwasser\b|\brose\s*water\b/gi, 'kräuter'],       // S0
         [/\bmandelaroma\b|\bnatürliches?\s+mandelaroma\b/gi, 'aroma'],
@@ -3855,7 +3866,7 @@ function parseIngredients(inputText) {
         [/\bzitronat\b|\bcitronat\b|\bzedernzucker\b/gi, 'zitronat'],  // eingelegte Zitronenschale S1
         [/\borangeat\b/gi, 'orangeat'],        // eingelegte Orangenschale S1
         [/\banis(?:samen?|pulver|korn)?\b/gi, 'gewürze'],
-        [/\bnelken?\b|\bgewürznelken?\b/gi, 'gewürze'],
+        [/\bnelken?\b|\bgewürznelken?\b/gi, 'nelke'],  // Liberator S1-2 — NICHT zu gewürze!
         [/\bkardamom(?:pulver|samen?|kapseln?)?\b/gi, 'gewürze'],
         [/\bpistazien?\b/gi, 'haselnuss'],     // Pistazie = Nuss S0
         // ── Funktionelle Zutaten Energy Drinks ──
@@ -3868,7 +3879,7 @@ function parseIngredients(inputText) {
         [/\bbienenhonig\b|\bwildhonig\b|\bblutenhoig\b|\bakazienhonig\b/gi, 'honig'],
         [/\baprikosen?\b(?!\s*(?:saft|geschmack|öl))/gi, 'aprikose'],  // Aprikose als Frucht
         // ── Gewürz-Norms ──
-        [/\bbockshornklee(?:samen?|extrakt|pulver)?\b/gi, 'gewürze'],
+        [/\bbockshornklee(?:samen?|extrakt|pulver)?\b/gi, 'bockshornklee'],  // Liberator S2 — NICHT zu gewürze!
         [/\bkoriander(?:samen?|blätter|pulver|kraut)?\b/gi, 'gewürze'],
         [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b|\bedelsüß\b/gi, 'gewürze'],
         [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'gewürze'],
@@ -3976,6 +3987,7 @@ function parseIngredients(inputText) {
         [/\bvitamin\s*[a-e]\d?\b|\bvitamin[a-e]\d?\b/gi, 'vitamine'],
         [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
         [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
         [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         [/\bmagnesium(?:oxid|carbonat|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         // ── Glasnudeln / Asiatische Zutaten ──
@@ -4004,7 +4016,7 @@ function parseIngredients(inputText) {
         // ── Lebensmittelzusatzstoffe Wurst/Käse ──
         [/\bsojalecithin\b|\bsonnenblumenlecithine?\b|\brapsöllecithin\b|e322\b/gi, 'e322'],
         [/\blecithin\b(?!\s*\w)/gi, 'e322'],  // generisches Lecithin → E322
-        [/\bvanillin\b|\bvanille(?:extrakt|aroma|schote|pulver)?\b/gi, 'vanille'],
+        [/\bvanillin\b|\bvanilin\b|\bvanille(?:extrakt|aroma|schote|pulver)?\b/gi, 'vanille'],
         [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'kräuter'],
         [/\bbeta-?carotin\b|e160a\b/gi, 'e160a'],
         [/\bbutterreinfett\b|\bbutterreinfett\b|\bklarbutterreinfett\b|\bghee\b/gi, 'butter'],
@@ -4115,11 +4127,14 @@ function parseIngredients(inputText) {
         [/\bglukose-?fruktose-?sirup\b|\bfruktose-?glukose-?sirup\b/gi, 'zucker'],
         [/\bglukosesirup\b|\bdextrosesirup\b|\bmaissirup\b/gi, 'zucker'],
         // ── Milch-Derivate ──
-        [/\bmolken(?:erzeugnis|pulver|protein|konzentrat)?\b/gi, 'molke'],
+        [/\bmolken(?:erzeugnis(?:se)?|pulver|protein|konzentrat|serum)?\b/gi, 'molke'],  // inkl. Plural -se
+        [/\s+\b(?:der|die|das|des|dem|den|aus|mit|von|durch|für|in|an)\b\s+/gi, ' '],   // Artikel/Präpositionen → Leerzeichen
+        [/\benthalten(?:d|e|en)?\b\s*/gi, ''],                                            // "enthält SOJA" → strip
         [/\bvollmilch(?:pulver)?\b|\bfrischmilch\b/gi, 'milch'],
         [/\bspeisequark\b|\bmagerquark\b|\bquarkzubereitung\b|\bspeisequarkzubereitung\b/gi, 'quark'],
         [/\bedamer(?:käse)?\b|\bedammer\b/gi, 'käse'],
         [/\bemmentaler(?:käse)?\b|\bemmental\b/gi, 'käse'],
+        [/\bjunge[rm]?\s+gouda\b|\bgouda\s+jung\b/gi, 'milchkäse'],  // VOR gouda→käse! → 'milchkäse' S1-2
         [/\bgouda(?:käse)?\b(?!\s+alt)/gi, 'käse'],
         [/\bgouda\s+alt\b|\baltgouda\b/gi, 'käse gereift'],
         [/\bmilchfett\b|\bbutterfett\b/gi, 'butter'],
@@ -4176,7 +4191,7 @@ function parseIngredients(inputText) {
         [/\bforelle(?:-filet)?\b|\btrout\b/gi, 'fischfilet'],
         [/\btilapia(?:-filet)?\b/gi, 'fischfilet'],
         [/\bzander(?:-filet)?\b|\bpike-?perch\b/gi, 'fischfilet'],
-        [/\bhering(?:-filet)?\b/gi, 'hering'],
+        [/\bherings?(?:filets?|dose|konserve|salat|stücke?)?(?:filet)?\b/gi, 'hering'],  // Heringsfilets, Hering etc.
         [/\bmakrele(?:-filet)?\b/gi, 'hering'],
         [/\bsardelle(?:n-paste|nextrakt|n)?\b/gi, 'sardelle'],  // S3
         [/\bfischfilet-filet\b/gi, 'fischfilet'],  // Artefakt-Fix
@@ -4441,7 +4456,8 @@ function parseIngredients(inputText) {
         [/\bkokosn(?:uss)?(?:\s+\w+)?\b(?!milch|öl|fett|wasser|mark)/gi, 'kokos'],
         // ── Süßungsmittel ──
         [/\bhonig(?:pulver|granulat|extrakt)?\b/gi, 'honig'],
-        [/\bpalm(?:zucker|blütenzucker|kristallzucker|kernfett)?\b(?!öl\b|fett\b|kernöl\b|öl)/gi, 'zucker'],   // S0 Palmzucker
+        [/\bpalm(?:zucker|blütenzucker|kristallzucker)\b/gi, 'zucker'],   // Palmzucker → safe S0
+        [/\bpalmkernfett\b|\bpalmkernöl\b/gi, 'palmöl'],                   // Palmkernfett → palmöl
         // ── Funktionszutaten ──
         [/\bbeta-?glucan\b|\bbetaglucan\b/gi, 'hafer'],    // Beta-Glucan = Haferfaser S0
         [/\bballaststoffe?\s+\w*\b/gi, 'inulin'],           // Ballaststoffe allgemein S0
@@ -4990,7 +5006,7 @@ function parseIngredients(inputText) {
         [/\breisgrieß\b|\breisgries\b/gi, 'reis'],                                  // Reisgrieß → reis → safe
         [/\btraubenkernextrakt\b|\btraubenkerneextrakt\b|\bgrape\s*seed\s*extract\b/gi, 'trauben'], // → Liberator S1
         [/\bsojasaucenpulver\b|\bsojasoßenpulver\b/gi, 'sojasoße'],                // → high S3
-        [/\be385\b|\bedta\b|\bcalciumdinatrium-?edta\b/gi, 'e385'],                 // Antioxidans → safe
+        [/\be385\b|\bedta\b|\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b/gi, 'e385'],  // Antioxidans → safe
         [/basmatireis|jasminreis|parboiledreis/gi, 'reis'],
         [/trinkwasser/gi,                'wasser'],
         [/kartoffelpüreepulver/gi,       'kartoffel'],
@@ -5032,7 +5048,10 @@ function parseIngredients(inputText) {
         [/\bkokosnussmilch(?:pulver)?\b/gi, 'kokos'],
         [/\bkokosnuss(?:raspel|flocken|öl|milch|mehl|pulver)\b/gi, 'kokos'],
         [/zitronenschalen\w*\b/gi, 'zitronenschale'],
-        [/\bjohannisbeer(?:saft)?\b/gi, 'johannisbeere'],
+        [/\bjohannisbeer(?:saft|stücke?|püree|mark|konzentrat|extrakt|pulver)?\w*\b/gi, 'johannisbeere'],  // alle Komposita
+        [/\bweizenkeime?\b|\bweizenkeim(?:mehl|öl|extrakt)?\b/gi, 'hafer'],    // Weizenkeime → safe S0 (wie Hafer)
+        [/\bgezuckerte?\b\s*/gi, ''],                                            // Adjektiv "gezuckert" → strip
+        [/\blösliche?\b\s*/gi, ''],                                              // "lösliche Haferflocken" → strip Adjektiv
         [/\bbirnen?\b/gi, 'birne'],
         [/\btrauben?\b/gi, 'traube'],
         [/\blöslicher?\s+kaffee\b/gi, 'kaffee'],
@@ -5272,7 +5291,8 @@ function parseIngredients(inputText) {
         [/schlagsahne\b|crema\b/gi, 'sahne'],
         // ── Gemüse ──
         [/\bbabyspinat\b|\bfeldsalat\b|\brauke\b|\brucola\b/gi, 'spinat'],
-        [/\bspinat\b/gi, 'spinat'],
+        [/\bspinat(?:pulver|extrakt|püree|blätter?)?\b/gi, 'spinat'],  // alle Spinat-Komposita
+        [/\bmsg\b|\be621\b|\bnatriumglutamat\b|\bmono-?natriumglutamat\b|\bdinatriumglutamat\b/gi, 'glutamat'],  // alle Glutamat-Formen
         [/\bspitzkohl\b|\bweißkohl\b|\brotkohl\b|\bwirsing\b|\bsavoy\b/gi, 'kohl'],
         [/\bfilderkraut\b|\bchinesischer kohl\b|\bchinakohl\b/gi, 'kohl'],
         [/\blauchzwiebel[n]?\b|\bfrühlingszwiebel[n]?\b/gi, 'frühlingszwiebel'],
@@ -5471,6 +5491,7 @@ function parseIngredients(inputText) {
         [/\b(?:mikrobielles?|tierisches?|veganes?|lammlab|kalbslab)\s*lab\b|\blab\b(?!\s*\w)/gi, 'lab'],
         [/\blabaustauschstoff\b|\bmikrobieller\s+labaustauschstoff\b/gi, 'lab'],  // S0 Enzym
         [/\bschafsmilch\b|\bstutenmilch\b|\bschafsmilchkäse\b/gi, 'milch'],
+        [/\bjunger?\s+gouda\b|\bgouda\s+jung\b|\bjunger?\s+\w{4,}käse\b/gi, 'junger gouda'],  // S1-2 Liberator
         [/\bgouda\b|\bcheddar\b|\bemmentaler\b|\bgauda\b/gi, 'cheddar'],
         [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomate'],
         [/\bschmelzkäse\w*\b/gi, 'käse'],
@@ -5492,6 +5513,9 @@ function parseIngredients(inputText) {
         [/\bgemüsepaprika\b|\bpaprikaschote[n]?\b|\bgemüsepaprika\b/gi, 'paprika'],
         [/\bzwiebeln?\b/gi, 'zwiebel'],
         [/\bpastinaken?\b/gi, 'pastinake'],
+        [/\bliebst(?:öck|ock)(?:el|wurzel|kraut)?\b|\bmaggi(?:kraut|pflanze)?\b/gi, 'kräuter'],  // Liebstöckel = Maggikraut → safe
+        [/\b(\w{4,})zubereitung\b/gi, '$1'],   // "Kirschzubereitung" → "Kirsch" → dann Kirsche-Norm
+        [/\b(\w{4,})stücke?\b/gi, '$1'],        // "Cranberrystücke" → "Cranberry" (generisch)
         [/\bschalotten?\b/gi, 'schalotte'],
         [/\bbroccoli\b|\bbrokkoli\b/gi, 'brokkoli'],
         [/\bmungobohnenkeimling[e]?\b|\bkeimlinge?\b|\bsojasprossen?\b|\bbohnensprossen?\b/gi, 'sprossen'],
@@ -5604,7 +5628,7 @@ function parseIngredients(inputText) {
         [/\bmuskatnussöl\b|\bmuskatöl\b/gi, 'muskat'],
         [/\bzuckerrübensirup\b|\brübensirup\b|\bmelasse\b/gi, 'zucker'],
         // ── Speck / Rauch ──
-        [/\brückenspeck\b|\bschweinespeck\b|\bbachspeck\b|\bschweinebauch\b/gi, 'speck'],
+        [/\brückenspeck\b|\bschweinespeck\b|\bbachspeck\b|\bschweinebauch\b|\bschweinebacke\b/gi, 'speck'],
         [/\bschweinebauchspeck\b/gi, 'speck'],                                   // Kompositum
         [/\bgeflügelfett\b|\bhühner(?:fett|schmalz)\b|\bentenfett\b/gi, 'pflanzenöl'], // S0 Tierfett neutral
         [/\bspeck\b/gi, 'speck'],
@@ -5623,6 +5647,9 @@ function parseIngredients(inputText) {
         [/\bhähnchen-stücke?\b|\bhähnchenbrustinnenfilet-stücke?\b/gi, 'hähnchen'],
         [/\bhimbeeren?\b/gi, 'himbeere'],               // Plural → Singular
         [/\bselbst\s+gemachter?\b\s*/gi, ''],           // "selbst gemachter" → entfernen
+        [/\bselbst(?:gemacht|gekocht|zubereitet|gerührt)e?r?\b\s*/gi, ''],  // alle selbst-Varianten
+        [/\bselbst\s+\w+te?\s+(?=\w)/gi, ''],           // "selbst gekochte X" → strip prefix
+        [/\bgemüsebrühe?\s+(?:selbst|ohne\s+zusätze?|natur|hausgemacht)\b/gi, 'brühe'],  // bleibt brühe — Scanner kann Inhalt nicht kennen!
         [/\bbutterkekse?\b|\bkekse?\b|\bgebäck\b/gi, 'keks'],
         [/\bsahnesteif\b/gi, 'stärke'],                 // Sahnesteif = Stärke S0
         [/\bzzgl\.\s*/gi, ''],                          // "zzgl. 2 EL" → entfernen
@@ -5780,6 +5807,8 @@ function parseIngredients(inputText) {
         [/\bkokosnuss-?joghurt\b|\bkokosjoghurt\b/gi, 'joghurt'],
         // ── Käse/Sahne-Varianten ──
         [/\bdoppelrahm(?:frischkäse)?\b|\bdoppelrahmkäse\b/gi, 'frischkäse'],
+        [/\bfrischkäse\s+(?:der\s+)?(?:rahmstufe|vollfettstufe|doppelrahmstufe|halbfettstufe)?\b/gi, 'frischkäse'],  // Handelsklassen
+        [/\b(?:rahmstufe|vollfettstufe|doppelrahmstufe|halbfettstufe|magerstufe)\b\s*/gi, ''],  // Stufen-Suffix strip
         [/\bcrème\s+double\b|\bdoppelrahm\b/gi, 'sahne'],
         [/\bpflanzencrème\b|\bpflanzenrahm\b|\bsoja\s*cuisine\b|\bhafercreme\b/gi, 'sahne'],  // pflanzl. Sahne S0
         // ── Süßungsmittel ──
@@ -6115,6 +6144,7 @@ function parseIngredients(inputText) {
         [/\bwachtelei(?:er)?\b|\bentenei(?:er)?\b|\bgänsei(?:er)?\b/gi, 'ei'],
         [/\bbio-?eier?\b|\bfreiland(?:eier?)?\b|\bkäfig(?:haltung)?(?:ei|eier?)?\b/gi, 'ei'],
         [/\bpasteurisiertes?\s+ei(?:er)?\b|\beiweißpulver\b|\beigelbpulver\b|\bvollei\s+getrocknet\b/gi, 'ei'],
+        [/\bhühnereigelb\b|\bhühnereivollei\b|\beigelb\b/gi, 'eigelb'],   // Eigelb → safe
         [/\bgänsei(?:er)?\b|\bgans\s*ei(?:er)?\b/gi, 'ei'],
         [/\bwachtelei(?:er)?\b/gi, 'ei'],
         // ── Unbekannte Gemüsesorten → Grundform ──
@@ -6282,7 +6312,8 @@ function parseIngredients(inputText) {
         // ── Sport/Fitness-Produkte ──
         [/\bhigh\s+protein\s+(?:joghurt|pudding|quark|milch)\b/gi, 'joghurt'],
         [/\bprotein(?:brot|brötchen|pancake|pfannkuchen)?\b(?:\s+mix)?\b/gi, 'brot'],
-        [/\beiweiß(?:brot|brötchen|pfannkuchen|mix)?\b(?:\s+mix)?\b/gi, 'brot'],
+        [/\beiweißangereichertes?\b\s*/gi, ''],                              // Adjektiv "eiweißangereichert" → strip
+        [/\beiweiß(?:brot|brötchen|pfannkuchen|mix)\b(?:\s+mix)?\b/gi, 'brot'],  // nur spezifische Komposita
         [/\bproteinshake\b|\bprotein\s+shake\b/gi, 'proteinriegel'],
         [/\bwhey\s*(?:protein|isolat|konzentrat)?\b/gi, 'molke'],
         [/\bcasein\s*(?:protein|pulver)?\b/gi, 'milchpulver'],
@@ -8588,17 +8619,19 @@ document.addEventListener('visibilitychange', () => {
         <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-warning);margin:0 0 10px">🩺 Typische Symptome</h3>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Magen-Darm (H2)</p>
-            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Durchfall · Blähungen · Übelkeit · Bauchkrämpfe · Sodbrennen</p>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Durchfall · Blähungen · Übelkeit · Bauchkrämpfe · Sodbrennen/Reflux</p>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Herz-Kreislauf (H1/H2)</p>
-            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Herzrasen · Schwindel · Blutdruckabfall · Flush · Angioödem (10% — schmerzhafte Tiefenschwellungen)</p>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Herzrasen (Tachykardie) · Herzstolpern (Extrasystolen) · Schwindel · Blutdruckabfall · Flush · Angioödem (10% — schmerzhafte Tiefenschwellungen)</p>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Atemwege (H1)</p>
-            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Fließschnupfen · Nasennebenhöhlen · Atembeschwerden · tränende Augen</p>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Fließschnupfen · Nasennebenhöhlen · Niesreiz · Atembeschwerden · tränende Augen</p>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Haut (H1)</p>
-            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Juckreiz · Nesselsucht/Urtikaria · Flush · Angioödeme · Neurodermitis/Akne/Rosazea werden verstärkt</p>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Juckreiz · Nesselsucht/Urtikaria · Flush (heißes rotes Gesicht) · Angioödeme · Neurodermitis/Akne/Rosazea werden verstärkt</p>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Nervensystem (H1/H3)</p>
-            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Migräne · Schlafstörungen · Konzentrationsprobleme · Stimmungsschwankungen<br>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Migräne (oft pochend) · Schlafstörungen (Aufwachen ~3 Uhr) · <strong>Brain Fog</strong> / Konzentrationsstörungen · Stimmungsschwankungen · chronische Erschöpfung (Fatigue)<br>
             ⚡ <strong>Panikattacken können Histaminattacken sein</strong> — gleiche Symptome, organische Ursache!</p>
-            <p style="margin:0;font-size:12px;color:var(--color-text-secondary);font-style:italic">Symptome variieren täglich je nach Fass-Füllstand. Sport, Schlaf und Stress beeinflussen die Toleranz.</p>
+            <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Gynäkologie (H1)</p>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Dysmenorrhoe (extrem krampfartige Regelschmerzen) · Zyklusstörungen · verschlechterte Verträglichkeit in der Lutealphase</p>
+            <p style="margin:0;font-size:12px;color:var(--color-text-secondary);font-style:italic">⚠️ Betroffene werden oft jahrelang von Facharzt zu Facharzt geschickt (Derma → Kardio → Gastro), ohne dass der gemeinsame Nenner erkannt wird. Symptome variieren täglich je nach Fass-Füllstand.</p>
         </div>
 
         <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
@@ -8664,6 +8697,29 @@ document.addEventListener('visibilitychange', () => {
             <p style="margin:0;font-size:13px;line-height:1.6">Geschätzte Prävalenz: <strong>1–8%</strong> der westlichen Bevölkerung. 80% Frauen, meist um 40 Jahre. MCAS zusätzlich: 1–10%.</p>
         </div>
 
+        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+            <h3 style="color:var(--color-primary);margin:0 0 8px">🔬 Diagnose — Goldstandard 3-Phasen</h3>
+            <p style="margin:0;font-size:13px;line-height:1.8">
+            HIT ist eine <strong>Ausschlussdiagnose</strong> — zuerst Allergien, Zöliakie, Laktose-/Fruktosemalabsorption, CED und Mastozytose ausschließen!<br><br>
+            <strong>Phase 1 — Ernährungstagebuch (2–4 Wochen):</strong> Mahlzeiten, Symptome, Stresslevel protokollieren<br>
+            <strong>Phase 2 — Eliminationsphase (10–14 Tage):</strong> Strikte histaminarme Diät (Zucchini, Karotten, frisches Fleisch, Reis). Ziel: Beschwerdefreiheit<br>
+            <strong>Phase 3 — Provokationsphase (nur mit Arzt!):</strong> Einzeln gereifter Käse, Rotwein, Sauerkraut testen → Reaktion = HIT bestätigt<br><br>
+            ⚠️ <strong>Mangelernährungs-Warnung:</strong> Eigenmächtige Dauer-Eliminationsdiät führt zu Nährstoffmangel! Ziel ist immer die individuelle Toleranzgrenze, nicht lebenslanger Totalverzicht.<br><br>
+            <strong>Laborwerte:</strong> DAO-Aktivität Blut (80–120€) · Histamin Stuhl (100–150€) · Methylhistamin Urin (90–130€) — alle <em>begrenzte Aussagekraft</em>, kein Einzeltest ersetzt die 3-Phasen-Diagnostik.<br><br>
+            <strong>Richtige Ärzte:</strong> Allergologe/Immunologe · Gastroenterologe · Ernährungsmediziner
+            </p>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+            <h3 style="color:var(--color-primary);margin:0 0 8px">🔥 Sodbrennen &amp; HIT</h3>
+            <p style="margin:0;font-size:13px;line-height:1.8">
+            Histamin stimuliert H2-Rezeptoren im Magen → <strong>Säureproduktion ↑</strong>. Klassische HIT-Trigger für Sodbrennen:<br>
+            · Gereifter Käse · Pizza (Tomate + Hefe + Käse = Dreifachbelastung) · Sauerteigbrot (lang gereift) · Geräucherte Wurstwaren · Zitrusfrüchte<br><br>
+            <strong>Tipps:</strong> Viele kleine Mahlzeiten statt 3 große · nicht zu spät abends essen · Dinkelbrot (Hefe, kein Sauerteig) statt Sauerteigbrot · Paprikamark statt Tomatensoße · Kräutertee statt Kaffee/Cola<br><br>
+            <em>PPI-Warnung: Magensäureblocker (Omeprazol etc.) erhöhen Magen-pH → Proteindenaturierung gestört → Bakterien bilden mehr biogene Amine im Darm. Kurzfristig lindernd, langfristig HIT-verschlimmernd!</em>
+            </p>
+        </div>
+
         <div style="background:#fff3cd;border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:#856404;margin:0 0 8px">⚕️ Medizinischer Hinweis</h3>
             <p style="margin:0;font-size:13px;line-height:1.6;color:#856404"><strong>HIT ist kein ICD-anerkanntes Krankheitsbild</strong> und Symptome sind oft nicht reproduzierbar. Histamingehalt variiert stark im gleichen Lebensmittel (Emmentaler 0,1–2.000 mg/kg!). Diese App nutzt SIGHI 2024 als Orientierung — individuelle Verträglichkeit immer selbst testen.</p>
@@ -8687,19 +8743,29 @@ document.addEventListener('visibilitychange', () => {
             <div style="margin-bottom:14px">
                 <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-secondary);margin-bottom:8px">☀️ Frühstück</div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
-                    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Porridge <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;font-weight:500">Favorit</span></div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Haferflocken · ✅ Hafer-/Mandelmilch · ✅ Heidelbeeren frisch (S1 mild) · ✅ Banane · ✅ Zimt, Vanille · ✅ Kürbiskerne</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Rosinen oder Trockenfrüchte — frisches Obst bevorzugen. Heidelbeeren in Maßen.</div>
+                    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Hafer-Porridge <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;font-weight:500">Favorit</span></div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Haferflocken · ✅ Hafer-/Mandelmilch/Reisdrink (kein Soja!) · ✅ Heidelbeeren frisch · ✅ Banane · ✅ Zimt (S1, klein) · ✅ Kürbiskerne</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Rosinen — frisches Obst. Kein Soja- oder Hafer-Proteindrink mit Zusätzen.</div>
+                </div>
+                <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+                    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Hirse-Porridge <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;font-weight:500">Tipp</span></div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Hirseflocken · ✅ Wasser oder Reisdrink · ✅ Apfel gewürfelt (Golden Delicious) · ✅ Vanille · ✅ Prise Zimt</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Hirse ist noch magenfreundlicher als Hafer — gut in der Karenzphase.</div>
                 </div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
                     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Müsli natur</div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kölln Mühlenklassiker Basis/Nuss · ✅ Mandelmilch · ✅ geriebener Apfel · 🟡 Honig sparsam</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Früchte-Müsli, kein Joghurt-Himbeer, kein Gerstenmalzextrakt!</div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Haferflocken natur (kein Früchtemüsli!) · ✅ Mandelmilch · ✅ geriebener Apfel · 🟡 Honig sparsam</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Joghurt-Himbeer, kein Gerstenmalzextrakt!</div>
+                </div>
+                <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
+                    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Brot mit Aufstrich</div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelbrot frisch (kein Sauerteig!) · ✅ Quark mit Kräutern oder Butter · ✅ Gurke, Paprika frisch · ✅ Schnittlauch, Bärlauch</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein gereifter Käse, kein Aufschnitt. Reiswaffeln als Alternative.</div>
                 </div>
                 <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;margin-bottom:6px">
                     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Rührei auf Toast</div>
-                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Eier frisch · ✅ Butter/Ghee · ✅ Dinkel-/Vollkornbrot (kein Sauerteig!) · ✅ Schnittlauch oder Bärlauch</div>
-                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Immer frisch — kein aufgewärmtes Rührei. Kein Vollkornbrot mit Sauerteig.</div>
+                    <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Eier sehr frisch (Frischetest!) · ✅ Butter/Ghee · ✅ Dinkeltoast (kein Sauerteig) · ✅ Schnittlauch</div>
+                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Immer frisch — kein aufgewärmtes Ei. Rohes Eiweiß = Liberator, gebacken meist ok.</div>
                 </div>
                 <div style="font-size:12px;color:var(--color-text-secondary);padding:8px 10px;border-left:3px solid var(--color-warning);border-radius:0 6px 6px 0;background:var(--color-bg)">
                     <strong>Getränk:</strong> Rooibostee · Kamillentee · Fencheltee · Zichorienkaffee · <em>kein Schwarztee, Kaffee oder Cola — alle hemmen DAO!</em>
@@ -8715,7 +8781,7 @@ document.addEventListener('visibilitychange', () => {
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Hähnchen + Gemüse <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 5px;border-radius:4px;font-weight:500">Top</span></div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Hähnchenbrustfilet frisch · ✅ Brokkoli, Blumenkohl, Karotte · ✅ Kartoffeln oder Reis · ✅ Olivenöl, Rosmarin, Kurkuma</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Kühlregal-Hähnchen — immer frisch braten. Kein Fertiggewürz.</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Frisch, nicht mariniert/vakuumiert. Reste sofort einfrieren, nicht aufwärmen!</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Lachs frisch</div>
@@ -8724,8 +8790,13 @@ document.addEventListener('visibilitychange', () => {
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Linsensuppe</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Rote/grüne Linsen · ✅ Karotte, Pastinake, Porree · ✅ selbst gekochte Gemüsebrühe · ✅ Kurkuma, Kümmel</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Rote/grüne Linsen · ✅ Karotte, Pastinake, Porree · ⚠️ Gemüsebrühe SELBST KOCHEN (Karotte, Zucchini, Pastinake — kein Sellerie, kein Tomatenmark!) · ✅ Kurkuma, Kümmel</div>
                         <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Fertigbrühe mit Hefeextrakt. Kein Essig, kein Tomatenmark!</div>
+                    </div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Kartoffel-Brokkoli-Gratin</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kartoffeln + Brokkoli · ✅ Sahne oder Hafer-Cuisine · ✅ Salz · 🟠 Muskat (S1-2 Liberator, wenig!) · 🟠 junger Gouda (S1-2 Liberator — Testphase!)</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Junger Gouda ist S1-2 Liberator — NICHT safe! In der Karenzphase weglassen. Kein gereifter Käse (S3).</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Pasta Kräutersoße</div>
@@ -8746,9 +8817,9 @@ document.addEventListener('visibilitychange', () => {
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Kartoffeln, Süßkartoffeln · ✅ Brokkoli, Blumenkohl, Karotte · ✅ Paprika frisch · ✅ Olivenöl, Rosmarin, Thymian</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
-                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Risotto mit Erbsen</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Arborio-Reis · ✅ Erbsen, Zucchini · ✅ selbst gekochte Gemüsebrühe · ✅ Olivenöl · 🟡 etwas Butter</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Weißwein — durch mehr Brühe ersetzen. Kein Parmesan.</div>
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Risotto mit Zucchini</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Arborio-Reis · ✅ Zucchini · ⚠️ Gemüsebrühe SELBST KOCHEN — kein Würfelbrühe! · ✅ Olivenöl · 🟡 etwas Butter · 🟠 Erbsen (S1 Liberator — sparsam!)</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Weißwein — durch mehr Brühe ersetzen. Kein Parmesan. Erbsen nur in kleiner Menge.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Wraps mit Hähnchen</div>
@@ -8770,17 +8841,49 @@ document.addEventListener('visibilitychange', () => {
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Snacks unterwegs</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Reiswaffeln natur · ✅ Wasa/Finn Crisp natur · ✅ Cashews/Mandeln natur · ✅ Banane, Apfel, Heidelbeeren · 🟡 Nakd Cashew Bar</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Chips mit Hefeextrakt, Käse oder Sour Cream. Keine Energy Drinks!</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Reiswaffeln natur · ✅ Wasa/Finn Crisp natur · ✅ Cashews/Mandeln natur · ✅ Banane, Apfel · 🟡 Heidelbeeren</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Chips mit Hefeextrakt/Käse/BBQ. Keine Energy Drinks!</div>
+                    </div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Nachtisch &amp; Dessert</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Apfel-Kompott mit Vanille · ✅ Mascarpone + Quark (Mascarpone kaum gereift, meist verträglich!) · ✅ Pfirsich ohne Schale · ✅ Blaubeeren frisch</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Sahnejoghurt mit Früchten. Mascarpone oft besser verträglich als Joghurt.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Dips &amp; Aufstriche</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Guacamole selbst · ✅ Hummus selbst · ✅ Quark mit Kräutern · ✅ Frischkäse natur · ✅ Bärlauchbutter</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Tzatziki aus dem Supermarkt, kein Ajvar</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Quark mit Kräutern (Petersilie, Schnittlauch) · ✅ Frischkäse natur · ✅ Bärlauchbutter · 🟡 Hummus selbst (kein Ajvar/Tzatziki)</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Verträgliche Getränke</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Stilles Wasser · ✅ Rooibostee · ✅ Kamillentee · ✅ Apfelschorle · ✅ Kokoswasser · 🟡 HOLY Honigmelone × Grüntee</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Stilles Wasser · ✅ Rooibostee · ✅ Kamillentee · ✅ Fencheltee · ✅ Apfelschorle · 🟡 Kokoswasser</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="border-top:1px solid var(--color-border);margin:12px 0"></div>
+
+            <!-- Backen -->
+            <div style="margin-bottom:14px">
+                <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-secondary);margin-bottom:8px">🍞 Selbst backen — ohne Hefe &amp; Sauerteig</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Quark-Öl-Brötchen <span style="font-size:11px;background:#e8f5e9;color:#2e7d32;padding:1px 5px;border-radius:4px;font-weight:500">Hefefrei</span></div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelmehl 630 · ✅ Weinstein-Backpulver · ✅ Magerquark · ✅ Rapsöl · ✅ Milch/Haferdrink · ✅ Salz</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Frisch essen oder einfrieren. Weinstein-Backpulver = phosphatfrei, besser verträglich!</div>
+                    </div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Soda-Brot (hefefrei)</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelmehl · ✅ Natron · ✅ Salz · ⚠️ Buttermilch nur wenn verträglich (S2, fermentiert!) · ✅ Alternative: Milch + Vit-C-Tropfen</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Sofort backen — nicht stehen lassen (Histaminbildung bei Wartezeit!). Buttermilch bei Karenzphase ersetzen.</div>
+                    </div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Rührkuchen (Gugelhupf)</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelmehl · ✅ Butter · ✅ Eier frisch · ✅ Weinstein-Backpulver · ✅ Milch/Haferdrink · ✅ Zucker · ✅ Vanille</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Kein Kakao, kein Zitronenabrieb! Rohes Eiweiß = Liberator — aber gebacken meist gut verträglich. Wachteleier sind histaminärmer.</div>
+                    </div>
+                    <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px;border-left:3px solid var(--color-warning)">
+                        <div style="font-size:13px;font-weight:600;margin-bottom:4px">⚠️ Backpulver-Hinweis</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7"><strong>Weinstein-Backpulver</strong> (Kaliumbitartrat) ist phosphatfrei und deutlich besser verträglich als normales Backpulver (Diphosphat = E450).<br>Erhältlich: Bio-Läden, dm, Rossmann.</div>
                     </div>
                 </div>
             </div>
@@ -8825,9 +8928,11 @@ document.addEventListener('visibilitychange', () => {
                             🔴 Parmesan, Grana Padano, Pecorino<br>
                             🔴 Camembert, Brie, Münsterkäse, Limburger<br>
                             🔴 Blauschimmel: Roquefort, Gorgonzola, Stilton<br>
-                            🔴 Gouda alt, Cheddar (gereift), Gruyère<br>
+                            🔴 <strong>Gereifter</strong> Gouda, Cheddar alt, Gruyère, Hartkäse<br>
+                            🟠 Junger Gouda (S1-2 Liberator, kurz gereift) — nur in der Testphase, nicht in der Karenzphase!<br>
                             🟠 Kefir, Sauerrahm, Crème fraîche (leicht fermentiert)<br>
-                            🔴 Obatzda, Tzatziki Supermarkt, Labneh, Ayran
+                            🔴 Obatzda, Tzatziki Supermarkt, Labneh, Ayran<br>
+                            <em style="font-size:11px">✅ Frischkäse, Quark, Mascarpone (kaum gereift, meist verträglich)</em>
                         </div>
                     </div>
 
@@ -8877,13 +8982,15 @@ document.addEventListener('visibilitychange', () => {
 
             <!-- Grundregeln -->
             <div style="background:var(--color-warning-bg,rgba(255,193,7,.1));border-radius:8px;padding:10px 12px;border-left:3px solid var(--color-warning)">
-                <div style="font-size:13px;font-weight:600;margin-bottom:6px">⚡ Die 5 wichtigsten Grundregeln</div>
+                <div style="font-size:13px;font-weight:600;margin-bottom:6px">⚡ Die 7 wichtigsten Grundregeln</div>
                 <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.9">
-                    <strong>1. Frische über alles:</strong> Histamin steigt bei jedem Lagerungsschritt. Reste einfrieren statt kühlen.<br>
+                    <strong>1. Frische über alles:</strong> Histamin steigt bei jedem Lagerungsschritt. Reste sofort einfrieren statt kühlen.<br>
                     <strong>2. Brühe selbst kochen:</strong> Fertigbrühen haben fast alle Hefeextrakt — starker DAO-Hemmer.<br>
                     <strong>3. Kein DAO-Hemmer morgens:</strong> Kaffee, Schwarztee und Cola vor dem Frühstück blockieren den Histaminabbau für Stunden.<br>
-                    <strong>4. Zutatenlisten lesen:</strong> Branntweinessig, Tomatenmark, Hefeextrakt und E250 verstecken sich in fast allen Fertigprodukten.<br>
-                    <strong>5. Summationseffekt beachten:</strong> Auch S1-Zutaten können sich summieren — nicht alles auf einmal kombinieren!
+                    <strong>4. Zutatenlisten lesen:</strong> Branntweinessig, Tomatenmark, Hefeextrakt und E250 (Natriumnitrit) verstecken sich in fast allen Fertigprodukten.<br>
+                    <strong>5. Summationseffekt beachten:</strong> Auch S1-Zutaten können sich summieren — nicht alles auf einmal kombinieren!<br>
+                    <strong>6. Selbst backen mit Weinstein-Backpulver:</strong> Kein Sauerteig, kein Hefegebäck. Weinstein-Backpulver (phosphatfrei) statt normalem Backpulver — deutlich verträglicher.<br>
+                    <strong>7. Kein Soja:</strong> Sojadrink, Sojamilch und Sojaprodukte sind Liberatoren — Haferdrink, Reisdrink oder Mandelmilch bevorzugen.
                 </div>
             </div>
         </div>
