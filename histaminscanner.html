@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.31<br>
+                Histaminscanner v5.36<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1305,6 +1305,7 @@ const DB = {
         'bohnen','bean','kidney','kidneybohnen','cannellini',
         'weiße bohnen','black beans','schwarze bohnen','fave','dicke bohnen',
         'erbsen','pea','grüne erbsen','chickpea','kichererbsen',
+        'erbsenprotein','pea protein','erbsenisolat','erbseneiweiß',  // S2 — konzentriertes Isolat problematischer als frische Erbse!
         'sojabohnen','soja','soy','soybeans','edamame',
         'tofu','sojaprotein','soy protein',
         'hülsenfrüchte','legumes',
@@ -1335,6 +1336,9 @@ const DB = {
         'bockshornklee',
         // ── Käse-Liberatoren (jung gereift, S1-2) ──────────────────────
         'milchkäse','junger gouda','gouda jung',   // S1-2 — weniger als Hartkäse, aber kein Safe-Käse!
+        // ── Scharfe Gewürze / Extrakte ─────────────────────────────────
+        'wasabi','wasabipaste','wasabipulver',      // S1-2 Liberator (Senföle + Kommerziell: Senf/Glutamat)
+        'paprikaextrakt','e160c','paprikaoleoresin', // S2 Liberator (Konzentrat, nicht normales Pulver!)
         // ── Gewürz-Liberatoren (aus safe_hints korrigiert) ──────────────
         'zimt','zimtpulver','cinnamon',             // S1-2 Liberator
         'nelke','nelken','gewürznelke','cloves',     // S1-2 Liberator
@@ -1603,7 +1607,7 @@ const DB = {
         'karamell','e150a','e150b','e150c','e150d','zuckerkulör',
         'chlorophyll','e140','e141',
         'beta-carotin','e160a',
-        'paprikaextrakt','e160c',
+        // paprikaextrakt/e160c → liberator S2, NICHT safe_hints!
         'acesulfam-k','e950','acesulfam',
         'saccharin','e954',
         'erythrit','erythritol',
@@ -1621,7 +1625,7 @@ const DB = {
         'haferfaser','apfelfaser','weizenballaststoffe',
         'bambusballaststoffe','zichorienfaser','zichorieninulin','chicory',
         'weizenkleie','haverkleie','reiskleie',
-        'erbsenprotein','pea protein','erbseneiweiß',
+        // erbsenprotein → liberator S2, NICHT safe_hints! (isoliertes Protein = problematischer als frische Erbse)
         'weizenprotein','kartoffeleiweiß','potato protein',
         'reisprotein','rice protein','sojaisolat',
         'hühnerei-eiweiß','hühnereiprodukte',
@@ -1780,7 +1784,7 @@ const DB = {
         'pflanzenkohle','e153','aktivkohle',
         'chlorophyll','e140','chlorophylle','e141','kupferchlorophyll',
         'rübensaft','e162',
-        'paprikaextrakt','e160c',
+        // paprikaextrakt/e160c → liberator S2, NICHT safe_hints!
         'riboflavin','e101','vitamin b2',
 
         // ── Säuren (safe für Histamin wenn kein DAO-Hemmer) ──
@@ -2069,7 +2073,7 @@ const DB = {
         // Farbstoffe S0 (synthetisch, nicht histaminrelevant)
         'e171','titandioxid','e172','eisenoxide',
         'e162','beetenrot','e163','anthocyane','e140','chlorophyll',
-        'e160c','paprikaextrakt','e133','e132','indigokarmin',
+        'e133','e132','indigokarmin',  // paprikaextrakt/e160c → liberator!
         'e903','carnaubawachs','e904','schellack','e901','bienenwachs',
         // Enzyme S0
         'amylase','protease','lactase','e1103','invertase','transglutaminase',
@@ -2085,7 +2089,7 @@ const DB = {
         'e450','eisenpyrophosphat',
         'kieselgur','filterhilfsmittel','bentonit','diatomeenerde',
         // Proteine S0
-        'lupine','lupinenprotein','erbse','erbsenprotein',
+        'lupine','lupinenprotein','erbse', // erbsenprotein → in liberator[]
         'leinsamen','hanf','molke','molkenpermeat',
         'inulin','polydextrose',
         // Gase S0
@@ -2234,7 +2238,7 @@ const DB = {
         'asafoetida','hing',                 // S0 (Ferula-Harz)
         'schwarzkümmel','nigella','kalonji', // S0
         'galgant','galangal',                // S0 (Ingwerwurzel)
-        'wasabi',                            // S0-1 (frisch/Paste)
+        // wasabi → liberator S1-2, NICHT safe_hints!
         'schwarzkümmel',                     // S0
         'zitronenpfeffer',                   // S1 (Zitrone+Pfeffer)
         'chiliflocken','pul biber',          // S1
@@ -2250,7 +2254,7 @@ const DB = {
     
         'dukkah','furikake',        // S0
         'advieh','hawaij','chermoula','berbere',  // S0-1 Gewürzmischungen
-        'wasabi','wasabipaste',     // S0-1
+        // wasabi/wasabipaste → liberator, NICHT safe_hints!
     
         'wacholder','wacholderbeere',       // S0-1 (leicht aromatisch)
         'mohn','mohnsamen','spickmohn',     // S0
@@ -2547,7 +2551,8 @@ const DB = {
         'molkenpulver','wheypulver',          // S1
         'vanillin','vanille-extrakt',         // S0 (nat. Aroma)
         'sojamehl','sojaprotein',             // S0-1
-        'erbsenprotein','reisprotein',        // S0
+        // erbsenprotein → liberator S2!
+        'reisprotein',  // S0 ok        // S0
         // Käse-Zutaten
         'pasteurisierte kuhmilch','kuhmilch', // S0-1
         'tomatenstücke','tomaten würfel',     // S3!
@@ -2768,7 +2773,7 @@ const DB = {
         'maltodextrin',                             // S0 Kohlenhydrat
         'collagen','kollagen',                      // S0
         // Gewürze
-        'wasabipulver','wasabi',                    // S0-1 (Meerrettich-verwandt)
+        // wasabipulver/wasabi → liberator S1-2, NICHT safe_hints!
         'piment','allspice',                        // S0
         'rosmarin','rosmarin extrakt',              // S0
         'salbei',                                   // S0
@@ -3483,6 +3488,12 @@ async function runAnalysis(product, ingredientsText) {
         }
     }
 
+    // ── Unknown-Warnung: zu viele unklassifizierte Zutaten ──
+    const unknownCount = analyzed.filter(i => i.cat === 'unknown').length;
+    if (unknownCount > 3) {
+        toast(`⚠️ ${unknownCount} unklassifizierte Zutaten – manuelle Prüfung empfohlen!`, 5000);
+    }
+
     renderResult(product, analyzed);
 
     } catch(err) {
@@ -3497,6 +3508,8 @@ async function runAnalysis(product, ingredientsText) {
 // ═══════════════════════════════════════════════════════════
 function parseIngredients(inputText) {
     if (!inputText) return [];
+    // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
+    inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
     let text = inputText;
 
     // ── Normierung bekannter Verbundnamen ───────────────────
@@ -3540,7 +3553,8 @@ function parseIngredients(inputText) {
         [/\bweinsteinpulver\b|\bweinsteinbackpulver\b|\bkremertartar\b|\bcream\s+of\s+tartar\b/gi, 'e334'],
         [/\bagar-?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
         // ── Getreide / Malz ──
-        [/\broggenmalz\b|\bmalzmehl\b|\bweizenmalz\b|\bdinkelmalz\b/gi, 'hafer'],
+        [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
+        [/\bmalzmehl\b/gi, 'hafer'],  // Malzmehl = feines Mehl, milder als Extrakt → hafer S0
         [/\bweizenkörner?\b|\bweizenbeeren?\b/gi, 'mehl'],
         // ── Kulturen (Fermentierung) ──
         [/\bkefirknollen?\b|\bkefirkristalle?\b|\bscoby\b|\bkombucha-?kulturen?\b/gi, 'kulturen'],
@@ -3651,7 +3665,7 @@ function parseIngredients(inputText) {
         [/\bmaltodextri[n]?\b(?:\s+aus\s+\w+)?\b/gi, 'zucker'],             // inkl. Tippfehler 'maltodextin'
         [/\bcollagen(?:peptide?|protein)?\b|\bkollagen\b/gi, 'molke'],
         // ── Gewürze Spezifisch ──
-        [/\bwasabipulver\b|\bwasabi(?:paste|pulver|extrakt)?\b/gi, 'gewürze'],
+        [/\bwasabipulver\b|\bwasabi(?:paste|pulver|extrakt)?\b/gi, 'wasabi'],  // S1-2 Liberator — NICHT gewürze!
         [/\bpiment\b|\bneu(?:gewürz|es\s+gewürz)?\b/gi, 'gewürze'],
         [/\brosmarin(?:extrakt|öl|zweige?)?\b/gi, 'kräuter'],
         [/\bsalbei\b|\bsage\b/gi, 'kräuter'],
@@ -4027,7 +4041,7 @@ function parseIngredients(inputText) {
         [/\bbutterreinfett\b|\bbutterreinfett\b|\bklarbutterreinfett\b|\bghee\b/gi, 'butter'],
         [/\bmolkenpulver\b|\bmolkenproteinpulver\b|\bwheypulver\b/gi, 'molke'],
         [/\bsojamehl\b|\bsojaprotein(?:isolat|konzentrat)?\b/gi, 'soja'],
-        [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b/gi, 'erbsen'],
+        [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 — eigene Klassifizierung!
         [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
         [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
         [/\bkaramellfarbstoff\b|\bkaramellsirup\b|e150\w?\b/gi, 'e150'],
@@ -4098,7 +4112,7 @@ function parseIngredients(inputText) {
         [/\bschweinebrühe\b|\bschweinfleischbrühe\b|\bschweinefond\b/gi, 'brühe'],
         [/\bkochschinken\b|\bpresschinken\b/gi, 'kochschinken'],
         [/\bnitritpökelsalz\b|\bpökelsalz\b|\bnitrit(?:salz)?\b/gi, 'pökelsalz'],
-        [/\bpaprikaextrakt\b|\bpaprikaoleoresin\b/gi, 'gewürze'],
+        [/\bpaprikaextrakt\b|\bpaprikaoleoresin\b|e160c\b/gi, 'paprikaextrakt'],  // S2 Liberator — Konzentrat ≠ Pulver!
         [/\bpaprikakonzentrat\b|\bpaprika(?:saft|püree)?konzentrat\b/gi, 'paprika'],   // Paprikakonzentrat → safe
         [/\berdbeergranulat\b|\berdbeerpulver\b|\berdbeer(?:flocken|chips)\b/gi, 'erdbeere'], // → Liberator S1-2
         // ── Früchte & Säfte ──
@@ -4739,7 +4753,7 @@ function parseIngredients(inputText) {
         [/holunderbeer\w*extrakt\b/gi,     'holunderbeeren'],
         [/saflor\b/gi,                     'distelöl'],
         // Protein-Compound-Zutaten → Basislebensmittel
-        [/erbsenprotein\b/gi,              'erbsen'],
+        [/\berbsenprotein(?:isolat)?\b|\bpea\s*protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 Liberator,
         [/ackerbohnenprotein\b/gi,          'ackerbohne'],
         [/kartoffelprotein\b/gi,            'kartoffel'],  // S0
         [/sonnenblumenprotein\b/gi,         'sonnenblumenkerne'],  // S2 Histaminta
@@ -4751,7 +4765,10 @@ function parseIngredients(inputText) {
         [/gewürzextrakte?\b/gi,              'gewürze'],
         [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
         [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
-        [/\w+konzentrate?\b/gi,             ''],  // Farbkonzentrate → skip
+        // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
+        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)konzentrat\b/gi, (m) => m.replace(/konzentrat/gi, '').trim()],  // Liberator-Früchte retten
+        [/\b(?:erdbeer|cranberry|brombeere?)konzentrat\b/gi, 'erdbeere'],  // Liberator-Basis
+        [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
         [/weizengluten\b/gi,                'seitan'],
@@ -4961,7 +4978,7 @@ function parseIngredients(inputText) {
         [/tomatenkonzentrat/gi,          'tomatenmark'],
         // Paprika
         [/paprikapulver/gi,              'paprika'],
-        [/paprikaextrakt/gi,             'paprika'],
+        [/paprikaextrakt/gi, 'paprikaextrakt'],  // S2 Liberator — Konzentrat!
         // Soja
         [/sojaeiweiß/gi,                 'soja'],
         [/sojaprotein/gi,                'soja'],
@@ -4992,7 +5009,7 @@ function parseIngredients(inputText) {
         [/zwiebelpulver|zwiebelgranulat/gi, 'zwiebel'],
         [/tomatenpulver/gi,              'tomaten'],
         [/tomatenpüree\b/gi,             'tomatenmark'],
-        [/paprikapulver|paprikaextrakt/gi, 'paprika'],
+        [/paprikapulver/gi, 'paprika'],  // Pulver = safe; Extrakt = Liberator (getrennt geregelt),
         [/sojaeiweiß|sojaprotein/gi,     'soja'],
         [/sojasauce|sojasoße/gi,         'sojasauce'],
         [/sojaöl/gi,                     'sojaöl'],
@@ -5410,7 +5427,7 @@ function parseIngredients(inputText) {
         [/\backerbohne\w*\b|\backerbohnenprotein\b/gi, 'erbse'],
         [/\bleinsamen(?:mehl|öl)?\b/gi, 'leinsamen'],
         [/\bhanfprotein\b|\bhanfsamen\b|\bhanföl\b/gi, 'hanf'],
-        [/\berbsenprotein\b|\berbsenmehl\b/gi, 'erbse'],
+        [/\berbsenmehl\b/gi, 'erbsen'],  // nur erbsenmehl→erbsen; protein hat eigene norm,
         [/\bmolken?permeat\b/gi, 'molke'],
         [/\beiklarpulver\b|\beiklar\b/gi, 'ei'],
         [/\bspeisegelatine\b/gi, 'gelatine'],
@@ -5445,7 +5462,7 @@ function parseIngredients(inputText) {
         [/\bpolysorbat[e]?\b|e432\b|e433\b|e434\b|e435\b|e436\b/gi, 'e432'],
         // ── Farbstoffe ──
         [/\bbeetenrot\b|\brotebetenextrakt\b|\bbetanin\b|e162\b/gi, 'e162'],
-        [/\bpaprikaextrakt\b|e160c\b/gi, 'e160c'],
+        // paprikaextrakt → paprikaextrakt norm ist früher (korrekt) bereits gesetzt
         [/\banthocy[a]ne?\b|e163\b/gi, 'e163'],
         [/\bchlorophyll[e]?\b|e140\b|e141\b/gi, 'e140'],
         [/\btitandioxid\b|e171\b/gi, 'e171'],
@@ -6002,7 +6019,7 @@ function parseIngredients(inputText) {
         [/\bgiersch\b|\bgeißfuß\b/gi, 'kräuter'],
         [/\bschafgarbe\b|\bgarbe\b/gi, 'kräuter'],
         [/\bspitzwegerich\b|\bwegerich\b/gi, 'kräuter'],
-        [/\bsauerampfer\b|\bampfer\b/gi, 'kräuter'],   // S1 Oxalsäure
+        [/\bsauerampfer\b|\bampfer\b/gi, 'sauerampfer'],  // S1 Liberator (Oxalsäure) — NICHT kräuter!
         [/\bramsons\b/gi, 'bärlauch'],                  // englisch für Bärlauch S0
         // ── Pilze ──
         [/\bausternpilze?\b|\bpleurotus\b/gi, 'champignon'],
@@ -6322,7 +6339,7 @@ function parseIngredients(inputText) {
         [/\bproteinshake\b|\bprotein\s+shake\b/gi, 'proteinriegel'],
         [/\bwhey\s*(?:protein|isolat|konzentrat)?\b/gi, 'molke'],
         [/\bcasein\s*(?:protein|pulver)?\b/gi, 'milchpulver'],
-        [/\bpea\s+protein\b|\berbsenprotein\b/gi, 'erbse'],
+        [/\bpea\s+protein\b|\berbsenprotein\b/gi, 'erbsenprotein'],  // S2 Liberator!
         [/\bhemp\s+protein\b|\bhanfprotein\b/gi, 'hanf'],
         // ── Nahrungsergänzung → alle 'supplement' ──
         [/\bbcaa\b|\bbranched\s+chain\b/gi, 'supplement'],
@@ -6436,6 +6453,10 @@ function parseIngredients(inputText) {
     // ── PRE-STRIP: Allergen-Hinweise, (Enthält:), (Kann Spuren von) entfernen ──
     // HelloFresh und andere Meal-Kit-Anbieter listen diese nach jeder Zutat
     inputText = inputText
+        // Unicode-Bindestrich-Normalisierung (OCR-Artefakte: En-Dash, Em-Dash, Minus, Weiches Trennzeichen)
+        .replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-')
+        // Fix für fehlende schließende Klammern nach Prozentangaben: "Kaffee (0,3%, X" → "Kaffee (0,3%), X"
+        .replace(/\((\d[\d,.]*)%,/g, '($1%), ')
         // Mehrzeilige Klammern entfernen: "(Brühwürfel für 2,5 ltr. ...\nauflösen)"
         // ── Kategorie (Einzelinhalt) → Inhalt extrahieren ──
         // "Verdickungsmittel (Xanthan)" → "Xanthan"
@@ -6565,6 +6586,7 @@ function parseIngredients(inputText) {
         // Prozentwerte entfernen: "(51%)", "42%", "(min. 26%)", "(für AT: ...)"
         p = p.replace(/\(\s*(?:für\s+\w+\s*:\s*)?\s*[\w\s]+\s*\)/g, (m) => m.includes('%') || /für\s+\w+\s*:/.test(m) ? '' : m);
         p = p.replace(/\(?\s*(?:mind?\.|min\.|max\.|ca\.)?\s*\d+[,.]?\d*\s*%\s*\)?/g, ' ').trim();
+        p = p.replace(/\s+\d+\s*$/g, '').trim();  // trailing lone number artifact (e.g. "schokolade 0")
         // Funktionsklassen: "Konservierungsstoff: X" → "X"
         if (FUNC_CLASS_RE.test(p)) {
             p = p.replace(FUNC_CLASS_RE, '').trim();
@@ -6894,7 +6916,7 @@ function classifyIngredient(name) {
     n = n.replace(/\b(?:stücke?(?:chen)?|püree|pulver(?!.*milch)|scheiben|flocken|raspel|körner|samen|kerne?n?)\b/gi, '').trim();
     // Strip 'extrakt/konzentrat/auszug/saft' ONLY when not forming a compound with a different ingredient type
     // e.g. hefeextrakt→hefe(wrong!), tomatenextrakt→tomate(ok), apfelextrakt→apfel(ok)
-    if (!n.match(/^(?:hefe|malz|rogen|fisch|fleisch|knochen)extrakt/i)) {
+    if (!n.match(/^(?:hefe|malz|rogen|fisch|fleisch|knochen|paprika|rauch|wasabi)extrakt/i)) {
         n = n.replace(/(?:saft|extrakt|konzentrat|auszug)\b/gi, '').trim();
     }
     n = n.replace(/\b(?:apfel|dattel|birn|erdbe?er|blaubee?r|cranberry|himbe?er|mandel|kokos|hafer|quinoa)(stücke?|pulver|püree|chips|flocken|raspel|mehl|öl|milch)?\b/gi,
@@ -7115,8 +7137,9 @@ const SIGHI_DB = {
         'patentblau v','e131','indigokarmin','e132','brillantblau fcf','e133',
         'brillantschwarz','e151','braun ht','e155','e142','brillantsäuregrün',
         'bha','e320','butylhydroxyanisol','bht','e321','butylhydroxytoluol',
-        'schwarztee','grüntee','matcha','mate','brennesseltee',
-        'kaffee','espresso','koffein','energy drink','taurin','guarana',
+        // schwarztee/grüntee/kaffee/espresso → S1-2 DAO-Hemmer, NICHT S3!
+        // energy drink bleibt S3 wegen Zusatzstoffe (Taurin, Benzoat etc.)
+        'energy drink',
         'sorbinsäure','e200','natriumsorbat','e201','kaliumsorbat','e202','calciumsorbat','e203',
         // Schmerzmittel (NSAR): starke Histaminliberatoren
         'acetylsalicylsäure','aspirin','asa',
@@ -7138,7 +7161,7 @@ const SIGHI_DB = {
         'rotwein','champagner','sekt','wein',
         'schnaps nicht klar','whisky','rum','brandy','weinbrand',
         'spirituosen dunkel','liköre',
-        'zitronensaft','zitronensaftkonzentrat',
+        // zitronensaft → Level 2 (S2 Liberator), NICHT S3!
         // ── Zusatzstoffe S3 (SIGHI 2024) ──
         'e102','tartrazin','gelb 5',
         'e104','chinolingelb',
@@ -7339,9 +7362,10 @@ const SIGHI_DB = {
         // ── Getränke S1 (SIGHI 2024) ──
         'kaffee','espresso',
         'kaffee entkoffeiniert',
-        'grüntee',
+        'grüntee','schwarztee','matcha',  // DAO-Hemmer S1-2
+        'koffein','taurin','guarana',      // aus S3 hierher verschoben
         'mate','matetee',
-        'brennnesseltee',
+        'brennnesseltee','brennesseltee',
         'kräuterteemischungen',
         'limonade mild',
         'energy drink',
@@ -7778,7 +7802,7 @@ function getIngredientInfo(name, cat) {
         if (n.match(/getrocknete tomaten|sun.?dried tomato|tomaten getrocknet/))
             return 'SIGHI 3 — Getrocknete Tomaten: noch mehr Histamin als frische Tomaten (Konzentration durch Trocknung)';
         if (n.match(/\btomate\b|tomato\b|cherrytomaten|rispentomaten|flaschentomaten|strauchtomaten|cocktailtomaten/))
-            return 'SIGHI 3 H L — Tomaten: histaminhaltig (11–22 mg/kg) UND Liberator. Frische Tomate in kleinen Mengen oft tolerierbar. Tomatenmark/Ketchup/Dosentomaten deutlich schlimmer → meiden!';
+            return 'SIGHI 2 H L — Frische Tomate: histaminhaltig (11–22 mg/kg) UND Liberator. In Maßen oft tolerierbar. Achtung: Tomatenmark/Ketchup/Dosentomaten = SIGHI 3 (Konzentration → viel mehr Histamin) → meiden!';
         if (n.match(/tomatenmark|tomatenpüree|passata|pelati|gehackte tomaten|dosentomaten/))
             return 'SIGHI 3 H L — Tomatenmark: viel mehr Histamin als frische Tomaten (Verarbeitung/Einkochen)! Paprikamark als histaminarmer Ersatz empfohlen';
         if (n.match(/ketchup|pizza-soße|marinara/))
