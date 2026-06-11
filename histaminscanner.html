@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.36<br>
+                Histaminscanner v5.39<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4151,7 +4151,7 @@ function parseIngredients(inputText) {
         [/\benthalten(?:d|e|en)?\b\s*/gi, ''],                                            // "enthält SOJA" → strip
         [/\bvollmilch(?:pulver)?\b|\bfrischmilch\b/gi, 'milch'],
         [/\bspeisequark\b|\bmagerquark\b|\bquarkzubereitung\b|\bspeisequarkzubereitung\b/gi, 'quark'],
-        [/\bedamer(?:käse)?\b|\bedammer\b/gi, 'käse'],
+        [/\bedamer(?:käse)?\b|\bedammer\b/gi, 'milchkäse'],  // S1-2 Liberator wie junger Gouda — NICHT Hartkäse!
         [/\bemmentaler(?:käse)?\b|\bemmental\b/gi, 'käse'],
         [/\bjunge[rm]?\s+gouda\b|\bgouda\s+jung\b/gi, 'milchkäse'],  // VOR gouda→käse! → 'milchkäse' S1-2
         [/\bgouda(?:käse)?\b(?!\s+alt)/gi, 'käse'],
@@ -4177,7 +4177,7 @@ function parseIngredients(inputText) {
         [/\bweizenstärke\b|\bmaizena\b/gi, 'stärke'],
         [/\bkartoffelstärke\b|\bpfeilwurzelstärke\b/gi, 'stärke'],
         [/^s(?:äure)?regulator(?:en?)?\s*$/gi, ''],       // isoliertes Kategoriewort
-        [/^backtriebmittel\s*$/gi, ''],
+        [/^backtrieb\s*mittel\s*$/gi, ''],
         [/^emulgator(?:en?)?\s*$/gi, ''],                  // isoliert → leer (kein Inhaltsstoff)
         [/^stabilisator(?:en?)?\s*$/gi, ''],
         [/^verdickungsmittel\s*$/gi, ''],
@@ -4200,7 +4200,7 @@ function parseIngredients(inputText) {
         [/\bfeuchthaltemittel\s*\(([^)]+)\)/gi, '$1'],
         [/\bgeschmacksverstärker\s*\(([^)]+)\)/gi, '$1'],
         [/\btrennmittel\s*\(([^)]+)\)/gi, '$1'],
-        [/\bbacktriebmittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\bbacktrieb\s*mittel\s*\(([^)]+)\)/gi, '$1'],
         [/\balaska\s*(?:see)?lachs(?:-filet)?\b/gi, 'fischfilet'],
         [/\bfischfilet\s*filet\b/gi, 'fischfilet'],  // Dedup: fischfiletfilet → fischfilet
         [/\bseelachs(?:-filet)?\b|\balaska\s*pollock\b|\bpollock\b/gi, 'fischfilet'],
@@ -4737,7 +4737,7 @@ function parseIngredients(inputText) {
 
         [/vollkornflocken\b/gi,                'vollkorn'],
         [/antiverklumpungsmittel\b/gi,         ''],
-        [/^backtriebmittel$/gi,               ''],   // standalone nach Klammer-Entfernung
+        [/^backtrieb\s*mittel$/gi, ''],   // standalone nach Klammer-Entfernung
 
 
 
@@ -5662,7 +5662,7 @@ function parseIngredients(inputText) {
         // ── Sauerrahm ──
         [/\bsauerrahm\b|\bsaure\s+sahne\b|\bsauersahne\b/gi, 'sauerrahm'],
         // ── Edamer ──
-        [/\bedamer\b|\bappenzeller\b|\bgruyère\b/gi, 'gouda'],
+        [/\bappenzeller\b|\bgruyère\b/gi, 'gouda'],
         // ── Pflanzliche Fette (Compound) ──
         [/pflanzliche\s+fette?\s+(palm|kokos|raps)/gi, '$1öl'],
         [/\bfrittierte?\s+kartoffeln?\b/gi, 'kartoffel'],
