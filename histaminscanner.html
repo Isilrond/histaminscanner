@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.43<br>
+                Histaminscanner v5.51<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1071,8 +1071,8 @@ const DB = {
         'bückling','matjes','kippers','kaviar','roe','fischrogen',
         'ölsardinen','fischpaste','fischsoße','fish sauce','nam pla','nuoc mam',
         'aal','geräucherter aal','smoked eel',
-        'austern','oyster','garnelen','shrimp','prawn','hummer','lobster',
-        'krabben','krab','crab','krebse','muscheln','mussel','clam',
+        'austern','oyster','garnelen','shrimp','prawn','hummer','lobster','languste',
+        'krabben','krab','crab','krebse','muscheln','mussel','clam','krabbenfleisch','jakobsmuscheln','jakobsmuschel',
         'tintenfisch','squid','calamari','oktopus','octopus','sepia',
                 'sucuk',
         ,'pepperoni','chorizo','fuet','saucisson',
@@ -1099,7 +1099,7 @@ const DB = {
         'bier','ale','lager','stout','porter','weizenbier','malzbier',
         'wein','wine','beer','mead','met','sake','cider',
         'whisky','whiskey','rum','gin','vodka','tequila','schnaps','likör',
-        'brandy','cognac','calvados','grappa','amaretto',
+        'brandy','cognac','calvados','grappa','amaretto','weinbrand','sherry',
         'essig','weinessig','apfelessig','balsamico','reisessig',
         'malt vinegar','vinegar','aceto','vinaigre',
         'sojasoße','soy sauce','tamari','shoyu','teriyakisoße',
@@ -1250,10 +1250,10 @@ const DB = {
         'bifi','beef jerky','jerky',  // S3 — gepökeltes/geräuchertes Trockenfleisch
         'camembert paniert','mozzarella sticks',  // S2 — Käse gereizt/aufgeheizt
         'tiramisu',  // S2-3 — Kaffee (DAO-Hemmer) + Mascarpone S2
-        'pökelsalz','nitritpökelsalz',  // S2-3 gepökeltes Fleisch-Additiv
+        'pökelsalz','nitritpökelsalz','e250','natriumnitrit',  // S2-3 — Pökelsalz/Nitrit-Marker (siehe auch E-Nummer-Sonderregel E249-252)
         'e451','e407',  // S1 — Phosphate/Carrageen in Wurstprodukten
-        'e250','natriumnitrit','nitritpökelsalz',  // S2-3 — Konservierungsstoff Wurst/Schinken (Pökelung)
-        'essigsäure','e260','weinessig','weißweinessig','rotweinessig','malzessig',  // S2-3 — Essig jeder Art
+        // essigsäure/e260 (isolierter Zusatzstoff) → S0 lt. SIGHI 2024, siehe safe_hints
+        'weinessig','weißweinessig','rotweinessig','malzessig','apfelessig','reisessig',  // S2-3 — Essig als Lebensmittel (fermentiert)
         'destillierter essig',  // S2-3 Destillierter Weinessig
         'fischsosse','fischsauce','fischextrakt',  // S3 — fermentierter Fisch (wie Anchovis)
     ],
@@ -1277,7 +1277,7 @@ const DB = {
         'pflaume','plum','zwetschge','zwetsche',
         'papaya','mango','guave','guava','maracuja','passionsfrucht',
         'passion fruit',
-        'johannisbeere','currant','stachelbeere','gooseberry',
+        'johannisbeere','currant','stachelbeere','stachelbeer','gooseberry',
         'aronia','aroniabeere',                                 // Apfelbeere → Liberator S1-2
         'holunderbeere','holunder','elderberry',                // Holunder → Liberator S1
         'birne','pear','feige','fig',
@@ -1391,6 +1391,9 @@ const DB = {
         'ponzu',  // S1-2 (Sojasoße+Zitrus)
         'rote bete saft','roten-beete-saft',  // S1 Betain
         'sauerampfer',  // S1 — Oxalsäure + mild sauer
+        'malzmehlzusatz',  // S1 — Gerstenmalzmehl als Backzusatz, milder als Malzextrakt aber Restrisiko
+        // malzmehlzusatz → liberator S1 (siehe liberator-Array), NICHT safe_hints!
+        'gegrillte zwiebel','gegrillte zwiebeln','grillzwiebel','gegrilltes gemüse',  // S1 — Röststoffe/Maillard-Reaktion
         'rote bete','rote beete','randen',  // S1 — Betain
         'reishi','chaga',  // S1-2 — Heilpilze (Histaminfreisetzung möglich)
         'kondensmilch','dosenmilch','evaporated milk',  // S1-2 konzentrierte Milch
@@ -2094,6 +2097,9 @@ const DB = {
         'lupine','lupinenprotein','erbse', // erbsenprotein → in liberator[]
         'leinsamen','hanf','molke','molkenpermeat',
         'inulin','polydextrose','ballaststoff',
+        'e290','kohlendioxid',  // S0 — Kohlensäure
+        'e445','stearyltartrat','e483',  // S0 — Stabilisator/Emulgator
+        'drachenfrucht','pitahaya','dragonfruit',  // S0 — geschmacksneutral, keine bekannten Liberator-Eigenschaften
         // Gase S0
         'lachgas',
         // Sonstiges
@@ -2117,11 +2123,10 @@ const DB = {
         'schalotte','schalotten',                       // S0 (Zwiebelverwandt)
         'sprossen','mungobohnenkeimlinge',              // S0-1
         // steinpilz/steinpilzpulver → Liberator S1 → korrekt in liberator[]!
-        'fischfond','fischbrühe',                      // S2-3 Fischfond = problematisch
+        // fischfond/fischbrühe → high[] S2-3 (siehe Zeile 1209), NICHT safe_hints!
         'pute','putenfleisch','putenbrust',             // S0-1
         'kochschinken mager','putenschinken','kochschinken',  // S0-1 nur Kochschinken!                   // S2-3 → in high
-        'tintenfisch','sepia','calamari',              // S2-3 Meeresfrüchte
-        'muschel','muscheln',                          // S3 sehr hoch
+        // tintenfisch/muschel/muscheln → high[] S2-3, NICHT safe_hints!
         'fischfilet','seelachs','kabeljau',            // S1 frisch (TK weniger)
         // bockshornklee → liberator S2, NICHT safe_hints!
         // nelke/nelken → liberator S1-2, NICHT safe_hints!
@@ -2378,7 +2383,7 @@ const DB = {
         'kaninchen',                                 // S0-1 (frisches Kaninchen)
         'ziegenfleisch','ziegenkeule',               // S0-1
         'knochenmark','markknochen',                 // S2 (konzentriert)
-        'wildfleisch','wildschwein','reh','hirsch',  // S1-2 (Wildfleisch)
+        'wildfleisch','wildschwein',  // S1-2 (Wildfleisch) — reh/hirsch → high[] S3, NICHT hier!
         'entenfleisch','ente','gänsefleisch','gans', // S1 (Geflügel, etwas fetter)
         'kalbfleisch','kalbschnitzel',               // S0-1 (junges Fleisch)
         'pferdefleisch',                             // S0-1
@@ -2514,10 +2519,11 @@ const DB = {
         'weizenstärke','kartoffelstärke',      // S0
         'glukose-fruktose-sirup',              // S0 (Zucker)
         // Pizza-Spezifika
-        'tomatenpüree','passierte tomaten',    // S3 (Tomaten)!
+        // tomatenpüree/passierte tomaten → high[] S3 (Tomatenmark), NICHT safe_hints!
         // Neue Milchprodukte
-        'edamer','emmentaler','vollmilch',     // S1-2 (Käse/Milch)
-        'käse gereift',  // S2-3 gereifter Käse generisch
+        // edamer/emmentaler → high[] S3 (Hartkäse), NICHT safe_hints! vollmilch bleibt S0:
+        'vollmilch',
+        // käse gereift → high[] S2-3, NICHT safe_hints!
         'babymais','mais kolbchen','jungmais',  // S0
         'zuckerschoten','mangetout',            // S0
         'bambussprossen','bambus',              // S0
@@ -2526,7 +2532,7 @@ const DB = {
         'sesamöl',                              // S0
         'schweinebrühe',                        // S1-2 (Brühe)
         'kochschinken',                         // S1-2 (gegart, nicht roh)
-        'orange','orangen','orangensaft',       // S1 Liberator mild
+        // orange → liberator[] S1-2 (siehe Zeile 1273), NICHT safe_hints!
         'kamille','kamillenblüten',             // S0
         'pfefferminze','pefferminztee',         // S0
         'weizenfasern','haferkleie',            // S0
@@ -2683,7 +2689,7 @@ const DB = {
         'knoblauchpulver','getrockneter knoblauch',  // S0
         // Sake/Mirin → high (enthalten Alkohol)
         'eiklar',                            // S0 Eiweiß
-        'destillierter essig',               // S2-3 (Essig)
+        // destillierter essig → high[] S2-3, NICHT safe_hints!
     
         // Kaffee
         // röstkaffee/arabica/robusta/kaffeeextrakt → dao_blocker, NICHT safe_hints!
@@ -2752,14 +2758,9 @@ const DB = {
         'hirsekorn',                          // S0
         'buchweizengraupen',                  // S0
         // Meeresfrüchte (→ high via garnele)
-        'krabbenfleisch','krabben',           // S3
-        'jakobsmuscheln','jakobsmuschel',     // S3
-        'hummer','languste',                  // S3
-        'muscheln','austern',                 // S3
-        // Alkohol in Saucen
-        'weinbrand','cognac','brandy',        // S3
-        'weißwein','rotwein','sekt',          // S3
-        'rum','whisky','sherry','likör',      // S3
+        // krabbenfleisch/krabben/jakobsmuscheln/hummer/languste/muscheln/austern → high[] S3, NICHT safe_hints!
+        // Alkohol in Saucen → ebenfalls high[] S3:
+        // weinbrand/cognac/brandy/weißwein/rotwein/sekt/rum/whisky/sherry/likör → high[] S3
         // Pilze
         'trüffel','trüffelöl','trüffelaroma', // S0-1
         // Gewürze
@@ -3523,6 +3524,11 @@ function parseIngredients(inputText) {
     const NORMALIZE = [
         // ── Präfix-Stripping (muss zuerst!) ──
         [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
+        // "2-fach konzentriert" / "3fach konz." etc. → entfernen (Mengenangabe, keine eigene Zutat)
+        [/\s*\d+\s*-?\s*fach\s*(?:konzentriert|konz\.?)?\b/gi, ''],
+        // Nährwerttabellen-Fragmente, die versehentlich in die Zutatenliste gerutscht sind
+        [/\b(?:durchschnittliche\s+)?nährwerte?\s*/gi, ''],
+        [/\bdurchschnittliche[rsn]?\s+/gi, ''],
         // ── Dish names (must come before generic ingredient norms) ──
         // ── Suppen (Compound X+suppe → Grundzutat) ──
         // ── HOLY Iced Tea spezifisch ──
@@ -3708,6 +3714,7 @@ function parseIngredients(inputText) {
         [/\bport(?:wein)?\b|\bsherry\b|\bmarsala\b|\bvermouth\b/gi, 'alkohol'],
         [/\brum\b|\bwhisky\b|\bschnaps\b|\blikör\b|\bvodka\b/gi, 'alkohol'],
         // ── Fleisch-Cuts ──
+        [/\bschweineprotein\b|\bschweine?fleischprotein\b/gi, 'schweinefleisch'],  // S0
         [/\bschweinkekeule\b|\bschweines?keule\b|\bschweinebein\b/gi, 'schweinefleisch'],
         [/\bhähnchen(?:keule|schenkel|flügel|brust)?\b/gi, 'hähnchen'],
         [/\benten(?:brust|keule|filet)?\b|\bente\b(?!\s*r)/gi, 'geflügel'],
@@ -3803,6 +3810,9 @@ function parseIngredients(inputText) {
         [/\breifungskulture?n?\b|\breifekulturen?\b|\bstarterkulturen?\b/gi, 'kulturen'],  // Wurst-Reifekulturen → safe
         [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],       // Farbstoff → Liberator S1
         [/\bfärbendes?\s+lebensmittel\s*:?\s*/gi, ''],  // "färbendes Lebensmittel: X" → "X" (muss zuerst!)
+        // Generisch: "Beschreibung ... : Natrium-/Calcium-/E-Zusatzstoff" → nur den Zusatzstoff behalten
+        // z.B. "essbare Wursthülle aus Alginat hergestellt: Natriumalginat" → "Natriumalginat"
+        [/^.*?:\s*((?:natrium|kalium|calcium|magnesium)\w*|e\d{3}\w*)\s*$/i, '$1'],
         [/\brote-?bete-?pulver\b|\brote\s+bete\s+pulver\b/gi, 'rote bete'],  // Rote-Bete-Pulver → Liberator S1
         [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
         [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
@@ -3957,7 +3967,7 @@ function parseIngredients(inputText) {
         [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitamine'],
         [/\bb12\b|\bd2\b|\bd3\b|\bb6\b|\bb2\b|\bb1\b/gi, 'vitamine'],  // kurze Vitamin-Bezeichnung
         // ── Hühnerpulver / Instant-Brühen ──
-        [/\bhühner(?:pulver|extrakt|fond|brühe)\b|\bhühnerbouillon\b/gi, 'brühe'],
+        [/\bhühner(?:pulver|extrakt|fond|brühe|suppe)\b|\bhühnerbouillon\b/gi, 'brühe'],
         [/\brind(?:fleisch)?(?:pulver|extrakt|fond)\b/gi, 'brühe'],
         [/\bgemüse(?:pulver|extrakt|brühe|fond|bouillon)\b/gi, 'brühe'],
         // ── Nudeln-Spezifika ──
@@ -4005,7 +4015,7 @@ function parseIngredients(inputText) {
         [/\bpassionsfrucht(?:saft|mark|konzentrat|aroma)?\b/gi, 'maracuja'],
         [/\bananassaft(?:konzentrat)?\b|\bananas\s+(?:saft|konzentrat)\b/gi, 'ananas'],
         [/\bkaffee(?:extrakt|konzentrat)?\b(?!\s*s)/gi, 'kaffee'],  // koffeinhaltiger Extrakt
-        [/\bkohlensäure\b|\bco2\b/gi, 'salz'],               // Kohlensäure = neutral S0
+        [/\bkohlensäure\b|\bco2\b/gi, 'e290'],               // Kohlensäure = CO2, S0 — eigenes Token statt irreführend 'salz'
         [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
         // ── Vitamine / Mineralstoffe (Anreicherung) ──
         [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b/gi, 'vitamine'],
@@ -4688,7 +4698,7 @@ function parseIngredients(inputText) {
         [/ammoniumhydrogencarbonat\b/gi,       'e503'],
         [/ammoniumbicarbonat\b/gi,             'e503'],
         // Malt/Getreide-Compounds
-        [/gerstenmalzmehl\b/gi,               ''],     // S0!
+        [/\bgerstenmalzmehl\b/gi, 'malzmehlzusatz'],  // S1 — sichtbar statt komplett verschworfen (Restrisiko bei hochsensiblen Personen)
         [/zuckerrohrmelasse\b/gi,             'melasse'],  // S2 SIGHI
         [/karamellisierter?\s*zucker\b/gi,   'karamell'],  // S0 (E150)
         [/natriumpropionat\b/gi,              'e281'],  // ? umstritten
@@ -4709,6 +4719,11 @@ function parseIngredients(inputText) {
         [/jodiertes?\s*kochsalz\b/gi,       'jodsalz'],  // S2 L!
         [/eisensulfat\b/gi,                  ''],  // Nährstoff → skip
         [/geräuchertes?\s*maltodextrin\b/gi, 'maltodextrin'],
+        [/\bmaltodextrine\b/gi, 'maltodextrin'],  // Plural-Form
+        // "siehe S. Heidelbeerpüree" / "siehe sch Heidelbeerpüree" (OCR von "siehe S.") → nur Zielzutat behalten
+        [/\bsiehe\s+(?:s\.?\s*ch?\.?\s*)?/gi, ''],
+        // "Brombeerfruchtpulver" / "Holunderbeerenpulver" etc. → Basis-Beere (Liberator-Status erhalten)
+        [/\b(?:erdbeer|himbeer|brombeer|johannisbeer|holunderbeer|preiselbeer|cranberry|aronia)(?:en)?(?:frucht)?pulver\b/gi, (m) => m.replace(/(?:en)?(?:frucht)?pulver/gi, 'e').trim()],
         [/rauchsalz\b/gi,                    'salz'],  // S0 (Raucharoma, kein H)
         [/bunter\s*pfeffer\b/gi,             'pfeffer'],
         [/natriumstearoyl-?2-lactylat\b/gi,  ''],
@@ -4777,8 +4792,8 @@ function parseIngredients(inputText) {
         [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
         [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
         // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
-        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)konzentrat\b/gi, (m) => m.replace(/konzentrat/gi, '').trim()],  // Liberator-Früchte retten
-        [/\b(?:erdbeer|cranberry|brombeere?)konzentrat\b/gi, 'erdbeere'],  // Liberator-Basis
+        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],  // Liberator-Früchte retten
+        [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],  // Liberator-Basis
         [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
@@ -5425,7 +5440,7 @@ function parseIngredients(inputText) {
         [/sojalecithin\b/gi, 'lecithin'],
         [/sonnenblumenlecithin\b/gi, 'lecithin'],
         // ── Zuckervarianten ──
-        [/\blaktose\b|\bmilchzucker\b|\blactose\b/gi, 'zucker'],
+        [/\blaktose\b|\bmilchzucker\b|\blactose\b|\bgalaktose\b|\bgalactose\b/gi, 'zucker'],
         [/\bglukose\b(?!\s*sirup)/gi, 'zucker'],
         [/\bagavendicksaft\b|\bagavensirup\b/gi, 'zucker'],
         [/\btagatose\b|\berythrit\b|\bxylit\b|\bisomalt\b|\bsorbit\b|\bmannitol\b|\blactit\b|\bmaltit\b/gi, 'süßungsmittel'],  // Zuckeralkohole S0
@@ -5444,10 +5459,10 @@ function parseIngredients(inputText) {
         [/\beiklarpulver\b|\beiklar\b/gi, 'ei'],
         [/\bspeisegelatine\b/gi, 'gelatine'],
         // ── Alginate / Gummis ──
-        [/\balginate?\b|e401\b|e402\b|e403\b|e404\b/gi, 'e401'],
+        [/\b(?:natrium|kalium|calcium|ammonium)?alginate?\b|e401\b|e402\b|e403\b|e404\b/gi, 'e401'],
         [/\bkonjak.?gummi\b|\bkonjak\b|e425\b/gi, 'e425'],
         [/\bzellulosegummi\b|\bcarboxymethylcellulose\b|\bcmc\b|e466\b/gi, 'e466'],
-        [/\bzellulosepulver\b|\bzellulose\b|e460[i]{0,2}\b/gi, 'e460'],
+        [/\bzellulosepulver\b|\b[zc]ellulose\b|e460[i]{0,2}\b/gi, 'e460'],
         [/\btraganth\b|e413\b/gi, 'e413'],
         [/\bkaraya\b|e416\b/gi, 'e416'],
         // ── Phosphate / Mineralien ──
@@ -5469,7 +5484,7 @@ function parseIngredients(inputText) {
         // ── Emulgatoren ──
         [/\bnatriumstearoyl.?lactylat\b|e481\b/gi, 'e481'],
         [/\bpropylenglycolalginat\b|e405\b/gi, 'e405'],
-        [/\bsaccharoseester\b|e473\b/gi, 'e473'],
+        [/\bsaccharoseester\b|\bzuckerester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\bzuckerester\b|e473\b/gi, 'e473'],
         [/\bzuckerglycerid[e]?\b|e474\b/gi, 'e474'],
         [/\bpolysorbat[e]?\b|e432\b|e433\b|e434\b|e435\b|e436\b/gi, 'e432'],
         // ── Farbstoffe ──
@@ -6649,7 +6664,6 @@ function parseIngredients(inputText) {
             // ── Compound-Zutaten expandieren: "Gebäck Streusel (A, B, C)" → "A, B, C" ──
             // Rekursive Innermost-First-Auflösung: löst auch mehrfach verschachtelte Klammern korrekt
             // (z.B. "Cranberry-Stücke (Cranberrys (3,4%), Apfelsaftkonzentrat)")
-            const CAT_WORDS = /\b(?:emulgatoren?|emulgator|verdickungsmittel|stabilisatoren?|stabilisator|konservierungsstoffe?|konservierungsmittel|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|farbstoff|backtriebmittel|süßungsmittel|mehlbehandlungsmittel|geschmacksverstärker|trennmittel|feuchthaltemittel|geliermittel|gelierstoffe?)\b/i;
             {
                 let _tmp = clean;
                 let _iter = 0;
@@ -6687,22 +6701,14 @@ function parseIngredients(inputText) {
                     }
 
                     // Klammerinhalt hat Kommas → Verbundzutat
+                    // Beschreibungs-Name (Cornflakes, Emulgator, Stabilisatoren, etc.) wird verworfen,
+                    // Sub-Zutaten/E-Nummern werden in die Liste übernommen
                     const nameMatch = before.match(/([^,(]*)$/);
                     const name = nameMatch ? nameMatch[1] : '';
-                    const nameTrimmed = name.trim();
-
-                    if (CAT_WORDS.test(nameTrimmed)) {
-                        // Funktionsklasse (Emulgator, Säuerungsmittel etc.) → Klammer behalten,
-                        // mit [] markieren damit sie nicht erneut als "innerste Klammer" gewählt wird
-                        _tmp = before + '[' + inner + ']' + after;
-                    } else {
-                        // Verbundzutat-Name verwerfen, Sub-Zutaten in Liste übernehmen
-                        const beforeWithoutName = before.slice(0, before.length - name.length);
-                        _tmp = beforeWithoutName + inner + after;
-                    }
+                    const beforeWithoutName = before.slice(0, before.length - name.length);
+                    _tmp = beforeWithoutName + inner + after;
                 }
-                // [] zurück zu () für verbleibende Funktionsklassen-Gruppen
-                clean = _tmp.replace(/\[/g, '(').replace(/\]/g, ')');
+                clean = _tmp;
             }
             clean = stripNestedBracketsKeepFirst(clean);
 
@@ -6853,6 +6859,11 @@ function parseIngredients(inputText) {
 
         for (const [re, rep] of NORMALIZE) line = line.replace(re, rep);
 
+        // Generische Dedup: "wort wort" (durch NORMALIZE entstandene Wiederholung,
+        // z.B. "Zitronensaft aus Zitronensaftkonzentrat" → "zitrone zitrone") → "wort"
+        line = line.replace(/^(\S+)\s+\1\b/, '$1');
+        line = line.replace(/^(\S+)\s+\1\s+\1\b/, '$1');  // dreifach, falls vorkommt
+
         // Führende ", qualifier" entfernen (z.B. ", gestr." nach TL)
         line = line.replace(/^,\s*[a-zäöüß.]+\s+/, '').trim();
         // Komma-Split: "Hackfleisch, gemischtes" → nur "Hackfleisch"
@@ -6979,7 +6990,7 @@ function classifyIngredient(name) {
     // Strip trailing cooking/serving descriptors for DB lookup
     n = n.replace(/\s+(?:gerieben|gehobelt|gehackt|gewürfelt|geschnitten|gebraten|geräuchert|geröstet|frisch|roh|leicht|süß|sauer|mittelscharf|scharf|grob|fein|zart)$/gi, '').trim();
     // Compound fruit/food words: strip suffixes that are fused (no space)
-    n = n.replace(/^(apfelsinen?|apfel|birnen?|dattel|erdbeeren?|erdbeer|blaubeeren?|blaubeer|cranberry|cranberries|cranberrys|himbeeren?|himbeer|stachelbeeren?|stachelbeer|johannisbeeren?|johannisbeer|mandeln?|kokosnuss|kokos|hafern?|quinoa|mais|kartoffel|zitronenschal)(stücke?|pulver|püree|chips|flocken|raspeln?|mehl|saft|kompott|mus|mark|konzentrat|auszug|extrakt|likör|wein|essig)/gi,
+    n = n.replace(/^(apfelsinen?|apfel|birnen?|dattel|erdbeeren?|erdbeer|blaubeeren?|blaubeer|cranberry|cranberries|cranberrys|himbeeren?|himbeer|stachelbeeren?|stachelbeer|johannisbeeren?|johannisbeer|mandeln?|kokosnuss|kokos|hafern?|quinoa|mais|kartoffel|zitronenschal)(stücke?|pulver|püree|chips|flocken|raspeln?|mehl|saft|kompott|mus|mark|konzentrat|auszug|extrakt)/gi,
         (_m, fruit) => fruit
     );
     n = n.trim();
@@ -7005,6 +7016,19 @@ function classifyIngredient(name) {
         const after  = idx + kw.length >= n.length || /[\s,;)\-]/.test(n[idx + kw.length]);
         return before && after;
     };
+
+    // Längster Match gewinnt: wenn ein high/liberator/dao_blocker-Keyword LÄNGER
+    // (spezifischer) ist als jeder safe_hints-Treffer, hat es Vorrang.
+    // Beispiel: "gegrillte zwiebel" (liberator) vs. "zwiebel" (safe_hints) → liberator gewinnt
+    let bestSafeLen = -1;
+    for (const kw of DB.safe_hints) {
+        if (kwMatch(n, kw) && kw.length > bestSafeLen) bestSafeLen = kw.length;
+    }
+    if (bestSafeLen >= 0) {
+        for (const kw of DB.high)        { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'high'; }
+        for (const kw of DB.liberator)   { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'liberator'; }
+        for (const kw of DB.dao_blocker) { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'dao_blocker'; }
+    }
 
     // Safe-Schnellcheck (häufige unbedenkliche Zutaten)
     for (const kw of DB.safe_hints) {
