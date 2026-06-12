@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.39<br>
+                Histaminscanner v5.43<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1204,7 +1204,7 @@ const DB = {
         'malz','gerstenmalz','weizenmalz',  // S2 — Brauprozess, biogene Amine
         'alkohol','orangenlikör','amaretto','rum','schnaps','cointreau','grand marnier',  // S3
         'teriyaki','tomatenmark',
-        'seitan','weizengluten','gluten',  // S3 — konzentriertes Weizenprotein
+        'seitan',  // S3 — fermentiertes/konzentriertes Weizenprotein-Fertigprodukt
         'schinken','kochschinken','hinterschinken',
         'fischfond',
         'krustentierfond','krustentierextrakt','krustentierpaste', // S3 — konzentrierte Schalen+Tomaten
@@ -1290,7 +1290,7 @@ const DB = {
         'champignon','steinpilz','pfifferling','pfifferlinge',
         'shiitake','portobello','pilze','mushroom','mushrooms','fungi',
         'knoblauch','garlic','lauch','leek','porree',
-        'rucola','rocket','rucula','rote bete','beetroot','randen',
+        'rucola','rocket','rucula','beetroot',  // rote bete → liberator S1, NICHT safe_hints!
         'chili','chilischote','jalapeno','habanero','peperoni','cayenne',
         'paprika (rot)','rote paprika',
         // Walnüsse, Cashews, Erdnüsse, Haselnüsse: mehrere Quellen = Liberatoren
@@ -1317,7 +1317,7 @@ const DB = {
         'paprikapulver (scharf)','cayennepfeffer','chilli powder',
         'kreuzkümmel','cumin','kummin',
         // ── Neu aus Biogena / Histaminikus ──
-        'gluten','getreidegluten','weizengluten','wheat gluten',
+        // gluten/weizengluten → safe_hints S0 (Klebereiweiß-Zusatz, normaler Mehlbestandteil)
         'casein','kasein',
         'sonnenblumenkerne','sunflower seeds',
         'rucola','rocket','rucula',
@@ -1391,6 +1391,7 @@ const DB = {
         'ponzu',  // S1-2 (Sojasoße+Zitrus)
         'rote bete saft','roten-beete-saft',  // S1 Betain
         'sauerampfer',  // S1 — Oxalsäure + mild sauer
+        'rote bete','rote beete','randen',  // S1 — Betain
         'reishi','chaga',  // S1-2 — Heilpilze (Histaminfreisetzung möglich)
         'kondensmilch','dosenmilch','evaporated milk',  // S1-2 konzentrierte Milch
         'pizza','fertigpizza',  // S2-3 Tomaten+Käse+oft Salami
@@ -1579,6 +1580,7 @@ const DB = {
         'zucker','sugar','rohrzucker','rübenzucker','puderzucker',
         'dextrose','glucose','traubenzucker',
         'mehl','flour','weizenmehl','dinkelmehl','roggenmehl',
+        'gluten','getreidegluten','weizengluten','wheat gluten',  // S0 — Klebereiweiß-Zusatz, normaler Mehlbestandteil
         'vollkornmehl','reismehl','buchweizenmehl','hirsemehl',
         'teffmehl','teff','kokosmehl','coconut flour','süßkartoffelmehl',
 
@@ -2091,7 +2093,7 @@ const DB = {
         // Proteine S0
         'lupine','lupinenprotein','erbse', // erbsenprotein → in liberator[]
         'leinsamen','hanf','molke','molkenpermeat',
-        'inulin','polydextrose',
+        'inulin','polydextrose','ballaststoff',
         // Gase S0
         'lachgas',
         // Sonstiges
@@ -2195,7 +2197,7 @@ const DB = {
         'brokkoli','blumenkohl','blumenkohlröschen',  // S0
         'aubergine','zucchini','ratatouille',  // S0
     
-        'rote bete','rote beete','randen',          // S1 (Betain)
+        // rote bete/randen → liberator S1 (Betain), NICHT safe_hints!
         'paneer','hüttenkäse','cottage cheese',     // S0 frischer Käse
         'bärlauch','wildknoblauch',                 // S0
         'speisestärke',                             // S0
@@ -2211,7 +2213,7 @@ const DB = {
         'brokkoli','brokkolini',                    // S0
         'hummus',                                   // S0-1 über kichererbsen
     
-        'bete','beete',  // Rote Bete stem
+        // 'bete' entfernt — war Workaround für DESCRIPTOR_RE-Bug, jetzt durch 'rote bete' Schutz ersetzt
     
         'schupfnudeln','schupfnudel',       // S0 = Kartoffelnudeln
         'flammkuchen',                       // S0 Teigbasis
@@ -2488,6 +2490,7 @@ const DB = {
         'e500','natriumhydrogencarbonat','natriumcarbonat',  // S0 Backtriebmittel
         'e472e','diacetylweinsäureester','mono- und diacetylweinsäureester',  // S0 Emulgator
         'e471','mono- und diglyceride',  // S0 Emulgator
+        'e477','propylenglycolester',  // S0 Emulgator
         // Fisch-Zutaten
         'alaska seelachs','seelachs','kabeljau','dorsch','pangasius','scholle','zander','tilapia',
         'magermilchpulver','milchpulver',  // S0 TK-Fisch Panade
@@ -3460,6 +3463,10 @@ async function runAnalysis(product, ingredientsText) {
                     learnedCache[item.name] = { cat: item.cat, sighi: item.sighi };
                 }
             }
+            // KI wurde versucht, konnte aber nichts beitragen (kein Treffer oder weiterhin 'unknown')
+            if (item.cat === 'unknown' && stillUnknown.includes(item.name)) {
+                item.aiAttemptedNoResult = true;
+            }
         }
         saveLearnedCache(learnedCache);
     }
@@ -3591,7 +3598,8 @@ function parseIngredients(inputText) {
         [/\bhallumi\b|\bhalloumi\b/gi, 'käse'],
         // ── Malz / Brauzutaten ──
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
-        [/\bmono-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
+        [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
+        [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
         [/\bmono-\s*und\s+di|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
         [/^mono-?$|^di-?$|^tri-?$|^und$|^von$|^speisefettsäuren?$/gi, ''],  // Splitting-Artefakte
         [/\bdi-\s+(?=und|oder|\w)/gi, ''],                           // "Di- und" → strip "di-"
@@ -3794,6 +3802,8 @@ function parseIngredients(inputText) {
         [/\bbifidobacterium\s+\w+\b|\bbifidus\b|\bLactobacillus\s+\w+\b/gi, 'kulturen'],
         [/\breifungskulture?n?\b|\breifekulturen?\b|\bstarterkulturen?\b/gi, 'kulturen'],  // Wurst-Reifekulturen → safe
         [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],       // Farbstoff → Liberator S1
+        [/\bfärbendes?\s+lebensmittel\s*:?\s*/gi, ''],  // "färbendes Lebensmittel: X" → "X" (muss zuerst!)
+        [/\brote-?bete-?pulver\b|\brote\s+bete\s+pulver\b/gi, 'rote bete'],  // Rote-Bete-Pulver → Liberator S1
         [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
         [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
         [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
@@ -3810,7 +3820,7 @@ function parseIngredients(inputText) {
         [/\bpapaya\b(?!\s*(?:stücke|getrocknet))/gi, 'papaya'],
         [/\bmaracuja\b|\bpassionsfrucht\b/gi, 'maracuja'],
         // ── E466 ──
-        [/\bcarboxymethylcellulose\b|\bcmc\b|e466\b/gi, 'e466'],
+        [/\bcarboxymethylcellulose\b|\bcmc\b|\bcellulosegummi\b|e466\b/gi, 'e466'],
         [/\bhydroxypropylcellulose\b|e463\b/gi, 'e463'],
         // ── Agavendicksaft ──
         [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'zucker'],
@@ -3861,7 +3871,7 @@ function parseIngredients(inputText) {
         [/\bsubmolkenpulver\b/gi, 'molke'],                                    // Submolkenpulver → molke S0
         [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'essig'],       // Wein-Branntweinessig → essig S3
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
-        [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'seitan'],
+        [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
         [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
         [/\btaurin\b/gi, 'vitamine'],          // Aminosäure, S0
         [/\bguarana\w*\b/gi, 'koffein'],                    // guaranasamenextrakt, guaranaextrakt etc.
@@ -4122,7 +4132,7 @@ function parseIngredients(inputText) {
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
         [/\bholunder(?:blüten?|beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter!
         // ── Getreidezutaten ──
-        [/\bweizenprotein\b|\bweizengluten\b/gi, 'seitan'],
+        [/\bweizenprotein\b/gi, 'gluten'],  // S0 — texturiertes Weizenprotein als Backzutat ≠ Seitan
         [/\bweizenfasern?\b|\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
         [/\bvollkornreis\b|\bvollkornreismehl\b/gi, 'reis'],
         [/\bvollkornweizenmehl\b|\bvollkorndinkelmehl\b/gi, 'mehl'],
@@ -4135,7 +4145,7 @@ function parseIngredients(inputText) {
         [/\bthymian\b|\bthyme\b/gi, 'kräuter'],
         [/\bpetersilje?\b|\bpetersilie\b/gi, 'kräuter'],
         [/\bdiglyceriden?\s+von\s+speisefettsäuren?\b/gi, 'e471'],  // Endteil des E472e-Namens
-        [/\bmono-?\s*und\s*diglyceriden?\b/gi, 'e471'],
+        [/\bmono\s*-?\s*und\s*diglyceriden?\b/gi, 'e471'],
         [/\bfrittierte?\s+zwiebeln?\b|\bröstzwiebeln?\b/gi, 'zwiebel'],
         [/\brinderbouillon\b|\rrinderfond\b|\rrinderkraftbrühe\b/gi, 'brühe'],
         [/\bhühnerbrühe\b|\hhühnerfond\b|\hhühnersuppe\b/gi, 'brühe'],
@@ -4220,7 +4230,7 @@ function parseIngredients(inputText) {
         [/\bnatriumhydrogencarbonat\b|\bnatriumcarbonat\b|e500\b/gi, 'e500'],
         [/\bdiphosphat(?:e)?\b|\bdiphosphate\b|e450\b/gi, 'e450'],
         [/\bmono-?\s*und\s*diacetylweins(?:äure)?ester\b|\bdiacetylweinsäure\b|e472e\b/gi, 'e472e'],
-        [/\bmono-?\s*und\s*diglyceride\b|\bmonoglyceride\b|\bdiglyceride\b|e471\b/gi, 'e471'],
+        [/\bmono\s*-?\s*und\s*diglyceride\b|\bmonoglyceride\b|\bdiglyceride\b|e471\b/gi, 'e471'],
         [/\bglycerinmonooleat\b|\bglycerylmonostearat\b/gi, 'e471'],
         [/\bmagermilchpulver\b|\bmagermilch(?:pulver)?\b/gi, 'milchpulver'],
         [/\bsenfsaat\b|\bsenfsamen\b|\bsenf(?:mehl|pulver|extrakt)?\b/gi, 'senf'],
@@ -4446,6 +4456,7 @@ function parseIngredients(inputText) {
         [/\bblättchen?\b(?!\s+teig)/gi, 'schokolade'],  // "Blättchen" allein = Schokobl.
         [/\bkokosfett\b|\bkokos(?:butter|öl|fett)\b/gi, 'kokos'],  // Kokosfett → kokos (eigene Kategorie)
         [/\bzimtsaftkonzentrat\b|\bhimbeer(?:saft)?konzentrat\b/gi, 'himbeere'],
+        [/\bcranberry-?stücke?\s+(?:mit\s+)?apfelsaft(?:konzentrat)?\b/gi, 'cranberry'],  // Kompositum → cranberry, vor generischer apfelsaft-Norm
         [/\bapfelsaft(?:konzentrat)?\b/gi, 'apfel'],
         [/\bapfelmus\b|\bapfelpüree\b|\bapfelmark\b/gi, 'apfel'],                   // Apfelmus → apfel → safe S0
         [/\bbaumwollsaat(?:öl)?\b|\bbaumwollsamen(?:öl)?\b|\bcotton\s*seed\s*oil\b/gi, 'pflanzenöl'],  // neutral S0
@@ -4684,7 +4695,7 @@ function parseIngredients(inputText) {
         [/natriumstearoyl\w*/gi,              ''],  // Emulgator → skip
         [/propylenglykolester\w*/gi,          ''],  // Emulgator → skip
         [/mono.und\s*diglyceride\w*/gi,      ''],  // Emulgator → skip
-        [/citrusfasern?\b/gi,                 ''],  // Ballaststoff, S0
+        [/citrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden
         [/\bbambusfasern?\b|\bbamboo\s*fi(?:ber|bre)s?\b/gi, ''],          // Ballaststoff S0 → leer = safe
         [/\bcondensed\s+whey\b|\bkondensierte\s+molke\b/gi, 'molke'],      // S0 Molkenprodukt
         [/\blean\s+cocoa\b|\bentöltes?\s+kakaopulver\b/gi, 'kakao'],        // entöltes Kakao → Liberator
@@ -4771,7 +4782,7 @@ function parseIngredients(inputText) {
         [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
-        [/weizengluten\b/gi,                'seitan'],
+        // weizengluten → 'gluten' (siehe Zeile 3867), nicht mehr seitan
         [/natriumcyclamat\b/gi,            'cyclamat'],
         [/acesulfam\s*k\b/gi,             'acesulfam'],
         [/natriumsaccharin\b/gi,           'saccharin'],
@@ -5422,7 +5433,8 @@ function parseIngredients(inputText) {
         [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b|\bsucralose\b|\bacesulfam\b/gi, 'süßungsmittel'],
         [/\bethyl[- ]?vanillin\b/gi, 'vanillin'],  // Ethylvanillin stärker als Vanillin, S1-2   // stärker als Vanillin, gleiches Problem S1
         // ── Proteine / Ballaststoffe ──
-        [/\bweizengluten\b|\bseitan\b|\bvitalweizengluten\b/gi, 'seitan'],
+        [/\bseitan\b|\bvitalweizengluten\b/gi, 'seitan'],  // S3 — fertige Seitan-Produkte
+        [/\bweizengluten\b/gi, 'gluten'],  // S0 — Klebereiweiß-Zusatz ≠ Seitan
         [/\blupinenprotein\b|\blupinen\w+\b/gi, 'lupine'],
         [/\backerbohne\w*\b|\backerbohnenprotein\b/gi, 'erbse'],
         [/\bleinsamen(?:mehl|öl)?\b/gi, 'leinsamen'],
@@ -5507,7 +5519,7 @@ function parseIngredients(inputText) {
         [/\d+\s*-?\s*lactylat\b/gi, 'e481'],  // catch "2-lactylat" leftover
         [/\bbernsteins[äa]ure\b|e363\b/gi, 'e363'],
         [/\bsalzs[äa]ure\b|e507\b/gi, 'e507'],
-        [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'seitan'],
+        [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'gluten'],  // S0 — Klebereiweiß ≠ Seitan
         // ── Käse / Milch-Varianten ──
         [/\bkäsereikulturen\b|\bmilchsäurekulturen\b|\bfermentationskulturen?\b|\bfermentationskultur\b/gi, 'milchsäurekulturen'],
         [/\b(?:mikrobielles?|tierisches?|veganes?|lammlab|kalbslab)\s*lab\b|\blab\b(?!\s*\w)/gi, 'lab'],
@@ -6090,7 +6102,7 @@ function parseIngredients(inputText) {
         [/\bbananenchips?\b/gi, 'banane'],
         // ── Backwaren / Gebäck ──
         [/\bwaffeln?\b|\beisw[aä]ffeln?\b|\bhirsew[aä]ffeln?\b|\breiswaffeln?\b/gi, 'keks'],
-        [/\boblaten?\b/gi, 'mehl'],            // Backoblate S0
+        [/\boblaten?\b(?!\s*\()/gi, 'mehl'],            // Backoblate S0 — nicht vor Klammer (Verbundzutat!)
         [/\bgrahambrot\b|\bgraham\s+cracker\b/gi, 'brot'],
         [/\blaugengebäck\b|\blaugenbrötchen\b|\blaugenstange\b/gi, 'brot'],
         [/\bsemmel\b|\bbrötchen\b|\bweizen(?:vollkorn)?brot\b/gi, 'brot'],
@@ -6578,9 +6590,11 @@ function parseIngredients(inputText) {
         p = p.replace(/-$/, '').trim();
         // Stabilisatoren/Farbstoff Präfix: 'stabilisatoren guarkernmehl' → 'guarkernmehl'
         p = p.replace(/^(?:stabilisator(?:en)?|farbstoff)\s+/gi, '').trim();
-        // Färbende Lebensmittel Sektionsheader komplett verwerfen
-        if (/^f[äa]rbendes?\s+lebensmittel/i.test(p)) return '';
-        if (/^f[äa]rbende\s+lebensmittel/i.test(p)) return '';
+        // Färbende Lebensmittel Sektionsheader komplett verwerfen — ABER NUR wenn nichts danach folgt!
+        // "färbendes Lebensmittel:" (Header allein) → verwerfen
+        // "färbendes Lebensmittel: Rote-Bete-Pulver" → "Rote-Bete-Pulver" behalten
+        if (/^f[äa]rbendes?\s+lebensmittel\s*:?\s*$/i.test(p)) return '';
+        p = p.replace(/^f[äa]rbendes?\s+lebensmittel\s*:\s*/i, '').trim();
         // Asterisks entfernen
         p = p.replace(/^\*+/, '').replace(/\*$/, '').trim();
         // Prozentwerte entfernen: "(51%)", "42%", "(min. 26%)", "(für AT: ...)"
@@ -6628,39 +6642,72 @@ function parseIngredients(inputText) {
             // Asterisk vor Großbuchstaben als Trenner aufmachen
             clean = clean.replace(/\*(?=[A-ZÄÖÜ])/g, ', ');
 
-            // {} und verschachtelte Klammern → vor dem Split vereinfachen
+            // Trennzeichen normalisieren: Semikolons → Kommas (MUSS vor Klammerauflösung passieren,
+            // sonst werden durch ; getrennte Zutaten fälschlich als "Name" einer Klammer-Verbundzutat verschluckt)
+            clean = clean.replace(/;/g, ',');
+
             // ── Compound-Zutaten expandieren: "Gebäck Streusel (A, B, C)" → "A, B, C" ──
-            // Wenn Klammer-Inhalt Kommas enthält UND das Wort davor KEIN Kategoriebegriff ist
-            // → Sub-Zutaten in die Hauptliste expandieren (Compound-Name wird verworfen)
+            // Rekursive Innermost-First-Auflösung: löst auch mehrfach verschachtelte Klammern korrekt
+            // (z.B. "Cranberry-Stücke (Cranberrys (3,4%), Apfelsaftkonzentrat)")
             const CAT_WORDS = /\b(?:emulgatoren?|emulgator|verdickungsmittel|stabilisatoren?|stabilisator|konservierungsstoffe?|konservierungsmittel|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|farbstoff|backtriebmittel|süßungsmittel|mehlbehandlungsmittel|geschmacksverstärker|trennmittel|feuchthaltemittel|geliermittel|gelierstoffe?)\b/i;
-            // Compound-Zutaten expandieren: "Bier (Wasser, Malz, Hopfen)" → "Wasser, Malz, Hopfen"
-            // Step 1: iteratively strip innermost parens with commas (mark as §content§)
-            let _tmp = clean;
-            for (let _i = 0; _i < 4; _i++) {
-                _tmp = _tmp.replace(/\(([^()]+)\)/g, (m, inner) => {
-                    if (!inner.includes(',')) return m;
-                    return '§' + inner + '§';
-                });
+            {
+                let _tmp = clean;
+                let _iter = 0;
+                while (_iter < 30) {
+                    _iter++;
+                    const m = _tmp.match(/\(([^()]*)\)/);  // innerste Klammer (keine verschachtelten Klammern mehr darin)
+                    if (!m) break;
+                    const inner = m[1];
+                    const idx = m.index;
+                    const fullLen = m[0].length;
+                    const before = _tmp.slice(0, idx);
+                    const after = _tmp.slice(idx + fullLen);
+
+                    if (!inner.includes(',')) {
+                        // Kein Komma im Inhalt: reine Mengenangabe "(6%)" → komplett entfernen,
+                        // sonst Klammer einfach auflösen "(Mais)" → " Mais"
+                        if (/^[\d.,%\s]*$/.test(inner) || inner.trim() === '') {
+                            _tmp = before + after;
+                        } else {
+                            _tmp = before + ' ' + inner + after;
+                        }
+                        continue;
+                    }
+
+                    // Deutsche Dezimal-Prozentangaben "3,4%" enthalten ein Komma, sind aber
+                    // KEINE Liste — daher für die Komma-Prüfung normalisieren (Komma → Punkt)
+                    const innerForCheck = inner.replace(/(\d),(\d+\s*%)/g, '$1.$2');
+                    if (!innerForCheck.includes(',')) {
+                        if (/^[\d.,%\s]*$/.test(inner) || inner.trim() === '') {
+                            _tmp = before + after;  // reine Mengenangabe "(3,4%)" → entfernen
+                        } else {
+                            _tmp = before + ' ' + inner + after;
+                        }
+                        continue;
+                    }
+
+                    // Klammerinhalt hat Kommas → Verbundzutat
+                    const nameMatch = before.match(/([^,(]*)$/);
+                    const name = nameMatch ? nameMatch[1] : '';
+                    const nameTrimmed = name.trim();
+
+                    if (CAT_WORDS.test(nameTrimmed)) {
+                        // Funktionsklasse (Emulgator, Säuerungsmittel etc.) → Klammer behalten,
+                        // mit [] markieren damit sie nicht erneut als "innerste Klammer" gewählt wird
+                        _tmp = before + '[' + inner + ']' + after;
+                    } else {
+                        // Verbundzutat-Name verwerfen, Sub-Zutaten in Liste übernehmen
+                        const beforeWithoutName = before.slice(0, before.length - name.length);
+                        _tmp = beforeWithoutName + inner + after;
+                    }
+                }
+                // [] zurück zu () für verbleibende Funktionsklassen-Gruppen
+                clean = _tmp.replace(/\[/g, '(').replace(/\]/g, ')');
             }
-            // Step 2: find "CompoundName §sub1, sub2, ...§" and expand (drop CompoundName)
-            _tmp = _tmp.replace(/([^,§(]+?)\s*§([^§]+,[^§]+)§/g, (match, name, inner) => {
-                if (CAT_WORDS.test(name.trim())) return match;
-                return inner;  // drop compound name, keep sub-ingredients
-            });
-            // Step 3: also handle remaining outer parens with commas
-            _tmp = _tmp.replace(/([^,(]+?)\s*\(([^()]+,[^()]+)\)/g, (match, name, inner) => {
-                if (CAT_WORDS.test(name.trim())) return match;
-                return inner;
-            });
-            // Step 4: restore §§ markers
-            clean = _tmp.replace(/§([^§]+)§/g, (_m, inner) => inner);
             clean = stripNestedBracketsKeepFirst(clean);
 
             // "(für AT: Hühnerbrust)" und ähnliche Ländervarianten entfernen
             clean = clean.replace(/\(\s*für\s+\w+\s*:\s*[^)]+\)/gi, '');
-
-            // Trennzeichen normalisieren: Semikolons → Kommas
-            clean = clean.replace(/;/g, ',');
 
             // Auf Kommas splitten
             const parts = clean.split(',');
@@ -6813,7 +6860,10 @@ function parseIngredients(inputText) {
         line = commaParts[0].trim();
 
         // Descriptor-Adjektive nach Hauptzutat entfernen
-        line = line.replace(DESCRIPTOR_RE, '').trim();
+        // "rote bete" ist ein Kompositum — "rote" NICHT als Farb-Adjektiv strippen!
+        if (!/^rote\s+bete$/i.test(line.trim())) {
+            line = line.replace(DESCRIPTOR_RE, '').trim();
+        }
                 // Strip "oder X" / "und X" leftover from nested paren splitting
                 line = line.replace(/^(?:oder|und(?:\s*\/\s*oder)?)\s+/i, '').trim();
                 // Strip dangling "öl und" / "fett und" suffixes
@@ -6874,6 +6924,8 @@ function parseIngredients(inputText) {
 
         // Asterisks (Fußnotenmarkierungen) entfernen
         line = line.replace(/\*/g, '').trim();
+        // Anführungszeichen/Apostrophe entfernen (OCR-/Copy-Paste-Artefakte aus Webseiten)
+        line = line.replace(/['‘’"""`´]/g, '').trim();
         // Prozentangaben entfernen (Restmengen aus Produktzutatenlisten)
         line = line.replace(/\(?\s*(?:mind?\.|min\.|max\.|ca\.)?\s*\d+[,.]?\d*\s*%\s*\)?/g, ' ').trim();
         // Hängende Bindestriche: "Knödel-" → "Knödel"
@@ -6889,7 +6941,8 @@ function parseIngredients(inputText) {
     const parts = [];
     for (const line of cleaned) {
         const splits = line
-            .split(/\s+und(?:\s+|$)|\s+oder(?:\s+|$)|\s*[\/+]\s*/)
+            // "Mono - und Diglyceride" / "Mono-und Diglyceride" → Bindestrich vor und/oder mit-konsumieren
+            .split(/\s*-?\s+und(?:\s+|$)|\s*-?\s+oder(?:\s+|$)|\s*[\/+]\s*/)
             .map(p => p.trim().replace(/[.;:,!?]+$/, '').toLowerCase())
             .filter(p => {
                 if (!p || p.length < 2)    return false;
@@ -7747,7 +7800,7 @@ function showHistoryDetail(entry) {
 // INGREDIENT INFO TEXT
 // ═══════════════════════════════════════════════════════════
         
-function getIngredientInfo(name, cat) {
+function getIngredientInfo(name, cat, aiAttemptedNoResult) {
     const n = name.toLowerCase();
 
     if (cat === 'high') {
@@ -8150,7 +8203,10 @@ function getIngredientInfo(name, cat) {
         return '⚠️ SIGHI 3 — Wild wird traditionell abgehangen (Reifung): dabei entsteht massiv Histamin. Frisch = S1, gereift = S3';
 
     if (cat === 'safe') return 'Histaminarm — in der Regel gut verträglich';
-    return 'Nicht in der lokalen Datenbank — KI-Analyse möglich wenn API-Schlüssel hinterlegt';
+    if (aiAttemptedNoResult) {
+        return '🤔 Weder in der lokalen Datenbank noch von der KI eindeutig zuordenbar. Möglicherweise ein Tippfehler oder eine sehr seltene/regionale Bezeichnung — bitte Schreibweise prüfen. Falls die Zutat korrekt geschrieben ist, gerne über den Feedback-Button melden, damit sie ergänzt werden kann.';
+    }
+    return 'Nicht in der lokalen Datenbank — KI-Analyse möglich, falls ein API-Schlüssel hinterlegt ist (siehe Einstellungen)';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -8460,7 +8516,7 @@ function renderResult(product, analyzed, fromHistory = false) {
     } else {
         for (const item of analyzed) {
             const m    = BADGE_META[item.cat] || BADGE_META.unknown;
-            const info = getIngredientInfo(item.name, item.cat);
+            const info = getIngredientInfo(item.name, item.cat, item.aiAttemptedNoResult);
             const div  = document.createElement('div');
             div.className = 'ing-item';
 
