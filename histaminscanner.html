@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.51<br>
+                Histaminscanner v5.55<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1100,7 +1100,7 @@ const DB = {
         'wein','wine','beer','mead','met','sake','cider',
         'whisky','whiskey','rum','gin','vodka','tequila','schnaps','likör',
         'brandy','cognac','calvados','grappa','amaretto','weinbrand','sherry',
-        'essig','weinessig','apfelessig','balsamico','reisessig',
+        'essig','weinessig','balsamico','reisessig',
         'malt vinegar','vinegar','aceto','vinaigre',
         'sojasoße','soy sauce','tamari','shoyu','teriyakisoße',
         'worcestersoße','worcestershire','tonkatsusoße','oystersauce',
@@ -1253,7 +1253,8 @@ const DB = {
         'pökelsalz','nitritpökelsalz','e250','natriumnitrit',  // S2-3 — Pökelsalz/Nitrit-Marker (siehe auch E-Nummer-Sonderregel E249-252)
         'e451','e407',  // S1 — Phosphate/Carrageen in Wurstprodukten
         // essigsäure/e260 (isolierter Zusatzstoff) → S0 lt. SIGHI 2024, siehe safe_hints
-        'weinessig','weißweinessig','rotweinessig','malzessig','apfelessig','reisessig',  // S2-3 — Essig als Lebensmittel (fermentiert)
+        'weinessig','weißweinessig','rotweinessig','malzessig','reisessig',  // S2-3 — Essig als Lebensmittel (fermentiert)
+        // apfelessig → liberator[] S1 (milder, oft toleriert), NICHT high!
         'destillierter essig',  // S2-3 Destillierter Weinessig
         'fischsosse','fischsauce','fischextrakt',  // S3 — fermentierter Fisch (wie Anchovis)
     ],
@@ -1391,6 +1392,8 @@ const DB = {
         'ponzu',  // S1-2 (Sojasoße+Zitrus)
         'rote bete saft','roten-beete-saft',  // S1 Betain
         'sauerampfer',  // S1 — Oxalsäure + mild sauer
+        'nelkenaroma',  // S1 — Nelke (S2) stark verdünnt als Aroma, aber Restrisiko bei Hochsensiblen
+        'apfelessig',  // S1 — milder als Wein-/Balsamico-Essig, oft in kleinen Mengen toleriert
         'malzmehlzusatz',  // S1 — Gerstenmalzmehl als Backzusatz, milder als Malzextrakt aber Restrisiko
         // malzmehlzusatz → liberator S1 (siehe liberator-Array), NICHT safe_hints!
         'gegrillte zwiebel','gegrillte zwiebeln','grillzwiebel','gegrilltes gemüse',  // S1 — Röststoffe/Maillard-Reaktion
@@ -3420,7 +3423,9 @@ async function runAnalysis(product, ingredientsText) {
     setLoad('Zutaten werden analysiert…', '');
     try {
 
-    const ingredients = parseIngredients(ingredientsText);
+    const rawIngredients = parseIngredients(ingredientsText);
+    const normWarning = rawIngredients.find(p => p.startsWith('⚠️_normierungswarnung_'));
+    const ingredients = rawIngredients.filter(p => !p.startsWith('⚠️_normierungswarnung_'));
     const analyzed    = ingredients.map(name => ({
         name,
         cat:   classifyIngredient(name),
@@ -3597,7 +3602,8 @@ function parseIngredients(inputText) {
         [/\bnatürliches?\s+(?:zitrus|orangen?|zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],
         // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
         [/\b(?:fleisch|schinken|speck|rauchschinken|hühner?|rind|schwein)aroma\b/gi, 'hefeextrakt'],
-        [/\b(?:käse|nelken?|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
+        [/\b(?:käse|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
+        [/\bnelken?aroma\b/gi, 'nelkenaroma'],  // Nelke = S2 Liberator, aber als Aroma stark verdünnt → eigenes Token S1
         // ── Käse-Spezifisch ──
         [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'kräuter'],
         [/\blabneh\b/gi, 'joghurt'],
@@ -4006,9 +4012,14 @@ function parseIngredients(inputText) {
         // ── Saucen / Gewürzmittel ──
         [/\bsenföl\b|\bsenfsaat(?:öl)?\b/gi, 'senf'],
         [/\bjalapeño(?:paste|scheiben|extract)?\b|\bjalapeñopaste\b/gi, 'chili'],
-        [/\bessigsäure\b|\bglaciale?\s+essigsäure\b|e260\b/gi, 'essig'],
-        [/\bweinessig\b|\bapfelweinessig\b|\bweißweinessig\b|\brotwei(?:n)?essig\b/gi, 'essig'],
-        [/\bmalzessig\b|\bbierlessig\b/gi, 'essig'],
+        // essigsäure/E260 als ISOLIERTER Zusatzstoff bleibt S0 (SIGHI 2024) — NICHT zu 'essig' normieren!
+        [/\bglaciale?\s+essigsäure\b/gi, 'essig'],  // "Essigsäure 100%/glazial" als Lebensmittelzutat = konzentrierter Essig, S2-3
+        // Kritische Wein-/Balsamico-Essige → 'weinessig' (S3, bleibt HIGH)
+        [/\b(?:rotwein|weißwein|wein|balsamico|sherry|gemüse|reis|bier)essig\b|\bapfelweinessig\b/gi, 'weinessig'],
+        // Apfelessig separat (S1, milder als Weinessig — aber bleibt sichtbar als eigenes Token)
+        [/\b(?:obst|frucht)essig\b/gi, 'apfelessig'],
+        // Branntweinessig/Tafelessig/Weingeistessig: destilliert, proteinfrei → S0 (SIGHI)
+        [/\b(?:branntwein|tafel|weingeist|spirit)essig\b/gi, 'branntweinessig'],
         [/\bnatriumbenzoat\b|e211\b/gi, 'e211'],               // Konservierungsstoff
         [/\btamarinde(?:paste|extrakt|konzentrat)?\b/gi, 'essig'],  // S2-3 — hoher Säure-/Histamingehalt → essig-Kategorie
         [/\banchovis(?:paste|extrakt|filet|öl)?\b/gi, 'sardelle'],  // S3!
@@ -4719,11 +4730,12 @@ function parseIngredients(inputText) {
         [/jodiertes?\s*kochsalz\b/gi,       'jodsalz'],  // S2 L!
         [/eisensulfat\b/gi,                  ''],  // Nährstoff → skip
         [/geräuchertes?\s*maltodextrin\b/gi, 'maltodextrin'],
-        [/\bmaltodextrine\b/gi, 'maltodextrin'],  // Plural-Form
+        [/\bmaltodextrine\s*n?\b|\bmaltodextrins\b/gi, 'maltodextrin'],  // Plural-Form, Dativ-Plural-Worttrennung, engl. Plural
         // "siehe S. Heidelbeerpüree" / "siehe sch Heidelbeerpüree" (OCR von "siehe S.") → nur Zielzutat behalten
         [/\bsiehe\s+(?:s\.?\s*ch?\.?\s*)?/gi, ''],
         // "Brombeerfruchtpulver" / "Holunderbeerenpulver" etc. → Basis-Beere (Liberator-Status erhalten)
         [/\b(?:erdbeer|himbeer|brombeer|johannisbeer|holunderbeer|preiselbeer|cranberry|aronia)(?:en)?(?:frucht)?pulver\b/gi, (m) => m.replace(/(?:en)?(?:frucht)?pulver/gi, 'e').trim()],
+        [/\b(?:bananen?|ananas|papaya|mango|maracuja|passionsfrucht|guave|kiwi|litschi|granatapfel)(?:frucht)?pulver\b/gi, (m) => m.replace(/(?:frucht)?pulver\b/gi, '').trim()],  // tropische Früchte
         [/rauchsalz\b/gi,                    'salz'],  // S0 (Raucharoma, kein H)
         [/bunter\s*pfeffer\b/gi,             'pfeffer'],
         [/natriumstearoyl-?2-lactylat\b/gi,  ''],
@@ -5229,11 +5241,11 @@ function parseIngredients(inputText) {
         [/\bvanillearoma\b/gi, 'vanillin'],
         [/\bhimbeераroma\b/gi, 'aroma'],
         [/\b(?:erdbeer|himbeer|kirsch|johannisbeer|zitrus|orangen?|zitronen?|limetten?)aroma\b/gi, (m) => {
-            if (/erdbeer|himbeer|kirsch|johannisbeer/.test(m)) return 'erdbeere';
+            if (/erdbeer|himbeer|kirsch|johannisbeer/i.test(m)) return 'erdbeere';
             return 'zitrone';
         }],  // Liberator-Fruchtaromen → als Frucht klassifizieren
         [/\b(?:fleisch|schinken|speck|rauchschinken|hühner?|rind|schwein)aroma\b/gi, 'hefeextrakt'],  // Hefeextrakt-Verdacht
-        [/\b(\w{4,})aroma\b/gi, 'aroma'],       // generisch: XYZaroma → aroma
+        [/\b(?!nelken)(\w{4,})aroma\b/gi, 'aroma'],       // generisch: XYZaroma → aroma (außer nelkenaroma)
         // ── Backzutaten ──
         [/vanillepuddingpulver\b|puddingpulver\b/gi, 'stärke'],   // = Maisstärke + Vanillin
         [/vanillinzucker\b/gi, 'vanille'],
@@ -5585,8 +5597,8 @@ function parseIngredients(inputText) {
         // ── Würzmittel ──
         [/\bchilipulver\b|\bchiliflocken\b/gi, 'chili'],
         [/\bsenfsaat\b|\bsenfkörner?\b|\bsenfsamen\b/gi, 'senf'],
-        [/\bgerstenmalzessig\b|\bmalzessig\b/gi, 'essig'],
-        [/\bweißweinessig\b|\bapfelessig\b|\breisessig\b|\bbranntweinessig\b/gi, 'essig'],
+        [/\bgerstenmalzessig\b|\bmalzessig\b/gi, 'weinessig'],  // Malzessig: fermentiert, S2-3 → weinessig (HIGH)
+        // weißweinessig/apfelessig/reisessig/branntweinessig → bereits durch spezifische Normen oben behandelt
         [/\bdinkels?\w*schrot\b|\bdinkelvollkorn\w*\b|\bdinkelmehl\b/gi, 'mehl'],
         [/\bbockshornklee(?:samen|extrakt)?\b/gi, 'bockshornklee'],
         [/\bfenchelsamen?\b/gi, 'fenchel'],
@@ -6857,6 +6869,19 @@ function parseIngredients(inputText) {
         // Stuck-"oder": "olivenöloder" → "olivenöl oder"  — VOR NORMALIZE ausführen!
         line = line.replace(/([a-zA-ZäöüÄÖÜß]{4,})(oder)\b/g, '$1 $2'); // min 4 Zeichen vor 'oder'
 
+        // Kritische Allergene/Trigger in "mit X" VORHER extrahieren (muss vor NORMALIZE laufen,
+        // da NORMALIZE "mit" zu Leerzeichen reduziert und die Info sonst verloren geht)
+        // z.B. "Gewürze (mit Sellerie)" → "Gewürze" + "Sellerie" als separate Einträge
+        let extractedMitWord = null;
+        {
+            const mitMatch = line.match(/(?<!\w)mit\s+([\wäöüß-]+)/i);
+            if (mitMatch) {
+                const mitWord = mitMatch[1].toLowerCase();
+                const CRITICAL_MIT_WORDS = /^(sellerie|senf|sesam|sulfit|soja|laktose|gluten|ei|nuss|nüsse|mandeln?|haselnuss|walnuss|erdnuss|cashew|pistazie|sojaöl)$/;
+                if (CRITICAL_MIT_WORDS.test(mitWord)) extractedMitWord = mitWord;
+            }
+        }
+
         for (const [re, rep] of NORMALIZE) line = line.replace(re, rep);
 
         // Generische Dedup: "wort wort" (durch NORMALIZE entstandene Wiederholung,
@@ -6914,6 +6939,7 @@ function parseIngredients(inputText) {
         // "ersatzweise" / "alternativ" → abschneiden
         line = line.replace(/\s+(?:ersatz(?:weise|produkt)?|alternativ(?:e(?:s|r|n)?)?|oder\s+alternativ)\b.*/gi, '').trim();
         // "mit X" am Ende abschneiden — NUR wenn "mit" als eigenständiges Wort steht
+        // (kritische Allergene wurden bereits vor NORMALIZE extrahiert, siehe oben)
         line = line.replace(/(?<!\w)mit\s+\w+.*$/gi, '').trim();
         // Fußnoten-Hinweis: '*Zertifiziertes Palmöl' o.ä. → entfernen
         line = line.replace(/^\*?zertifiziert\w*\s+.*/gi, '').trim();
@@ -6946,6 +6972,7 @@ function parseIngredients(inputText) {
         line = line.replace(/[_*#|%]/g, '').trim();
 
         if (line) cleaned.push(line);
+        if (extractedMitWord) cleaned.push(extractedMitWord);
     }
 
     // ── PASS 4: "und"/"oder"/"/" splitten ────────────────────
@@ -6968,7 +6995,40 @@ function parseIngredients(inputText) {
         parts.push(...splits);
     }
 
-    return [...new Set(parts)].map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
+    const result = [...new Set(parts)].map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
+
+    // ── Sicherheitsnetz: S3-Signalwörter dürfen nicht spurlos verschwinden ──────
+    // Prüft den ORIGINAL-Input gegen das finale Ergebnis. Falls ein hochkritisches
+    // Signalwort im Original vorkam, aber in keinem finalen Token mehr (auch nicht
+    // als Substring) auftaucht, wurde es vermutlich durch eine Normierungsregel
+    // "wegnormiert" — Warnung statt stillem Verlust.
+    const S3_SIGNAL_WORDS = [
+        /balsamico/i, /hefeextrakt/i, /glutamat/i, /\bmsg\b/i,
+        /sauerkraut/i, /kimchi/i, /miso/i, /tempeh/i,
+        /salami/i, /\bbifi\b/i, /jerky/i, /rohschinken/i, /\bparma/i,
+        /parmesan/i, /roquefort/i, /gorgonzola/i, /blauschimmel/i,
+        /sardelle/i, /anchov/i, /fischsauce/i, /fischsoße/i, /nam\s*pla/i, /nuoc\s*mam/i,
+        /thunfisch/i, /makrele/i, /hering/i, /sardine/i,
+        /spinat/i, /aubergine/i,
+        /weinessig/i, /rotweinessig/i, /sherryessig/i,
+        /sekt/i, /champagner/i, /prosecco/i, /rotwein/i, /weißwein/i,
+        /sojasoße/i, /soy\s*sauce/i, /tamari/i,
+        /\bgouda\b/i, /\bedamer\b/i, /emmentaler/i, /parmesan/i,
+    ];
+    const origLower = inputText.toLowerCase();
+    const resultJoined = result.join(' | ');
+    const lostSignals = [];
+    S3_SIGNAL_WORDS.forEach(re => {
+        if (re.test(origLower) && !re.test(resultJoined)) {
+            const m = origLower.match(re);
+            if (m) lostSignals.push(m[0]);
+        }
+    });
+    if (lostSignals.length > 0) {
+        result.push('⚠️_normierungswarnung_möglicherweise_verlorene_zutat: ' + [...new Set(lostSignals)].join(', '));
+    }
+
+    return result;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -8534,6 +8594,19 @@ function renderResult(product, analyzed, fromHistory = false) {
     const list = document.getElementById('ing-list');
     list.innerHTML = '';
     document.getElementById('sec-label').textContent = `Zutaten (${analyzed.length})`;
+
+    // Sicherheitsnetz-Warnung: Signalwort im Originaltext, aber in keiner finalen Zutat mehr enthalten
+    if (normWarning) {
+        const lostTerms = normWarning.replace('⚠️_normierungswarnung_möglicherweise_verlorene_zutat: ', '');
+        const warnBox = document.createElement('div');
+        warnBox.style.cssText = 'margin-bottom:0.75rem;padding:0.75rem 1rem;border-radius:10px;'
+            + 'background:var(--yellow-bg);border:1px solid var(--yellow-bd);font-size:0.85rem;line-height:1.4';
+        warnBox.innerHTML = `⚠️ <strong>Hinweis zur Texterkennung:</strong> Im eingegebenen Text wurde "<strong>${lostTerms}</strong>" erkannt, `
+            + `taucht aber in der ausgewerteten Zutatenliste unten nicht mehr auf. Möglicherweise wurde diese Zutat bei der `
+            + `automatischen Verarbeitung versehentlich entfernt oder umgewandelt. Bitte die Originalliste prüfen und ggf. `
+            + `manuell berücksichtigen — gerade bei diesem Begriff kann das histaminrelevant sein.`;
+        list.appendChild(warnBox);
+    }
 
     if (analyzed.length === 0) {
         list.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:0.88rem">Keine Zutaten gefunden</div>';
