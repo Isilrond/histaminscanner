@@ -985,7 +985,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.55<br>
+                Histaminscanner v5.64<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1115,7 +1115,7 @@ const DB = {
         'hefepaste','marmite','vegemite','vitam-r',
         'glutamat','mononatriumglutamat','natriumglutamat','msg',
         'e621','e622','e623','e624','e625',
-        'senf','mustard','dijonsenf','meerrettich','horseradish','kren',
+        // senf/meerrettich/dijonsenf/kren → liberator[] S1, NICHT high!
         // rosinen moved to liberator S1
         'zibeben','dörrpflaumen',
         'getrocknete pflaumen','prunes','datteln','dates','getrocknete datteln',
@@ -1136,7 +1136,7 @@ const DB = {
         'dry aged','bündnerfleisch','trockenfleisch','beef jerky',
         'edamer','chester','cheshire','gouda (alt)','alter gouda',
         'mittelalter gouda','schnittkäse','sauermilchkäse','handkäse',
-        'morcheln','morchel','morel',
+        // morcheln/morchel/morel → liberator[] S1, NICHT high!
         'soleier','solei','eingelegte eier','pickled eggs',
         'sauerbraten',
         'döner','gyros','kebab','shawarma',
@@ -1148,7 +1148,7 @@ const DB = {
         'kombu','agar agar',
         'kefir','sauermilch',
         'sojamilch','soy milk','soja-drink',
-        'marzipan','persipan',
+        // marzipan/persipan → liberator[] S1, NICHT high!
         'gemüsekonserven','fischkonserven','dosengemüse',
         'konservierter fisch','canned fish',
         'brennesseltee','nettle tea','brennessel',
@@ -1251,7 +1251,7 @@ const DB = {
         'camembert paniert','mozzarella sticks',  // S2 — Käse gereizt/aufgeheizt
         'tiramisu',  // S2-3 — Kaffee (DAO-Hemmer) + Mascarpone S2
         'pökelsalz','nitritpökelsalz','e250','natriumnitrit',  // S2-3 — Pökelsalz/Nitrit-Marker (siehe auch E-Nummer-Sonderregel E249-252)
-        'e451','e407',  // S1 — Phosphate/Carrageen in Wurstprodukten
+        // e407/carrageen bereits via safe_hints (S0-1) klassifiziert; e451 → dao_blocker (Triphosphat)
         // essigsäure/e260 (isolierter Zusatzstoff) → S0 lt. SIGHI 2024, siehe safe_hints
         'weinessig','weißweinessig','rotweinessig','malzessig','reisessig',  // S2-3 — Essig als Lebensmittel (fermentiert)
         // apfelessig → liberator[] S1 (milder, oft toleriert), NICHT high!
@@ -1288,8 +1288,9 @@ const DB = {
         'spinat','spinach','blattspinat',
         'avocado','aubergine','eggplant','melanzani',
         'kräuterseitling','kräuterseitlinge',
-        'champignon','steinpilz','pfifferling','pfifferlinge',
-        'shiitake','portobello','pilze','mushroom','mushrooms','fungi',
+        'champignon','champignons','steinpilz','pfifferling','pfifferlinge',
+        'shiitake','portobello','pilze','pilz','mushroom','mushrooms','fungi',
+        'morchel','morcheln','morel',  // ⚠️ S1 — Wildpilz, nur durchgegart testen
         'knoblauch','garlic','lauch','leek','porree',
         'rucola','rocket','rucula','beetroot',  // rote bete → liberator S1, NICHT safe_hints!
         'chili','chilischote','jalapeno','habanero','peperoni','cayenne',
@@ -1325,7 +1326,7 @@ const DB = {
         'lakritz','liquorice','süßholz','lakritze',
         // Crème fraîche & fermentierte Sahne → leicht S1, kein safe_hint
         'sojamilch','soy milk',
-        'marzipan',
+        'marzipan','persipan','marzipanrohmasse','marzipanmasse',  // ⚠️ S1 — Mandel-/Aprikosenkern-Basis, Liberator
         'keime','sprossen','alfalfa','bohnenkeimlinge',
         'überreifes obst','overripe',
         'marinade','mariniert',
@@ -1370,7 +1371,7 @@ const DB = {
         'rauch','räucheraroma','räucher',
         'steinpilz','steinpilzpulver',
         'bockshornklee',
-        'senf',
+        // 'senf' bereits weiter oben als Liberator S1 mit Synonymen
         'lamm','lammfleisch','lammkeule','lammkotelett',  // S2
         'mirabelle',  // S1 L
         'holunderbeere','holunderbeersaft',  // S2 — Beeren (≠ Blüten S0)
@@ -1378,20 +1379,23 @@ const DB = {
         'tamarinde',  // S2 — in Worcester, Chutneys
         'hoisin','hoisinsoße',  // S2 Sojasoße-Basis fermentiert
         'himbeersirup','himbeeressig',  // S2 Himbeer
-        'chiliflocken','pul biber','jalapeño',  // S1
-        'dijonsenf','estragonsenf','honigsenf',  // S1-2
-        'meerrettich','meerrettichcreme',  // S1-2 scharf/Liberator
+        'chiliflocken','pul biber','jalapeño','jalapeñopaste',  // ⚠️ S1-2 — Capsaicin = Liberator, erhöht Darmpermeabilität
+        'senf','mustard','dijonsenf','estragonsenf','honigsenf',  // ⚠️ S1 — Senföle (Isothiocyanate) = Mastzell-Liberator, oft mit Essig
+        'meerrettich','meerrettichcreme','kren','horseradish',  // ⚠️ S1 — Senföle, schleimhautreizend
+        'senfkörner','senfpulver','senfsamen','senfsaat','senfsaaten',  // ⚠️ S1-2 — konzentrierter als fertiger Senf
         'chimichurri',  // S2 Kräuter+Essig
         'sumach','sumak',  // S1-2 Säure (wie Essig)
         'shio koji','koji',  // S2-3 fermentiertes Koji
         'umeboshi',  // S2-3 (eingelegte Pflaume, seh
         'baobab',  // S1 milde Säure
-        'goji','gojibeeren',  // S1-2 getrocknet = konzentriert
-        'acai',  // S1-2 dunkle Beere (Liberator)r sauer+salzig)
+        'goji','gojibeeren','gojibeere',  // ⚠️ S1-2 — getrocknet = konzentriert, potenzieller Liberator
+        'acai','acai-beere',  // ⚠️ S1-2 — dunkle Beere, potenzieller Liberator
+        'sauerkirschen','sauerkirsche',  // ⚠️ S1 — im Gegensatz zu Süßkirsche (S0)
         'mirin',  // S2 (süßer Reiswein)
         'ponzu',  // S1-2 (Sojasoße+Zitrus)
         'rote bete saft','roten-beete-saft',  // S1 Betain
         'sauerampfer',  // S1 — Oxalsäure + mild sauer
+        'e450','diphosphat','diphosphate','natriumdiphosphat','dinatriumdiphosphat','eisenpyrophosphat',  // S1 — kein direkter DAO-Hemmer, aber MCAS/Darm-Liberator-Verdacht (Phosphate)
         'nelkenaroma',  // S1 — Nelke (S2) stark verdünnt als Aroma, aber Restrisiko bei Hochsensiblen
         'apfelessig',  // S1 — milder als Wein-/Balsamico-Essig, oft in kleinen Mengen toleriert
         'malzmehlzusatz',  // S1 — Gerstenmalzmehl als Backzusatz, milder als Malzextrakt aber Restrisiko
@@ -1419,7 +1423,8 @@ const DB = {
         'e120','karmin','cochenille',  // S1-2 Tierischer Farbstoff (Karmin aus Läusen)
         'orangeat',  // S1 eingelegte Orangenschale
         'zitronat','citronat',  // S1 eingelegte Zitronenschale
-        'e220','schwefeldioxid','schweflige säure',  // S1-2 Konservierungsmittel (getrocknete Früchte)
+        'e220','e221','e222','e223','e224','e225','e226','e227','e228','schwefeldioxid','schweflige säure','sulfite','sulphit','sulfit','sulphite',
+        'natriumsulfit','kaliumsulfit','natriumdisulfit','kaliumdisulfit','natriummetabisulfit','kaliummetabisulfit','calciumsulfit','calciumhydrogensulfit',  // ❌ SIGHI 2 — potenter Mastzell-Liberator (Sulfit-Asthma/Weinkopfschmerz)
         'kakaonibs','kakaobohnen',  // S1-2 — wie Schokolade (Phenylethylamin)
     ],
 
@@ -1436,10 +1441,7 @@ const DB = {
         'energy drink','energydrink','red bull','monster energy',
         'guarana','koffein','caffeine',
         'taurin','taurine',
-        'schwefeldioxid','sulfite','sulphit','sulfit','sulphite',
-        'e220','e221','e222','e223','e224','e225','e226','e227','e228',
-        'kaliumdisulfit','natriumdisulfit','natriumsulfit','kaliumsulfit',
-        'natriummetabisulfit','kaliummetabisulfit',
+        // schwefeldioxid/sulfite/e220-228 + alle Sulfit-Salze → liberator[] S2
         'natriumnitrit','kaliumnitrit','nitrit','nitrite',
         'natriumnitrat','kaliumnitrat','nitrat','nitrate',
         'e249','e250','e251','e252',
@@ -1478,7 +1480,8 @@ const DB = {
         'kaliuminosinat','e632','calciuminosinat','e633',
         'dinatriumribonucleotide','e634','e635',
         'ribonucleotide','5-ribonucleotide',
-        'diphosphate','e450','natriumdiphosphat','dinatriumdiphosphat',
+        // diphosphate/e450 → liberator[] S1, siehe dort
+        'natriumdiphosphat','dinatriumdiphosphat',
         'triphosphate','e451','natriumtriphosphat',
         'polyphosphate','e452',
         'e450i','e450ii','e450iii',
@@ -1486,13 +1489,7 @@ const DB = {
         'e452i','e452ii','e452iii',
         'bha','e320','butylhydroxyanisol',
         'bht','e321','butylhydroxytoluol',
-        'schwefeldioxid','e220',
-        'natriumsulfit','e221',
-        'natriumdisulfit','natriummetabisulfit','e223',
-        'kaliumdisulfit','kaliummetabisulfit','e224',
-        'calciumsulfit','e226',
-        'calciumhydrogensulfit','e227',
-        'kaliumhydrogensulfit','e228',
+        // Sulfite (E220-228 + Synonyme) → liberator[] S2, NICHT dao_blocker!
         'chinin','quinine','tonic water','bitter lemon','bitterlemon',
         'e310','e311','e312',
 
@@ -1513,7 +1510,7 @@ const DB = {
         'e491','e492','e493','e494','e495',
         'polysorbat','polysorbit','tween',
         'e339','natriumphosphat','e340','e341',
-        'e450','e451','e452',
+        'e451','e452',  // e450 → liberator[] S1
         'phosphat','natriumphosphat',
         'e951','aspartam','aspartame',
         'e952','cyclamat','cyclamic acid',
@@ -1878,17 +1875,19 @@ const DB = {
         'zitronengras','lemongrass','thymiantee','verveine',
         'mandelmilch','almond milk','macadamiamilch','haselnussmilch',
         'preiselbeere','cranberry','preiselbeeren','cranberries',
-        'gojibeere','goji','maulbeere','mulberry','jostabeere',
+        // gojibeere/goji → liberator[] S1-2
+        'maulbeere','mulberry','jostabeere',
         'maroni','edelkastanie','chestnut','marone',
         'heidelbeere (frisch)','blaubeere (frisch)',
         'johannisbeere (schwarz)','schwarze johannisbeere','cassis',
-        'sauerkirsche','sour cherry','morello',
+        // sauerkirsche → liberator[] S1
+        'sour cherry','morello',
         'kochschinken','cooked ham',
         'buschbohnen','grüne bohnen','french beans','haricots verts',
         'romanobohnen','romano bohnen','breite bohnen','flachbohnen',  // S0 grüne Bohnen-Variante
         'glukosesirup','glucosesirup','glucose-fructose-sirup','invertzuckersirup','rohrzuckersirup',
         'natriumhydrogencarbonat','natron','backnatron','e500','natriumcarbonat','natriumcarbonate',
-        'ammoniumcarbonat','e503','diphosphat','e450',
+        'ammoniumcarbonat','e503',  // diphosphat/e450 → liberator[] S1
         'saflor','distelöl',
         'e475','polyglycerinester',
         'e536','kaliumhexacyanoferrat',
@@ -2022,7 +2021,7 @@ const DB = {
         'frischhefe','hefe',                        // S0-1 frisch
     
         'haselnuss','haselnüsse','walnuss','walnüsse','erdnuss','mandel',  // S0
-        'kakaopulver','kakao',  // S1 Liberator — aber safe_hints hat safe entries
+        // kakaopulver/kakao → liberator[] S1
     
         'krokant',  // S0 = gebrannte Nüsse + Zucker
         'butterweich','butter weich',  // S0
@@ -2052,7 +2051,7 @@ const DB = {
         'kräuterbutter',                              // S1 (Butter + Kräuter)
         'porree','lauch','stange lauch',             // S0
     
-        'champignon','champignons','pilze','shiitake','pfifferling',  // S1 frisch (gering)
+        // champignon/champignons/pilze/shiitake/pfifferling → liberator[] S1
         'salat','blattsalat','romana','salatherz',  // S0
         'spargel','grüner spargel','weißer spargel',  // S0
         'estragon','basilikum','minze','thymian','rosmarin','oregano','kerbel',  // S0
@@ -2094,7 +2093,7 @@ const DB = {
         'e401','alginat','e425','konjak','e413','traganth','e416','karaya',
         'e920','l-cystein',
         'kaliumjodat','zink','kupfer','e172',
-        'e450','eisenpyrophosphat',
+        // eisenpyrophosphat → liberator[] S1 (Teil der E450-Gruppe)
         'kieselgur','filterhilfsmittel','bentonit','diatomeenerde',
         // Proteine S0
         'lupine','lupinenprotein','erbse', // erbsenprotein → in liberator[]
@@ -2139,7 +2138,7 @@ const DB = {
         'liebstöckel','maggikraut',                   // S0
         'fenchel','fenchelsamen',                      // S0
         'brokkoli',                                    // S0
-        'senf',                                        // S1-2 Liberator
+        // senf → liberator[] S1
         'karamell','karamellfarbe',                    // S1
     
         // 'käse' → NICHT pauschal safe! Frischkäse=S0, Gereift=S2-3 → separate Einträge
@@ -2211,7 +2210,7 @@ const DB = {
         'speisestärke',                             // S0
         'weinstein-backpulver','backnatron',        // S0
         'gelatineblätter','blattgelatine',          // S0
-        'kirsche','süßkirsche','sauerkirsche',      // S0-1 (Sauerkirsche S1)
+        'kirsche','süßkirsche',      // S0-1 (sauerkirsche → liberator[] S1, siehe dort)
         'nektarine','pfirsich','papaya',            // S0-1
         'granatapfel',                              // S0
         'heidelbeere','blaubeere',                  // S0-1
@@ -2251,13 +2250,10 @@ const DB = {
         // wasabi → liberator S1-2, NICHT safe_hints!
         'schwarzkümmel',                     // S0
         'zitronenpfeffer',                   // S1 (Zitrone+Pfeffer)
-        'chiliflocken','pul biber',          // S1
+        // chiliflocken/pul biber → liberator[] S1
         // Salz-Varianten
         'kala namak','himalayasalz','fleur de sel','trüffelsalz',  // S0
-        // Senf-Varianten
-        'dijonsenf','estragonsenf','honigsenf',  // S1-2 Liberator
-        // Meerrettich
-        'meerrettich','meerrettichcreme','kren',  // S1-2 (scharf, Liberator)
+        // Senf-Varianten & Meerrettich → liberator[] S1
         // Tahini
         'tahini','tahinipaste','sesammus',       // S0
         'granatapfelmelasse','pomegranate molasses',  // S1
@@ -2288,8 +2284,8 @@ const DB = {
         'kokoswasser','coconut water',   // S0
         'löwenzahn','giersch','schafgarbe','spitzwegerich',  // S0 Wildkräuter
         'wildkräuter',                   // S0
-        'austernpilze','enoki','maitake', // S0-1 frische Pilze
-        'morchel','morcheln',            // S1 (nur gekocht)
+        // morchel/morcheln → liberator[] S1
+        'austernpilze','austernpilz','pleurotus','enoki','maitake', // S0-1 frische Pilze (Ausnahmen, bleiben safe)
     
         'weizengras','gerstengras',          // S0
         'sencha','matcha',         // S0 (Grüntee)
@@ -2327,8 +2323,7 @@ const DB = {
         // Spezial
         'zitronat','orangeat','sukkade',         // S1-2 kandierte Schale (Konzentr.)
         'obst',                                  // S0 generisch
-        'marzipan',                              // S1 (Rosenwasser+Mandel)
-        'nougat',                                // S1 (Haselnuss+Zucker)
+        // marzipan/nougat → liberator[] S1
     
         'fischstäbchen','fischburger',      // S1 (Fisch+Panade — frisch)
         'hackfleisch','frikandel','frikadelle',  // S0-1 frisch
@@ -2405,13 +2400,13 @@ const DB = {
         'acerola',                           // S0-1 (Vitamin C, leicht sauer)
         'hopfen','hopfenextrakt',            // S0 (beruhigend, kein Histaminproblem)
         'e551','siliciumdioxid',             // S0 Trennmittel
-        'melone','honigmelone','wassermelone',  // S0-1
+        'melone','honigmelone',  // S0-1 (wassermelone bereits weiter oben)
         'tee','schwarzteeextrakt','grünteeextrakt','hibiskusteeextrakt',  // je nach Sorte
     
         'hibiskustee','grütee',  // Artefakte  // Tee-Extrakt-Artefakte
     
         'pekan','pekannuss','pekannüsse',    // S0
-        'kakaonibs','kakao nibs',            // S1-2 Kakao
+        // kakaonibs → liberator[] S1-2 (via Normalisierung zu 'kakao')
         'beta-glucan','betaglucan',          // S0 Haferfaser
         'palmzucker','palmblütenzucker',     // S0
         'honigpulver',                       // S0
@@ -2425,7 +2420,7 @@ const DB = {
         'maltodextrin',                       // S0
     
         'palmöl','palmfett','palmkernöl',  // S0 neutral
-        'johannisbeeren',  // plural → S1-2
+        // johannisbeeren (plural) → liberator[] S1-2, siehe johannisbeere
     
         'weizenflocken','vollkornweizenflocken',  // S0 (Flocken)
     
@@ -2439,7 +2434,7 @@ const DB = {
         'wasabi erdnuss','chili erdnuss','honig erdnuss',  // S1
         'proteinriegel','clif bar','trek bar',  // S0-1
         'kind bar',                       // S0-1 Nuss+Frucht
-        'gebrannte mandel',               // S1 Karamell
+        // gebrannte mandel → liberator[] S1
         'lärabar',                        // S1 Dattel+Nuss
         'balisto',                        // S1-2 Schokolade+Getreide
     
@@ -2494,7 +2489,7 @@ const DB = {
         // Pizza / Backwaren E-Nummern
         'e341','calciumphosphate',   // S0 Backtriebmittel
         'e333','calciumcitrate',     // S0 Säureregulator
-        'e450','diphosphate',        // S0 Backtriebmittel
+        // e450/diphosphate → liberator[] S1 (siehe SIGHI-Diskussion, kein S0!)
         'e500','natriumhydrogencarbonat','natriumcarbonat',  // S0 Backtriebmittel
         'e472e','diacetylweinsäureester','mono- und diacetylweinsäureester',  // S0 Emulgator
         'e471','mono- und diglyceride',  // S0 Emulgator
@@ -2586,11 +2581,10 @@ const DB = {
         'kohlensäure',                    // S0
         'tamarinde',                      // S1 (leicht histaminbildend)
         'glasnudeln','cellophannudeln',   // S0
-        'jalapeño','jalapeñopaste',       // S1-2 Chili
+        // jalapeño/jalapeñopaste → liberator[] S1-2
         'cumin','kreuzkümmel',            // S0
         'dill','dillkraut',               // S0
-        'passionsfrucht','maracuja',      // S1-2
-        'ananassaft',                     // S1-2 (Ananas = Liberator)
+        // passionsfrucht/maracuja/ananassaft → liberator[] S2 (siehe unten)
         'essigsäure','e260',              // S2-3 (Essig!)
     
         // Obst-Konserven
@@ -2663,7 +2657,7 @@ const DB = {
         'e412','guarkernmehl','guargummi',    // S0 Verdickungsmittel
         'e491','sorbitanmonostearat',         // S0 Emulgator Hefe
         // sumach/sumak → liberator, NICHT safe_hints!
-        'cayennepfeffer','cayenne',           // S1-2 scharfes Gewürz
+        // cayennepfeffer/cayenne → liberator[] S1-2
         'fenchelsamen',                       // S0
         'amaranth','gepuffter amaranth',      // S0 Pseudogetreide
         'hirse','hirsebrei',                  // S0
@@ -2704,7 +2698,7 @@ const DB = {
         'süßholzwurzel','lakrizwurzel',                    // S0
         // Schokolade
         'rosenwasser',                                     // S0
-        'marzipan','marzipanrohmasse',                    // S1 (Mandeln+Zucker)
+        // marzipan/marzipanrohmasse → liberator[] S1
         // Kulturen weitere
         'bifidobacterium animalis','bifidobacterium',      // S0
         // Brot
@@ -2724,11 +2718,8 @@ const DB = {
         'inulin','e466','e463',  // S0 (schon in Normen aber safe_hints als Fallback)
     
         // Früchte fehlend
-        'pflaume','pflaumen',                // S1-2
-        'feige','feigen',                    // S1-2 (getrocknet höher)
-        'sauerkirschen',                     // S1-2
-        'acai','acai-beere',                // S1-2
-        'goji','goji-beeren',               // S1-2
+        // pflaume/feige/acai/goji → liberator[] S1-2 (siehe oben), sauerkirschen bleibt hier
+        // sauerkirschen → liberator[] S1
         // Nüsse
         'macadamia','macadamia-nüsse',      // S0
         'pinienkerne','paranüsse',          // S0
@@ -2741,7 +2732,7 @@ const DB = {
         // Mehl-Typen
         'dinkelmehl','buchweizenmehl','kichererbsenmehl','mandelmehl','kokosmehl',  // S0
         // E-Nummern Konservierung/Gase
-        'e220','schwefeldioxid',            // S1-2 Konservierungsmittel!
+        // e220/schwefeldioxid → liberator[] S1-2 (NICHT safe!)
         'e579','eisen-gluconat',            // S0 (Farbstabilisator Oliven)
         'e942','e941',                      // S0 Gase (Sprühmittel)
         'e435','polysorbat',               // S0 Emulgator
@@ -2822,7 +2813,7 @@ const DB = {
         'kefirknollen','kefirkristalle','scoby',     // S0
         'kombucha-kulturen',                         // S0
         // Kakao
-        'kakaobohnen','kakaonibs',                   // 🟠 S1-2 (Liberator)
+        // kakaobohnen/kakaonibs → liberator[] S1-2 (via Normalisierung zu 'kakao')
         // Superfoods
         'lucuma','lucumafrucht',                     // S0
         'maca','macawurzel',                         // S0
@@ -3507,7 +3498,7 @@ async function runAnalysis(product, ingredientsText) {
         toast(`⚠️ ${unknownCount} unklassifizierte Zutaten – manuelle Prüfung empfohlen!`, 5000);
     }
 
-    renderResult(product, analyzed);
+    renderResult(product, analyzed, false, normWarning);
 
     } catch(err) {
         console.error('runAnalysis Fehler:', err);
@@ -3596,7 +3587,7 @@ function parseIngredients(inputText) {
         [/\btrüffelaroma\b|\btrüffelextrakt\b/gi, 'aroma'],
         // ── Aroma-Differenzierung nach HIT-Relevanz ─────────────────────
         // Aromaextrakt = konzentrierter Lösungsmittel-Auszug → dao_blocker-Verdacht
-        [/\baromaextrakt\b|\bflavour\s*extract\b/gi, 'hefeextrakt'],
+        [/\b[\wäöüß]*aromaextrakt\b|\bflavour\s*extract\b/gi, 'hefeextrakt'],  // auch "Fruchtaromaextrakt"/"Käsearomaextrakt" etc. → S3-Sicherung
         // Liberator-Fruchtaromen → als Frucht klassifizieren
         [/\bnatürliches?\s+(?:erdbeer|himbeer|kirsch|johannisbeer)\s*aroma\b/gi, 'erdbeere'],
         [/\bnatürliches?\s+(?:zitrus|orangen?|zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],
@@ -3755,12 +3746,14 @@ function parseIngredients(inputText) {
         [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'mineralstoffe'],       // Zink → safe
         [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'mineralstoffe'],                  // Kupfer → safe
         [/\bjod(?:id)?\b(?!salz)/gi, 'mineralstoffe'],                          // Jod → safe
-        [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'kirsche'],
+        [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'sauerkirsche'],
         [/\beisen\s*\(?ii\)?\s*-?gluconat\b|\beisen\s*ii\s*gluconat\b|e579\b/gi, 'e579'],
         [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'mineralstoffe'],  // andere Eisenverbindungen
-        [/\bpflaumen?\b(?!\s*(?:mus|saft|likör))/gi, 'pflaume'],
+        [/\bpflaumenmus\b|\btrockenpflaumen?\b|\bpflaumensaft\b/gi, 'pflaume'],
+        [/\bpflaumen?\b(?!\s*(?:likör))/gi, 'pflaume'],
+        [/\bfeigenmus\b|\btrockenfeigen?\b|\bfeigensaft\b/gi, 'feige'],
         [/\bfeigen?\b(?!\s*(?:konfitüre|likör))/gi, 'feige'],
-        [/\bsauerkirschen?\b|\bsauere?\s+kirschen?\b/gi, 'kirsche'],
+        [/\bsauerkirschen?\b|\bsauere?\s+kirschen?\b/gi, 'sauerkirsche'],
         [/\bacai(?:-beere)?(?:\s+gefriergetrocknet)?\b/gi, 'acai'],
         [/\bgoji(?:-beeren?)?\b(?:\s+getrocknet)?\b/gi, 'goji'],
         // ── Oliven / Konservierung ──
@@ -4522,7 +4515,7 @@ function parseIngredients(inputText) {
         [/\bgrüntee(?:extrakt)?\b/gi, 'tee'],
         [/\bschwarz(?:tee)?(?:extrakt)?\b/gi, 'schwarztee'],
         [/\bhibiskus(?:tee)?(?:extrakt)?\b/gi, 'hibiskustee'],
-        [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\rrotebeete?extrakt\b/gi, 'rote bete'],
+        [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\brote\s*bee?te\s*extrakt\b/gi, 'rote bete'],
         [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
         [/\bacerola-?(?:saft)?(?:pulver|extrakt)?\b|\bacerola\b/gi, 'acerola'],
         [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'kräuter'],
@@ -6061,9 +6054,9 @@ function parseIngredients(inputText) {
         [/\bsauerampfer\b|\bampfer\b/gi, 'sauerampfer'],  // S1 Liberator (Oxalsäure) — NICHT kräuter!
         [/\bramsons\b/gi, 'bärlauch'],                  // englisch für Bärlauch S0
         // ── Pilze ──
-        [/\bausternpilze?\b|\bpleurotus\b/gi, 'champignon'],
-        [/\benoki\b|\benokitake\b|\bsamtfußrübling\b/gi, 'champignon'],
-        [/\bmaitake\b|\bklapperschwamm\b/gi, 'champignon'],
+        [/\bausternpilze?\b|\bpleurotus\b/gi, 'austernpilz'],  // S0-1 Ausnahme — NICHT zu champignon (S1)!
+        [/\benoki\b|\benokitake\b|\bsamtfußrübling\b/gi, 'enoki'],  // S0-1 Ausnahme — NICHT zu champignon (S1)!
+        [/\bmaitake\b|\bklapperschwamm\b/gi, 'maitake'],  // S0-1 Ausnahme — NICHT zu champignon (S1)!
         [/\breishi\b|\blingzhi\b/gi, 'reishi'],         // medizin. Pilz S1-2
         [/\bchaga\b/gi, 'reishi'],                      // Birkenpilz S1-2
         [/\bmorcheln?\b|\bspitzmorchel\b/gi, 'champignon'],  // S1 gekocht ok
@@ -7062,7 +7055,8 @@ function classifyIngredient(name) {
         const sulfites   = [220,221,222,223,224,225,226,227,228];
         const nitrites   = [249,250,251,252];
         const benzoates  = [210,211,212,213];
-        if (sulfites.includes(num) || benzoates.includes(num)) return 'dao_blocker';
+        if (benzoates.includes(num)) return 'dao_blocker';
+        if (sulfites.includes(num)) return 'liberator';  // E220-228: Sulfite = Mastzell-Liberator, kein direkter DAO-Hemmer
         if (nitrites.includes(num)) return 'high';  // E249/E250 Nitrit = S3 Pökelsalz!
         if (num === 621) return 'high';      // MSG
         if (num === 120) return 'liberator'; // Karmin
@@ -7346,7 +7340,7 @@ const SIGHI_DB = {
         'wurstwaren',
         'cumin','kreuzkümmel','kreuzkümmelpulver',
         'curry','currypulver','currypaste',
-        'senf','senfkörner','senfpulver','senfsamen',
+        'senfkörner','senfpulver','senfsamen',  // senf selbst → SIGHI 1
         'fleischextrakt',
         'hefeextrakt','hefefextrakt','würze','speisewürze',
         'bouillon','brühe','brühwürfel','brühpulver',
@@ -7384,7 +7378,8 @@ const SIGHI_DB = {
         'e214','e215','ethylparaben','e218','e219','methylparaben',
         'e231','e232','orthophenylphenol',
         'e239','hexamethylentetramin',
-        'sulfite','schwefeldioxid','e220',
+        'sulfite','sulfit','sulphit','sulphite','schwefeldioxid','schweflige säure','e220','e221','e222','e223','e224','e225','e226','e227','e228',
+        'natriumsulfit','kaliumsulfit','natriumdisulfit','kaliumdisulfit','natriummetabisulfit','kaliummetabisulfit','calciumsulfit','calciumhydrogensulfit','kaliumhydrogensulfit',
         'e221','natriumsulfit','e222','natriumhydrogensulfit','natriumbisulfit',
         'e223','natriummetabisulfit','e224','kaliummetabisulfit',
         'e225','kaliumsulfit','e226','calciumsulfit',
@@ -7407,7 +7402,7 @@ const SIGHI_DB = {
         'e413','traganth','e416','karaya','e417','tarakernmehl','e418','gellan',
         'carrageen','e407','e407a','verarbeitete eucheuma-algen',
         'e432','e433','e434','e435','e436','polysorbat',
-        'diphosphat','e450','triphosphat','e451','polyphosphat','e452',
+        'triphosphat','e451','polyphosphat','e452',  // diphosphat/e450 → SIGHI 1, siehe dort
         'alginsäure','e400','natriumalginat','e401','kaliumalginat','e402',
         'ammoniumalginat','e403','calciumalginat','e404','e405',
         'propylgallat','e310','e311','e312','gallat',
@@ -7428,6 +7423,7 @@ const SIGHI_DB = {
     ],
     1: [
         // ── SIGHI 1: Mässig verträglich (SIGHI 2024-08-29) ──────────────
+        'diphosphat','e450','natriumdiphosphat','dinatriumdiphosphat','eisenpyrophosphat',  // S1 — Phosphat-Liberator-Verdacht (MCAS), siehe Tooltip
         // Milchprodukte fermentiert (schwach histaminhaltig)
         'saure sahne','sauerrahm',
         'crème fraîche','creme fraiche',
@@ -7466,7 +7462,8 @@ const SIGHI_DB = {
         'erbsen','gartenerbsen','zuckererbsen',
         'kohlrabi','wirsing','grünkohl','braunkohl',
         'schnittlauch','chives',
-        'meerrettich','kren',
+        'meerrettich','kren','meerrettichcreme','horseradish',
+        'senf','mustard','dijonsenf','estragonsenf','honigsenf',
         'mangold',
         'okra',
         'chili','chilischote','peperoni',
@@ -8239,6 +8236,44 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return 'SIGHI 2 — Himbeeren sind laut SIGHI 2024 auf Stufe 2 (Warnung)';
         if (n.match(/mandarine|clementine|tangerine/))
             return 'SIGHI 2 — Mandarine: Histaminliberator laut offizieller SIGHI-Liste';
+        if (n.match(/\be450\b|diphosphat|natriumdiphosphat|dinatriumdiphosphat|eisenpyrophosphat/))
+            return '⚠️ SIGHI 1 — E450/Diphosphate: Kein direkter DAO-Hemmer, kann jedoch bei MCAS/Darm-Sensibilität als milder Liberator wirken. In Backpulver meist toleriert, in Fertiggerichten meiden.';
+        if (n.match(/ananassaft|maracuja|passionsfrucht/))
+            return '❌ SIGHI 2 — Tropische Früchte: Starke Histaminliberatoren, die eine direkte Freisetzung von körpereigenem Histamin erzwingen. Saft konzentriert die Wirkung zusätzlich.';
+        if (n.match(/\bpflaume\b|pflaumen/))
+            return '⚠️ SIGHI 1 — Pflaume: Milder Histaminliberator und darmstimulierend.';
+        if (n.match(/\bfeige\b|feigen/))
+            return '⚠️ SIGHI 1-2 — Feige: Frisch als S1 eingestuft, getrocknet jedoch durch Nachreifung oft eine erhebliche Histaminquelle (S2).';
+        if (n.match(/\bgoji\b|gojibeere/))
+            return '⚠️ SIGHI 1-2 — Goji/Acai: Exotische Beeren mit unvollständiger Datenlage, gelten klinisch als potenzielle Liberatoren.';
+        if (n.match(/\bacai\b/))
+            return '⚠️ SIGHI 1-2 — Goji/Acai: Exotische Beeren mit unvollständiger Datenlage, gelten klinisch als potenzielle Liberatoren.';
+        if (n.match(/johannisbeere/))
+            return '⚠️ SIGHI 1 — Johannisbeere: Enthält stoffwechseleigene Liberator-Komponenten.';
+        if (n.match(/sauerkirsche/))
+            return '⚠️ SIGHI 1 — Sauerkirsche: Im Gegensatz zu Süßkirsche (S0) als milder Liberator eingestuft.';
+        if (n.match(/\bshiitake\b/))
+            return '⚠️ SIGHI 1 — Shiitake: Bekannter Histaminliberator, kann ausgeprägte pseudoallergische Reaktionen triggern.';
+        if (n.match(/\bmorchel|morcheln|\bmorel\b/))
+            return '⚠️ SIGHI 1 — Morcheln: Wildpilz mit erhöhtem Irritationspotenzial. Nur gut durchgegart testen.';
+        if (n.match(/champignon|pfifferling|\bpilze?\b|portobello|mushroom|fungi/))
+            return '⚠️ SIGHI 1 — Pilze: Frisch oft toleriert, bilden aber bei Lagerung rasant biogene Amine. Große Proteinoberfläche begünstigt mikrobiellen Abbau.';
+        if (n.match(/cayenne|cayennepfeffer|jalapeñ|jalapen|chiliflocken|pul biber|\bchili\b|chilischote|habanero|peperoni/))
+            return '⚠️ SIGHI 1-2 — Scharfe Gewürze (Capsaicin): Wirkt als Schleimhautirritant und Histaminliberator. Erhöht die Darmpermeabilität (Tight Junctions).';
+        if (n.match(/\bkakao\b|kakaopulver|kakaonibs|kakaobohnen|kakao nibs/))
+            return '❌ SIGHI 1-2 — Kakao: Wirkt als Histaminliberator und verlangsamt den enzymatischen Histaminabbau im Darm. Rohe Nibs/Bohnen sind potenter als verarbeitete Schokolade.';
+        if (n.match(/\bmarzipan\b|persipan|marzipanrohmasse|marzipanmasse/))
+            return '⚠️ SIGHI 1 — Marzipan: Basiert auf Mandeln (bzw. Aprikosenkernen bei Persipan), die als Liberatoren agieren können. In großen Mengen kritisch.';
+        if (n.match(/\bnougat\b/))
+            return '❌ SIGHI 2 — Nougat: Enthält Haselnüsse (starke Allergene/Liberatoren) und Kakaobestandteile (DAO-Blocker).';
+        if (n.match(/gebrannte mandel|karamellnüsse/))
+            return '⚠️ SIGHI 1 — Gebrannte Mandel: Kombiniert Mandel-Liberatoren mit erhitzten, karamellisierten Zuckermatrizen.';
+        if (n.match(/\bsenf\b|mustard|dijonsenf|estragonsenf|honigsenf/))
+            return '⚠️ SIGHI 1 — Senf/Senfsaat: Enthält scharfe Isothiocyanate (Senföle), die als Liberator wirken und Mastzellen reizen können. Zudem meist mit Essig versetzt.';
+        if (n.match(/meerrettich|\bkren\b|horseradish|meerrettichcreme/))
+            return '⚠️ SIGHI 1 — Meerrettich/Kren: Reich an Senfölen. Wirkt stark schleimhautreizend und triggert bei sensiblen Anwendern die Histaminausschüttung.';
+        if (n.match(/\be22[0-8]\b|schwefeldioxid|schweflige säure|sulfite|sulphit|sulfit|sulphite|natriumsulfit|kaliumsulfit|natriumdisulfit|kaliumdisulfit|natriummetabisulfit|kaliummetabisulfit|calciumsulfit|calciumhydrogensulfit|kaliumhydrogensulfit/))
+            return '❌ SIGHI 2 — Sulfite/Schwefeldioxid: Potenter Histaminliberator! Triggert Mastzell-Degranulation und kann schwere pseudoallergische Reaktionen auslösen (Sulfit-Asthma, Weinkopfschmerz). Häufig in Wein und Trockenfrüchten.';
         return 'Regt die körpereigene Histaminfreisetzung aus Mastzellen an';
     }
 
@@ -8257,8 +8292,7 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return 'Taurin hemmt das DAO-Enzym direkt';
         if (n.match(/guarana/))
             return 'Konzentriertes Koffein aus Guarana hemmt den Histaminabbau';
-        if (n.match(/e220|e221|e222|e223|e224|e225|e226|e227|e228|schwefeldioxid|sulfit|sulfite/))
-            return 'Sulfite hemmen das DAO-Enzym direkt — häufig in Wein und Trockenfrüchten';
+        // Sulfite (E220-228) → liberator-Block, siehe dort
         if (n.match(/e249|e250|e251|e252|nitrit|nitrate|nitrat/))
             return 'Nitrite hemmen den enzymatischen Histaminabbau im Darm';
         if (n.match(/e210|e211|e212|e213|benzoat|benzoesäure/))
@@ -8478,7 +8512,7 @@ function displayIngredientName(rawName) {
     if (eNum) return cap(rawName) + ' <span class="e-fullname">(' + eNum + ')</span>';
     return cap(rawName);
 }
-function renderResult(product, analyzed, fromHistory = false) {
+function renderResult(product, analyzed, fromHistory = false, normWarning = null) {
     // Produktname
     const prodName = product
         ? (product.product_name_de || product.product_name || 'Produkt')
