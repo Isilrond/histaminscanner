@@ -417,6 +417,7 @@
         }
         .badge-high        { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-bd); }
         .badge-liberator   { background: var(--yellow-bg); color: var(--yellow);  border: 1px solid var(--yellow-bd); }
+        .badge-custom      { background: #2d1a2e; color: #e879f9; border: 1px solid #7e22ce; }
         .badge-dao_blocker { background: var(--yellow-bg); color: var(--yellow);  border: 1px solid var(--yellow-bd); }
 
         /* SIGHI Badges */
@@ -673,7 +674,7 @@
         }
         .history-pill {
             font-size: 11px; padding: 2px 7px;
-            background: var(--color-surface); border: 1px solid var(--border);
+            background: var(--surface); border: 1px solid var(--border);
             border-radius: 20px; white-space: nowrap;
         }
 
@@ -982,10 +983,30 @@
     </div>
 
     <div class="settings-sec">
+        <div class="settings-sec-title">Eigene Ausschlussstoffe</div>
+        <div class="settings-box">
+            <div class="settings-field">
+                <label class="settings-lbl">Individuelle Unverträglichkeiten</label>
+                <textarea id="custom-exclusions-inp"
+                    class="settings-input" rows="3"
+                    placeholder="z.B. salicylat, tyramin, laktose, erdbeere"
+                    style="resize:vertical;font-size:0.9rem;line-height:1.5"
+                    oninput="saveCustomExclusions()"></textarea>
+                <p class="settings-hint">
+                    Kommagetrennte Zutaten die <em>du persönlich</em> nicht verträgst —
+                    unabhängig von der SIGHI-Einstufung. Werden beim Scan als
+                    <span style="color:var(--red)">⛔ Persönlich gemieden</span> markiert.
+                </p>
+            </div>
+            <div id="custom-exclusions-preview" style="font-size:0.8rem;opacity:0.6;padding:0 0 0.5rem"></div>
+        </div>
+    </div>
+
+    <div class="settings-sec">
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.75<br>
+                Histaminscanner v5.82<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1022,11 +1043,28 @@
         <span class="page-title">Zutatenliste fotografieren</span>
     </div>
     <div class="photo-body">
-        <div class="photo-frame">
+        <div class="photo-frame" style="position:relative">
             <img id="photo-preview" alt="Zutatenliste">
+            <!-- Crop-Overlay: wird nach Foto-Aufnahme aktiviert -->
+            <div id="crop-overlay" style="display:none;position:absolute;inset:0;cursor:crosshair">
+                <canvas id="crop-canvas" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none"></canvas>
+                <div id="crop-hint" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;
+                     font-size:0.72rem;color:#fff;text-shadow:0 1px 3px #000;pointer-events:none">
+                    Bereich ziehen zum Zuschneiden · Doppeltippen zum Bestätigen
+                </div>
+            </div>
         </div>
 
-        <div class="photo-info">
+        <div id="crop-actions" style="display:none;gap:0.5rem;padding:0.5rem 0">
+            <button class="btn-primary" onclick="confirmCrop()" style="flex:1">
+                ✂️ Zuschnitt bestätigen
+            </button>
+            <button class="btn-secondary" onclick="resetCrop()" style="flex:1">
+                ↺ Zurücksetzen
+            </button>
+        </div>
+
+        <div class="photo-info" id="photo-info-text">
             <strong id="photo-ai-hint">🤖 KI liest die Zutatenliste</strong>
             Die KI erkennt den Text automatisch — auch bei schlechter Beleuchtung oder schrägen Winkeln.
             Stelle sicher, dass die Zutatenliste vollständig im Bild ist.
@@ -1074,8 +1112,7 @@ const DB = {
         'austern','oyster','garnelen','shrimp','prawn','hummer','lobster','languste',
         'krabben','krab','crab','krebse','muscheln','mussel','clam','krabbenfleisch','jakobsmuscheln','jakobsmuschel',
         'tintenfisch','squid','calamari','oktopus','octopus','sepia',
-                'sucuk',
-        ,'pepperoni','chorizo','fuet','saucisson',
+        'sucuk','pepperoni','chorizo','fuet','saucisson',
         'mettwurst','teewurst','cervelatwurst','fleischwurst','jagdwurst',
         'leberwurst','blutwurst','schwarzwurst','zungenwurst',
         'landjäger','biltong','beef jerky','jerky',
@@ -1167,7 +1204,7 @@ const DB = {
         'mett','tatar','ground beef','minced meat',  // hackfleisch → liberator[] S1 (defensiv)
         'aufschnitt','deli meat','cold cuts','fleischaufschnitt',
         'lachs','salmon','lachsfilet','smoked salmon','räucherlachs',
-        'orangensaft','orange juice','grapefruitsaft','zitronensaft',
+        'grapefruitsaft','zitronensaft',  // orangensaft → Duplikat entfernt (bereits in orange-Zeile)
         'tomatensaft','tomato juice','fruchtsaft aus zitrusfrüchten',
         'multivitaminsaft','ananassaft','pineapple juice',
         'wildbret','wild','venison','hirsch','hirschfleisch','rehfleisch','reh',
@@ -2966,11 +3003,41 @@ let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
 let aiProvider  = localStorage.getItem('hs_provider')     || 'anthropic';
 
+// ── Eigene Ausschlussstoffe ──────────────────────────────────────────────────
+let customExclusions = [];  // normierte Keywords aus User-Eingabe
+
+function loadCustomExclusions() {
+    const raw = localStorage.getItem('hs_custom_exclusions') || '';
+    customExclusions = raw.split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(s => s.length > 1);
+    const inp = document.getElementById('custom-exclusions-inp');
+    if (inp) inp.value = raw;
+    updateCustomExclusionsPreview();
+}
+
+function saveCustomExclusions() {
+    const inp = document.getElementById('custom-exclusions-inp');
+    const raw = inp ? inp.value : '';
+    localStorage.setItem('hs_custom_exclusions', raw);
+    customExclusions = raw.split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(s => s.length > 1);
+    updateCustomExclusionsPreview();
+}
+
+function updateCustomExclusionsPreview() {
+    const el = document.getElementById('custom-exclusions-preview');
+    if (!el) return;
+    if (customExclusions.length === 0) { el.textContent = ''; return; }
+    el.textContent = `Aktiv: ${customExclusions.map(s => '⛔ ' + s).join('  ')}`;
+}
+
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
 function showScreen(id) {
-    if (id === 'screen-settings') { setTimeout(updateCacheStats, 50); setTimeout(updateProviderIndicator, 50); }
+    if (id === 'screen-settings') { setTimeout(updateCacheStats, 50); setTimeout(updateProviderIndicator, 50); loadCustomExclusions(); }
     if (id === 'screen-photo') {
         // frisch aus localStorage lesen — sicherer als JS-Variable
         const mk = localStorage.getItem('hs_mistral_key') || '';
@@ -3009,6 +3076,7 @@ document.getElementById('api-key-inp').value    = apiKey;
 document.getElementById('mistral-key-inp').value = mistralKey;
 selectProvider(aiProvider);   // sync UI on load
 setTimeout(updateProviderIndicator, 100);
+loadCustomExclusions();  // Eigene Ausschlussstoffe laden
 
 function selectProvider(p) {
     aiProvider = p;
@@ -3275,6 +3343,152 @@ function capturePhoto() {
     document.getElementById('photo-input').click();
 }
 
+// ── Crop-Feature ─────────────────────────────────────────────────────────────
+let cropState = {
+    active: false,
+    img: null,          // Original Image-Objekt
+    startX: 0, startY: 0,
+    endX: 0, endY: 0,
+    dragging: false,
+    confirmed: false
+};
+
+function initCrop(dataUrl) {
+    const img = new Image();
+    img.onload = () => {
+        cropState.img = img;
+        cropState.active = true;
+        cropState.confirmed = false;
+        // Canvas auf Bild-Größe setzen
+        const canvas = document.getElementById('crop-canvas');
+        const frame  = document.querySelector('.photo-frame');
+        const dispW  = frame.offsetWidth;
+        const dispH  = Math.round(dispW * img.naturalHeight / img.naturalWidth);
+        canvas.width  = dispW;
+        canvas.height = dispH;
+        // Startselektion = ganzes Bild
+        cropState.startX = 0; cropState.startY = 0;
+        cropState.endX   = dispW; cropState.endY = dispH;
+        document.getElementById('crop-overlay').style.display = 'block';
+        document.getElementById('crop-actions').style.display = 'flex';
+        drawCropCanvas();
+        setupCropEvents(canvas);
+    };
+    img.src = dataUrl;
+}
+
+function drawCropCanvas() {
+    const canvas = document.getElementById('crop-canvas');
+    const ctx = canvas.getContext('2d');
+    const {startX, startY, endX, endY} = cropState;
+    const x = Math.min(startX, endX), y = Math.min(startY, endY);
+    const w = Math.abs(endX - startX), h = Math.abs(endY - startY);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Dimming außerhalb Auswahl
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(x, y, w, h);
+    // Rahmen
+    ctx.strokeStyle = '#00ff9d';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    // Eck-Handles
+    const hs = 12;
+    ctx.fillStyle = '#00ff9d';
+    [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([hx,hy]) => {
+        ctx.fillRect(hx - hs/2, hy - hs/2, hs, hs);
+    });
+}
+
+function setupCropEvents(canvas) {
+    const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width  / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const src = e.touches ? e.touches[0] : e;
+        return {
+            x: (src.clientX - rect.left) * scaleX,
+            y: (src.clientY - rect.top)  * scaleY
+        };
+    };
+    const onStart = (e) => {
+        e.preventDefault();
+        const p = getPos(e);
+        cropState.startX = p.x; cropState.startY = p.y;
+        cropState.endX   = p.x; cropState.endY   = p.y;
+        cropState.dragging = true;
+    };
+    const onMove = (e) => {
+        if (!cropState.dragging) return;
+        e.preventDefault();
+        const p = getPos(e);
+        cropState.endX = p.x; cropState.endY = p.y;
+        drawCropCanvas();
+    };
+    const onEnd = (e) => {
+        cropState.dragging = false;
+        drawCropCanvas();
+    };
+    // Alte Events entfernen (clone)
+    const newCanvas = canvas.cloneNode(true);
+    canvas.parentNode.replaceChild(newCanvas, canvas);
+    newCanvas.addEventListener('mousedown',  onStart, { passive: false });
+    newCanvas.addEventListener('mousemove',  onMove,  { passive: false });
+    newCanvas.addEventListener('mouseup',    onEnd);
+    newCanvas.addEventListener('touchstart', onStart, { passive: false });
+    newCanvas.addEventListener('touchmove',  onMove,  { passive: false });
+    newCanvas.addEventListener('touchend',   onEnd);
+    // Doppeltippen = bestätigen
+    newCanvas.addEventListener('dblclick', confirmCrop);
+}
+
+function confirmCrop() {
+    if (!cropState.img) return;
+    const canvas = document.getElementById('crop-canvas');
+    const img    = cropState.img;
+    const scaleX = img.naturalWidth  / canvas.width;
+    const scaleY = img.naturalHeight / canvas.height;
+    const x = Math.round(Math.min(cropState.startX, cropState.endX) * scaleX);
+    const y = Math.round(Math.min(cropState.startY, cropState.endY) * scaleY);
+    const w = Math.round(Math.abs(cropState.endX - cropState.startX) * scaleX);
+    const h = Math.round(Math.abs(cropState.endY - cropState.startY) * scaleY);
+    if (w < 20 || h < 20) { toast('Bereich zu klein — bitte größeren Bereich wählen'); return; }
+    // Cropped Canvas erstellen
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    out.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+    const croppedDataUrl = out.toDataURL('image/jpeg', 0.92);
+    // Vorschau + Base64 aktualisieren
+    document.getElementById('photo-preview').src = croppedDataUrl;
+    currentPhotoBase64 = croppedDataUrl.split(',')[1];
+    currentPhotoMime   = 'image/jpeg';
+    cropState.confirmed = true;
+    hideCropUI();
+    toast('✂️ Zuschnitt übernommen', 1500);
+}
+
+function resetCrop() {
+    if (!cropState.img) return;
+    // Original wiederherstellen
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width  = cropState.img.naturalWidth;
+    tmpCanvas.height = cropState.img.naturalHeight;
+    tmpCanvas.getContext('2d').drawImage(cropState.img, 0, 0);
+    const original = tmpCanvas.toDataURL('image/jpeg', 0.92);
+    document.getElementById('photo-preview').src = original;
+    currentPhotoBase64 = original.split(',')[1];
+    cropState.startX = 0; cropState.startY = 0;
+    cropState.endX = document.getElementById('crop-canvas').width;
+    cropState.endY = document.getElementById('crop-canvas').height;
+    drawCropCanvas();
+    toast('↺ Original wiederhergestellt', 1500);
+}
+
+function hideCropUI() {
+    document.getElementById('crop-overlay').style.display = 'none';
+    document.getElementById('crop-actions').style.display = 'none';
+}
+
 function handlePhotoFile(input) {
     const file = input.files[0];
     if (!file) return;
@@ -3284,16 +3498,17 @@ function handlePhotoFile(input) {
     const reader = new FileReader();
     reader.onload = (e) => {
         const dataUrl = e.target.result;
-        // Base64 ohne Data-URL-Prefix
         currentPhotoBase64 = dataUrl.split(',')[1];
 
         // Vorschau anzeigen
         document.getElementById('photo-preview').src = dataUrl;
         showScreen('screen-photo');
+
+        // Crop-UI initialisieren (nach kurzem Delay damit Layout berechnet ist)
+        setTimeout(() => initCrop(dataUrl), 150);
     };
     reader.readAsDataURL(file);
 
-    // Input zurücksetzen, damit dasselbe Foto nochmal gewählt werden kann
     input.value = '';
 }
 
@@ -3484,6 +3699,78 @@ async function processBarcode(barcode) {
 // ═══════════════════════════════════════════════════════════
 // ANALYSIS PIPELINE
 // ═══════════════════════════════════════════════════════════
+// ─── Original-Token-Tracker ──────────────────────────────────────────────────
+// Versucht, jeden normierten Token auf den originalen Eingabe-Text zurückzuführen
+// und trackt Eltern-Kontext bei Klammer-Zutaten (z.B. "Biskotten (Mehl, ...)")
+function buildOriginalTokenMap(inputText, normalizedTokens) {
+    const map = {};
+
+    // ── Schritt 1: Eltern-Kontext aus Klammern extrahieren ──
+    // z.B. "Savoiardi Biskotten (11%) (Mehl, Zucker, Eier)" → parent="Savoiardi Biskotten", children=[Mehl, Zucker, Eier]
+    const parentMap = {};  // normierter-token → parent-name
+    const parentRe = /([A-ZÄÖÜa-zäöüß][A-ZÄÖÜa-zäöüß\s\-]+?)\s*(?:\(\s*\d+[,.]?\d*\s*%\s*\))?\s*\(([^)]{5,})\)/g;
+    let pm;
+    while ((pm = parentRe.exec(inputText)) !== null) {
+        const parentRaw = pm[1].trim();
+        const childrenRaw = pm[2];
+        // Elternname muss mindestens 4 Zeichen haben und kein reiner E-Nummern/Prozent sein
+        if (parentRaw.length < 4 || /^\d/.test(parentRaw)) continue;
+        // Kinder-Token aus Klammer extrahieren
+        childrenRaw.split(',').forEach(child => {
+            const childClean = child.trim().toLowerCase()
+                .replace(/\s*\d+[,.]?\d*\s*%\s*/g, '').trim();
+            if (childClean.length > 1) {
+                parentMap[childClean] = parentRaw;
+            }
+        });
+    }
+
+    // ── Schritt 2: Original-Schreibweise rückverfolgen ──
+    const rawParts = inputText
+        .replace(/[;:\n]/g, ',')
+        .replace(/[()[\]]/g, ',')
+        .split(',')
+        .map(p => p.trim())
+        .filter(p => p.length > 1);
+
+    for (const normToken of normalizedTokens) {
+        if (map[normToken]) continue;
+        let bestOriginal = null;
+        let bestScore = 0;
+
+        for (const raw of rawParts) {
+            const rawLower = raw.toLowerCase()
+                .replace(/\s*\d+[,.]?\d*\s*%\s*/g, '')
+                .replace(/\s+/g, ' ').trim();
+            if (!rawLower || rawLower.length < 2) continue;
+
+            if (rawLower === normToken) { bestOriginal = raw; bestScore = 100; break; }
+            if (rawLower.includes(normToken) && normToken.length > 3) {
+                const score = normToken.length / rawLower.length * 80;
+                if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+            }
+            if (normToken.length > 3 && rawLower.startsWith(normToken.substring(0, Math.floor(normToken.length * 0.6)))) {
+                const score = 50;
+                if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+            }
+        }
+
+        // Original-Name nur speichern wenn wirklich anders als normierter Name
+        if (bestOriginal && bestOriginal.toLowerCase().trim() !== normToken) {
+            const origLower = bestOriginal.toLowerCase().trim();
+            const lengthRatio = origLower.length / normToken.length;
+            if (lengthRatio > 1.3 || !origLower.includes(normToken)) {
+                map[normToken] = { original: bestOriginal.trim(), parent: parentMap[normToken] || null };
+            } else if (parentMap[normToken]) {
+                map[normToken] = { original: null, parent: parentMap[normToken] };
+            }
+        } else if (parentMap[normToken]) {
+            map[normToken] = { original: null, parent: parentMap[normToken] };
+        }
+    }
+    return map;
+}
+
 async function runAnalysis(product, ingredientsText) {
     setLoad('Zutaten werden analysiert…', '');
     try {
@@ -3491,17 +3778,35 @@ async function runAnalysis(product, ingredientsText) {
     const rawIngredients = parseIngredients(ingredientsText);
     const normWarning = rawIngredients.find(p => p.startsWith('⚠️_normierungswarnung_'));
     const ingredients = rawIngredients.filter(p => !p.startsWith('⚠️_normierungswarnung_'));
+    // Original-Token aus dem Eingabetext rückverfolgen
+    // Wir splitten den Originaltext grob nach Kommas/Semikolons und matchen
+    // jeden normierten Token gegen den originalen Eingabe-Abschnitt
+    const originalTokenMap = buildOriginalTokenMap(ingredientsText, ingredients);
+
     const analyzed    = ingredients.map(name => ({
         name,
+        originalName: originalTokenMap[name] || null,  // Original-Schreibweise aus Eingabe
         cat:   classifyIngredient(name),
-        sighi: getSIGHI(name),   // SIGHI 0–3 oder null
+        sighi: getSIGHI(name),
         ai:    false
     }));
 
-    // Fuzzy-Hint für unknowns: Levenshtein-Suche nach ähnlichen DB-Keywords
+    // Fuzzy-Match für unknowns: Levenshtein-Suche nach ähnlichen DB-Keywords
+    // Distanz 1 → automatisch klassifizieren (kein KI-Call nötig)
+    // Distanz 2 → nur Hinweis anzeigen, KI bestätigt
     for (const item of analyzed) {
         if (item.cat === 'unknown') {
-            item.fuzzyHint = findFuzzyMatch(item.name);
+            const fuzzy = findFuzzyMatch(item.name);
+            if (fuzzy) {
+                if (fuzzy.dist === 1) {
+                    // Eindeutiger 1-Buchstaben-Fehler: direkt klassifizieren
+                    item.cat = fuzzy.cat;
+                    item.fuzzyHint = `🔍 Als „${fuzzy.match}" erkannt (1 Zeichen Unterschied — OCR/Tippfehler korrigiert)`;
+                } else {
+                    // Distanz 2: nur Hinweis, KI bestätigt
+                    item.fuzzyHint = fuzzy.hint;
+                }
+            }
         }
     }
 
@@ -3561,15 +3866,21 @@ async function runAnalysis(product, ingredientsText) {
     }
 
     // ── Konsistenz: Kategorie an SIGHI-Level anpassen ──
-    // Wenn SIGHI sagt S2/S3 aber Kategorie sagt 'safe' → upgrade
     for (const item of analyzed) {
         if (item.sighi === null) continue;
+        // Upgrades: zu milde Kategorie korrigieren
         if (item.cat === 'safe' && item.sighi >= 2) {
             item.cat = item.sighi >= 3 ? 'high' : 'liberator';
         } else if (item.cat === 'safe' && item.sighi === 1) {
-            item.cat = 'liberator';   // S1 = Vorsicht, kein grünes ✅
+            item.cat = 'liberator';
         } else if (item.cat === 'unknown' && item.sighi === 0) {
-            item.cat = 'safe';        // SIGHI sagt S0 → vertrauenswürdig
+            item.cat = 'safe';
+        }
+        // Downgrades: zu strenge Kategorie korrigieren (kein roter Punkt bei S2)
+        else if (item.cat === 'high' && item.sighi === 2) {
+            item.cat = 'liberator';   // S2 = orange, nicht rot (z.B. Himbeere)
+        } else if (item.cat === 'high' && item.sighi === 1) {
+            item.cat = 'liberator';   // S1 = orange (sehr selten in high[])
         }
     }
 
@@ -3946,6 +4257,9 @@ function parseIngredients(inputText) {
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
         [/\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'ei'],
+        [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
+        [/\belwei[sß]\b|\bel-?wei[sß]\b/gi, 'ei'],      // OCR-Fehler: Elweiß → ei (Liberator S1)
+        [/\bethylalkohol\b|\bethanol\b|\balkohol\s+\d/gi, 'alkohol'],  // Ethylalkohol/Ethanol → alkohol S3
         [/\bdikaliumphosphat\b|\bdipotassiumphosphat\b|\bdipotassium\s*phosphat\b|e340ii\b/gi, 'e340'],
         [/\bguarkernmehl\b|\bguargummi\b|\bguar\b|e412\b/gi, 'e412'],
         [/\be491\b|\bsorbitanmonostearat\b/gi, 'e491'],
@@ -5693,6 +6007,10 @@ function parseIngredients(inputText) {
         [/\bpfefferextrakt\b|\bgewürzextrakt\b/gi, 'gewürze'],
         [/\bkaramellzuckersirup\b/gi, 'karamell'],
         // ── Restliche Artefakte ──
+        [/\bmascarpone\s+käse\b|\bmascarpone\s+cheese\b/gi, 'mascarpone'],  // VOR käse→parmesan! Mascarpone ist Frischkäse S0
+        [/\bricotta\s+käse\b|\bricotta\s+cheese\b/gi, 'ricotta'],           // Frischkäse S0
+        [/\bmozzarella\s+käse\b|\bmozzarella\s+cheese\b/gi, 'mozzarella'], // Frischkäse S0
+        [/\bfrischkäse\s+käse\b/gi, 'frischkäse'],
         [/\bkäse\b(?!\s*rei|-?sorten?|-?pulver|-?kulturen?|-?kalt|-?warm|-?reife)/gi, 'parmesan'],  // Käse → high (gereifter Käse)
         [/rapsöl(?:öl)+\b/gi, 'rapsöl'],           // "rapsölöl" Dopplung
         [/\bhähnchen-stücke?\b/gi, 'hähnchen'],    // Bindestriche in Fleischbezeichnungen
@@ -6944,17 +7262,16 @@ function parseIngredients(inputText) {
         // Stuck-"oder": "olivenöloder" → "olivenöl oder"  — VOR NORMALIZE ausführen!
         line = line.replace(/([a-zA-ZäöüÄÖÜß]{4,})(oder)\b/g, '$1 $2'); // min 4 Zeichen vor 'oder'
 
-        // Kritische Allergene/Trigger in "mit X" VORHER extrahieren (muss vor NORMALIZE laufen,
-        // da NORMALIZE "mit" zu Leerzeichen reduziert und die Info sonst verloren geht)
-        // z.B. "Gewürze (mit Sellerie)" → "Gewürze" + "Sellerie" als separate Einträge
-        let extractedMitWord = null;
+        // Kritische Allergene/Trigger in "mit/und X"-Klammern VORHER extrahieren (Multi-Match)
+        // z.B. "Gewürze (mit Sellerie und Senf)" → beide werden gerettet
+        let extractedMitWords = [];
         {
-            const mitMatch = line.match(/(?<!\w)mit\s+([\wäöüß-]+)/i);
-            if (mitMatch) {
-                const mitWord = mitMatch[1].toLowerCase();
-                const CRITICAL_MIT_WORDS = /^(sellerie|senf|sesam|sulfit|soja|laktose|gluten|ei|nuss|nüsse|mandeln?|haselnuss|walnuss|erdnuss|cashew|pistazie|sojaöl)$/;
-                if (CRITICAL_MIT_WORDS.test(mitWord)) extractedMitWord = mitWord;
-            }
+            const CRITICAL_MIT_WORDS = /^(sellerie|senf|sesam|sulfit|soja|laktose|gluten|ei|nuss|nüsse|mandeln?|haselnuss|walnuss|erdnuss|cashew|pistazie|sojaöl)$/i;
+            const mitMatches = [...line.matchAll(/(?<!\w)(?:mit|und)\s+([\wäöüß-]+)/gi)];
+            mitMatches.forEach(m => {
+                const w = m[1].toLowerCase();
+                if (CRITICAL_MIT_WORDS.test(w)) extractedMitWords.push(w);
+            });
         }
 
         for (const [re, rep] of NORMALIZE) line = line.replace(re, rep);
@@ -7047,7 +7364,7 @@ function parseIngredients(inputText) {
         line = line.replace(/[_*#|%]/g, '').trim();
 
         if (line) cleaned.push(line);
-        if (extractedMitWord) cleaned.push(extractedMitWord);
+        if (extractedMitWords.length > 0) cleaned.push(...extractedMitWords);
     }
 
     // ── PASS 4: "und"/"oder"/"/" splitten ────────────────────
@@ -7111,6 +7428,15 @@ function parseIngredients(inputText) {
 // ═══════════════════════════════════════════════════════════
 function classifyIngredient(name) {
     let n = name.toLowerCase().trim();
+
+    // ── Eigene Ausschlussstoffe (höchste Priorität) ──────────────────────────
+    if (customExclusions.length > 0) {
+        for (const excl of customExclusions) {
+            if (excl.length > 1 && (n === excl || n.includes(excl) || excl.includes(n) && excl.length <= n.length + 2)) {
+                return 'custom_exclusion';
+            }
+        }
+    }
     // Form-suffix stripping for DB lookup only (doesn't affect display)
     n = n.replace(/\b(?:stücke?(?:chen)?|püree|pulver(?!.*milch)|scheiben|flocken|raspel|körner|samen|kerne?n?)\b/gi, '').trim();
     // Strip 'extrakt/konzentrat/auszug/saft' ONLY when not forming a compound with a different ingredient type
@@ -7209,8 +7535,8 @@ function findFuzzyMatch(term) {
     ];
     for (const [cat, arr] of catMap) {
         for (const kw of arr) {
-            if (Math.abs(kw.length - term.length) > maxDist) continue;  // Längen-Filter spart Zeit
-            if (kw.length < 5) continue;  // Kurze Keywords überspringen (zu viele False Positives)
+            if (Math.abs(kw.length - term.length) > maxDist) continue;
+            if (kw.length < 5) continue;
             const d = levenshtein(term, kw);
             if (d <= maxDist && d < bestDist) {
                 bestDist = d; bestMatch = kw; bestCat = cat;
@@ -7219,7 +7545,12 @@ function findFuzzyMatch(term) {
     }
     if (!bestMatch) return null;
     const catLabel = { high: 'Histaminreich', liberator: 'Liberator', dao_blocker: 'DAO-hemmend' }[bestCat];
-    return `Meinten Sie „${bestMatch}"? (${catLabel} — möglicher Tippfehler/OCR-Fehler, Schreibweise prüfen)`;
+    return {
+        cat: bestCat,
+        match: bestMatch,
+        dist: bestDist,
+        hint: `Meinten Sie „${bestMatch}"? (${catLabel} — Tippfehler/OCR-Fehler automatisch korrigiert)`
+    };
 }
 
 
@@ -7341,7 +7672,21 @@ function calcScore(analyzed) {
         deduction += CAT_CAP[cat] ? Math.min(val, CAT_CAP[cat]) : val;
     }
 
-    return Math.max(0, Math.round(100 - deduction));
+    let finalScore = Math.max(0, Math.round(100 - deduction));
+
+    // ── Das Eiserne Veto-Prinzip ──────────────────────────────────────
+    // S3 oder high-Kategorie: Score wird auf max. 24 gekappt ("Schlecht"/Rot)
+    if (sighiTotals[3] > 0 || (catTotals['high'] && catTotals['high'] > 0) || (catTotals['custom_exclusion'] && catTotals['custom_exclusion'] > 0)) {
+        return Math.min(24, finalScore);
+    }
+    // S2, Liberator oder DAO-Blocker: Score wird auf max. 49 gekappt ("Mäßig"/Gelb)
+    if (sighiTotals[2] > 0 ||
+        (catTotals['liberator'] && catTotals['liberator'] > 0) ||
+        (catTotals['dao_blocker'] && catTotals['dao_blocker'] > 0)) {
+        return Math.min(49, finalScore);
+    }
+
+    return finalScore;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -8032,6 +8377,10 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return 'Durch Fermentation und Essig histaminhaltig';
         if (n.match(/\boliven(?!öl\b)/))
             return 'Fermentierte Oliven enthalten Histamin und biogene Amine';
+        if (n.match(/\bmarsala\b|\bsherry\b|\bport(?:wein)?\b|\bvermouth\b|\bmadeira\b/))
+            return 'S3 — Likörwein (Marsala/Sherry/Portwein): Sehr hohe Histaminmengen durch Gärung + Oxidation. Stark meiden!';
+        if (n.match(/alkohol\s+wein|weinalkohol/))
+            return 'S3 — Likörwein/Weinalkohol: Marsala, Sherry, Portwein, Vermouth enthalten sehr hohe Histaminmengen (Gärung + Oxidation + Alkohol). Vollständig meiden!';
         if (n.match(/rotwein|weißwein|sekt|champagner|prosecco|wein\b|wine\b/))
             return 'S3 — Champagner: bis 670 µg/l Histamin! Wird teils aus roten Trauben hergestellt. Schlimmer als normaler Sekt — Trockener Weißwein enthält kaum Histamin, aber Alkohol selbst = DAO-Blocker!';
         if (n.match(/bier\b|beer\b|ale\b|lager\b|stout|porter|weizenbier|malzbier/))
@@ -8502,11 +8851,12 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
 // RENDER RESULT
 // ═══════════════════════════════════════════════════════════
 const BADGE_META = {
-    high:        { label: 'Histaminreich', cls: 'badge-high' },
-    liberator:   { label: 'Liberator',     cls: 'badge-liberator' },
-    dao_blocker: { label: 'DAO-hemmend',   cls: 'badge-dao_blocker' },
-    safe:        { label: 'Unbedenklich',  cls: 'badge-safe' },
-    unknown:     { label: 'Unbekannt',     cls: 'badge-unknown' }
+    high:             { label: 'Histaminreich',    cls: 'badge-high' },
+    liberator:        { label: 'Liberator',        cls: 'badge-liberator' },
+    dao_blocker:      { label: 'DAO-hemmend',      cls: 'badge-dao_blocker' },
+    safe:             { label: 'Unbedenklich',     cls: 'badge-safe' },
+    unknown:          { label: 'Unbekannt',        cls: 'badge-unknown' },
+    custom_exclusion: { label: 'Persönlich gemieden', cls: 'badge-custom' }
 };
 
 
@@ -8657,31 +9007,60 @@ for (const [e, name] of Object.entries(E_NAMES)) {
     if (!NAME_TO_E[key]) NAME_TO_E[key] = e.toUpperCase();
 }
 
-function displayIngredientName(rawName) {
+function displayIngredientName(rawName, originalName) {
     const n = rawName.toLowerCase().trim();
-    // Ist es eine E-Nummer? (e + Ziffern, optional Buchstabe)
+    let displayName = '';
+
+    // Ist es eine E-Nummer? → Ausgeschriebener Name zuerst, E-Nummer in Klammern
     const eMatch = n.match(/^e(\d{3,4}[a-d]?)$/);
     if (eMatch) {
         const key = 'e' + eMatch[1];
         const fullName = E_NAMES[key];
-        if (fullName) return cap(rawName) + ' <span class="e-fullname">(' + fullName + ')</span>';
-        return cap(rawName);
+        if (fullName) {
+            displayName = `${fullName} <span class="e-fullname">(E${eMatch[1].toUpperCase()})</span>`;
+        } else {
+            displayName = cap(rawName);
+        }
     }
-    // Enthält ein "e" gefolgt von Ziffern irgendwo im Namen?
-    const eInName = n.match(/\be(\d{3,4}[a-d]?)\b/);
-    if (eInName) {
+    // Enthält ein „e" gefolgt von Ziffern irgendwo im Namen?
+    else if (n.match(/\be(\d{3,4}[a-d]?)\b/)) {
+        const eInName = n.match(/\be(\d{3,4}[a-d]?)\b/);
         const key = 'e' + eInName[1].toLowerCase();
         const fullName = E_NAMES[key];
         if (fullName) {
-            return cap(rawName).replace(new RegExp('e' + eInName[1], 'i'),
-                'E' + eInName[1] + ' <span class="e-fullname">(' + fullName + ')</span>');
+            // Ausgeschriebener Name zuerst, E-Nummer in Klammern
+            const withoutE = cap(rawName).replace(new RegExp('\\be' + eInName[1] + '\\b', 'i'), '').replace(/[(),\s]+$/, '').replace(/^[(),\s]+/, '').trim();
+            displayName = withoutE
+                ? `${withoutE} <span class="e-fullname">(E${eInName[1].toUpperCase()} = ${fullName})</span>`
+                : `${fullName} <span class="e-fullname">(E${eInName[1].toUpperCase()})</span>`;
+        } else {
+            displayName = cap(rawName);
         }
     }
     // Ist es ein ausgeschriebener Name mit bekannter E-Nummer?
-    const nameKey = n.replace(/\s*[(/].*$/, '').trim();
-    const eNum = NAME_TO_E[nameKey];
-    if (eNum) return cap(rawName) + ' <span class="e-fullname">(' + eNum + ')</span>';
-    return cap(rawName);
+    else {
+        const nameKey = n.replace(/\s*[(/].*$/, '').trim();
+        const eNum = NAME_TO_E[nameKey];
+        if (eNum) {
+            displayName = `${cap(rawName)} <span class="e-fullname">(${eNum})</span>`;
+        } else {
+            displayName = cap(rawName);
+        }
+    }
+
+    // Original-Name / Eltern-Kontext anzeigen
+    if (originalName) {
+        const orig = typeof originalName === 'object' ? originalName.original : originalName;
+        const parent = typeof originalName === 'object' ? originalName.parent : null;
+        if (parent) {
+            displayName += ` <span style="font-size:0.75em;opacity:0.5;font-style:italic">aus ${parent}</span>`;
+        }
+        if (orig && orig.toLowerCase().trim() !== rawName.toLowerCase().trim()) {
+            displayName += ` <span style="font-size:0.75em;opacity:0.5;font-style:italic">← ${cap(orig)}</span>`;
+        }
+    }
+
+    return displayName;
 }
 function renderResult(product, analyzed, fromHistory = false, normWarning = null) {
     // Produktname
@@ -8819,7 +9198,7 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
         for (const item of analyzed) {
             const m    = BADGE_META[item.cat] || BADGE_META.unknown;
             const info = getIngredientInfo(item.name, item.cat, item.aiAttemptedNoResult)
-                + (item.fuzzyHint ? `<br><span style="font-size:0.82em;opacity:0.75;font-style:italic">🔍 ${item.fuzzyHint}</span>` : '');
+                + (item.fuzzyHint ? `<br><span style="font-size:0.82em;opacity:0.75;font-style:italic">${item.fuzzyHint.startsWith('🔍') ? '' : '🔍 '}${item.fuzzyHint}</span>` : '');
             const div  = document.createElement('div');
             div.className = 'ing-item';
 
@@ -8833,7 +9212,7 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
             div.innerHTML = `
                 <div class="ing-dot dot-${item.cat}"></div>
                 <div class="ing-text">
-                    <span class="ing-name">${displayIngredientName(item.name)}${item.ai ? ' <span style="font-size:0.65rem;opacity:0.4">🤖</span>' : ''}</span>
+                    <span class="ing-name">${displayIngredientName(item.name, item.originalName)}${item.ai ? ' <span style="font-size:0.65rem;opacity:0.4">🤖</span>' : ''}</span>
                     <span class="ing-info">${info}</span>
                 </div>
                 <span class="ing-badge ${m.cls}">${m.label}</span>${sighiBadge}
@@ -8933,12 +9312,12 @@ document.addEventListener('visibilitychange', () => {
     </div>
     <div class="screen-content" style="padding:16px;overflow-y:auto;max-height:calc(100vh - 64px)">
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🧪 Was ist Histamin?</h3>
             <p style="margin:0;font-size:14px;line-height:1.6">Histamin ist ein biogenes Amin aus der Aminosäure <strong>L-Histidin</strong> (Enzym: Histidin-Decarboxylase). Gewebshormon, Neurotransmitter und Botenstoff zugleich. Chemisch: C₅H₉N₃ · gut <strong>wasserlöslich</strong> · schlecht fettlöslich → Wasser trinken hilft akut!</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🔬 H1–H4 Rezeptoren</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>H1</strong> — Juckreiz, Schmerz, Entzündung, Bronchienkontraktion, Blutdruck, Schlaf-Wach-Rhythmus. Hauptrezeptor für allergieähnliche Symptome.<br>
@@ -8947,7 +9326,7 @@ document.addEventListener('visibilitychange', () => {
             <strong>H4</strong> — Immunzellen-Chemotaxis: lockt Leukozyten zum Entzündungsherd. Relevant bei Allergien, Psoriasis, Neurodermitis.</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">⚗️ 4 Abbauwege — HNMT baut 70% ab!</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>1. DAO</strong> — extrazellulär im Darm. ~30% des Histamins. Erste Barriere gegen Nahrungshistamin. Cofaktoren: Vit B6, Vit C, <strong>Kupfer</strong> (fester Strukturbestandteil!), Mangan, Zink.<br>
@@ -8958,7 +9337,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">💊 Cofaktoren &amp; Vitaminräuber</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>Was hilft:</strong> Vit C (1–3g/Tag bei HIT, verteilt!) · Vit B6 · Zink · Kupfer · Mangan · Magnesium · SAMe · Quercetin (200–1000mg, fettlöslich → mit Öl!) · Luteolin · Tryptophan · Vit D3 (braucht Mg!)<br><br>
@@ -8972,13 +9351,13 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-warning);margin:0 0 8px">🪣 Das Fass-Prinzip</h3>
             <p style="margin:0;font-size:14px;line-height:1.6">Histamin summiert sich wie Wasser in einem Fass. Nahrung + Stress + Hitze + Hormone — kleine Mengen aus vielen Quellen können zusammen das Fass zum Überlaufen bringen. Gesamtbelastung niedrig halten, nicht nur einzelne Lebensmittel meiden!<br><br>
             ⏱️ <strong>Inkubationszeit-Phänomen:</strong> Histaminreaktionen können bis zu <strong>72 Stunden verzögert</strong> auftreten. Was vorgestern gegessen wurde, kann heute Symptome auslösen — bei der Ursachensuche immer 3 Tage zurückblicken!</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">⚡ DAO/HNMT-Blocker &amp; Medikamente</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>Nahrung/Genuss:</strong> Alkohol (stärkster DAO-Blocker) · Koffein · Nikotin/Zigarettenrauch (+ MAO-Hemmer!) · Energydrinks<br><br>
@@ -8994,7 +9373,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🌡️ Trigger (nicht nur Essen!)</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>Physikalisch:</strong> Hitze/Wärme (Mastzellen aktiver!) · Kälte · UV-Strahlung · Sinkender Luftdruck (Wetterempfindlichkeit) · Reibung/Kratzen/Wolle auf Haut · Vibration · Körperl. Anstrengung · Schweiß<br><br>
@@ -9004,7 +9383,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-warning);margin:0 0 10px">🩺 Typische Symptome</h3>
             <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--color-text-secondary)">Magen-Darm (H2)</p>
             <p style="margin:0 0 10px;font-size:13px;line-height:1.5">Durchfall · Blähungen · Übelkeit · Bauchkrämpfe · Sodbrennen/Reflux</p>
@@ -9022,7 +9401,7 @@ document.addEventListener('visibilitychange', () => {
             <p style="margin:0;font-size:12px;color:var(--color-text-secondary);font-style:italic">⚠️ Betroffene werden oft jahrelang von Facharzt zu Facharzt geschickt (Derma → Kardio → Gastro), ohne dass der gemeinsame Nenner erkannt wird. Symptome variieren täglich je nach Fass-Füllstand.</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">👩 Frauen &amp; HIT (80% betroffen)</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             ⚡ <strong>Histamin-Östrogen Teufelskreis (reziprok):</strong> Histamin → Östrogenproduktion ↑ in den Ovarien → Mastzellen zur Histaminausschüttung getriggert + DAO direkt gehemmt → noch mehr Histamin. Kulminiert in der <strong>Lutealphase</strong> (prämenstruelle Phase)!<br>
@@ -9033,7 +9412,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">😴 Histamin &amp; Schlaf</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             Histamin im Gehirn wirkt wie Koffein — hält wach, erhöht Puls. <strong>Tiefschlaf = bestes natürliches Antihistaminikum.</strong><br><br>
@@ -9042,7 +9421,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🆘 Sofort-Tipp bei Histaminattacke</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             <strong>Sofort 2 Gläser stilles Wasser trinken!</strong> Histamin ist wasserlöslich + Wasser aktiviert den Vagusnerv (Beruhigungsnerv). Hydratation unterstützt auch die <strong>renale Elimination</strong> (Ausscheidung über die Niere).<br><br>
@@ -9055,7 +9434,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🔍 Häufigste Ursachen</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             1. DAO/HNMT-Genvariante oder -Mangel<br>
@@ -9071,7 +9450,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🍽️ 3-Phasen-Protokoll (DGAKI 2021)</h3>
             <p style="margin:0;font-size:14px;line-height:1.7">
             <strong>Phase 1 — Karenz (10–14 Tage):</strong> Gemüsebetonte Kost, konsequent histaminarm<br><br>
@@ -9080,12 +9459,12 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">📊 Häufigkeit</h3>
             <p style="margin:0;font-size:13px;line-height:1.6">Geschätzte Prävalenz: <strong>1–8%</strong> der westlichen Bevölkerung. 80% Frauen, meist um 40 Jahre. MCAS zusätzlich: 1–10%.</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🔬 Diagnose — Goldstandard 3-Phasen</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             HIT ist eine <strong>Ausschlussdiagnose</strong> — zuerst Allergien, Zöliakie, Laktose-/Fruktosemalabsorption, CED und Mastozytose ausschließen!<br><br>
@@ -9098,7 +9477,7 @@ document.addEventListener('visibilitychange', () => {
             </p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">🔥 Sodbrennen &amp; HIT</h3>
             <p style="margin:0;font-size:13px;line-height:1.8">
             Histamin stimuliert H2-Rezeptoren im Magen → <strong>Säureproduktion ↑</strong>. Klassische HIT-Trigger für Sodbrennen:<br>
@@ -9113,7 +9492,7 @@ document.addEventListener('visibilitychange', () => {
             <p style="margin:0;font-size:13px;line-height:1.6;color:#856404"><strong>HIT ist kein ICD-anerkanntes Krankheitsbild</strong> und Symptome sind oft nicht reproduzierbar. Histamingehalt variiert stark im gleichen Lebensmittel (Emmentaler 0,1–2.000 mg/kg!). Diese App nutzt SIGHI 2024 als Orientierung — individuelle Verträglichkeit immer selbst testen.</p>
         </div>
 
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:32px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:32px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">📊 SIGHI-Skala</h3>
             <p style="margin:0;font-size:14px;line-height:1.6">
             <strong style="color:var(--color-safe)">● S0</strong> — Gut verträglich<br>
@@ -9124,7 +9503,7 @@ document.addEventListener('visibilitychange', () => {
         </div>
 
         <!-- ── Optimaler Tagesplan ────────────────────────────────── -->
-        <div style="background:var(--color-surface);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 12px">🥣 Optimaler HIT-Tagesplan</h3>
 
             <!-- Frühstück -->
