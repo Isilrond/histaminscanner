@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.83<br>
+                Histaminscanner v5.86<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1138,7 +1138,8 @@ const DB = {
         'mandarine','clementine','tangerine','satsuma','mandarine frisch',  // ❌ S2-3 (SIGHI)
         'grapefruit','pomelo','pampelmuse',  // ❌ SIGHI S2 A L
         'salzgurken','salzgurke','saure gurken','eingelegte gurken',  // ❌ S2 H — Milchsäuregärung
-        'jod','iod','iodine','kaliumiodid','kaliumiodat','jodtabletten',  // ❌ S3 L (SIGHI: Jod extrem unverträglich!)
+        'jod','iod','iodine','kaliumiodid','kaliumiodat','jodtabletten',  // ❌ S3 L
+        'kaliumjodat','natriumjodat','jodat',  // ❌ S3 L — alle Jodverbindungen (SIGHI!)
         'walnuss','walnut','walnüsse','walnussöl',  // ❌ SIGHI S3
         'rotwein','weißwein','rosé','rosewein','sekt','champagner','prosecco',
         'bier','ale','lager','stout','porter','weizenbier','malzbier',
@@ -1323,6 +1324,7 @@ const DB = {
         'feta','feta frisch','schafskäse','ziegen frischkäse',  // ⚠️ S1 H A — leicht histaminhaltig
         'gouda',  // ⚠️ S2 H — gereifter Gouda (jung=S0 bleibt safe)
         'schweinefleisch','pork','schweinefilet',  // ⚠️ S1 — umstritten, sehr verderblich (SIGHI H!)
+        'rohmilch','rohmilchkäse','raw milk',  // ⚠️ S1 H! — SIGHI: sehr verderblich, Histamin bildet sich rasch
         'wildfleisch','wildbret','venison',  // ⚠️ S1 — Fleischreifung (SIGHI H)
         'crème fraîche','creme fraiche','schmand',       // S1 Liberator
         // ── Gewürze Liberatoren ──
@@ -1466,7 +1468,8 @@ const DB = {
         'mirin',  // S2 (süßer Reiswein)
         'ponzu',  // S1-2 (Sojasoße+Zitrus)
         'rote bete saft','roten-beete-saft',  // S1 Betain
-        'ingwer','ginger','ingwerpulver','ingwerextrakt','ingwerwurzel',  // ⚠️ S1 (SIGHI: kleine Mengen verträglich)
+        'ingwer','ginger','ingwerpulver','ingwerextrakt','ingwerwurzel',  // ⚠️ S1
+        'brennnessel','brennnesseln','stinging nettle',  // ⚠️ S2 L — enthält biogene Amine (SIGHI: kleine Mengen verträglich)
         'kreuzkümmel','cumin','kummin',  // ❌ S2 L — SIGHI! Nicht mit Kümmel (Carum carvi, S0) verwechseln!
         'muskatnuss','muskat','mace','nutmeg',  // ⚠️ S1 (SIGHI: kleine Mengen)
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe','instanthefe','dry yeast',  // ⚠️ S1 — Ausnahmen: lange Teigführung, Hefeextrakt → HIGH!
@@ -1677,6 +1680,8 @@ const DB = {
     safe_hints: [
         // ── Grundzutaten ──
         'wasser','water','mineralwasser','leitungswasser',
+        'alkoholfreier wein','alkoholfreier sekt','alkoholfreies bier',  // ✅ S0 — kein Alkohol
+        'acesulfam','acesulfam k','e950',  // ✅ S0 (SIGHI: verträglich)
         'salz','salt','meersalz','sea salt','kochsalz',  // jodsalz → liberator[] S2 L (SIGHI!)
         'zucker','sugar','rohrzucker','rübenzucker','puderzucker',
         'dextrose','glucose','traubenzucker',
@@ -2201,7 +2206,8 @@ const DB = {
         'e460','zellulose','e466','zellulosegummi',
         'e401','alginat','e425','konjak','e416','karaya',  // traganth/gellan → dao_blocker
         'e920','l-cystein',
-        'kaliumjodat','zink','kupfer','e172',
+        // kaliumjodat/kaliumiodid → high[] S3 L (SIGHI: Jodverbindungen extrem unverträglich!)
+        'zink','kupfer','e172',
         // eisenpyrophosphat → liberator[] S1 (Teil der E450-Gruppe)
         'kieselgur','filterhilfsmittel','bentonit','diatomeenerde',
         // Proteine S0
@@ -4081,6 +4087,7 @@ function parseIngredients(inputText) {
         [/\bbulgur\b/gi, 'mehl'],
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
+        [/\bascorbinsäure\b|e300\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
         [/\bascorbin(?:säure)?\b|\bvitamin\s*c\b|e300\b/gi, 'vitamine'],  // Mehlbehandlungsmittel
         [/\breismilch(?:pulver)?\b/gi, 'milch'],
         // ── Baharat / Dukkah ──
@@ -4088,7 +4095,7 @@ function parseIngredients(inputText) {
         [/\bdukkah\b/gi, 'gewürze'],
         [/\bbaharat\b/gi, 'gewürze'],
         [/\bbüffel(?:milch|mozzarella)?\b/gi, 'milch'],
-        [/\brohmilch\b|\bunpasteurisierte?\s+milch\b/gi, 'milch'],
+        [/\brohmilch\b|\bunpasteurisierte?\s+milch\b/gi, 'rohmilch'],  // → liberator S1 H! (sehr verderblich)
         // ── Meeresfrüchte fehlend ──
         [/\bkrabben(?:fleisch|schwänze?|extrakt)?\b|\bcrab\b/gi, 'garnele'],
         [/\bjakobs(?:muscheln?)?\b|\bscallop\b/gi, 'garnele'],
@@ -4097,6 +4104,9 @@ function parseIngredients(inputText) {
         [/\bmuscheln?\b(?!\s*(?:suppe|fond|extrakt))/gi, 'garnele'],
         [/\baustern?\b|\boysters?\b/gi, 'garnele'],
         [/\btintenfisch(?:ringe?)?\b|\bcalamari\b/gi, 'tintenfisch'],
+        // ── Alkoholfreie Getränke (VOR alkohol-Regeln!) ──────────────────────
+        [/alkoholfreier?\s+(?:\w+\s+)?(?:wein|sekt|prosecco|champagner|schaumwein|dessertwein|obstwein|apfelwein|fruchtwein)\b/gi, 'alkoholfreier wein'],
+        [/\b(?:wein|sekt|prosecco)\s+(?:ohne\s+alkohol|alkoholfrei)\b/gi, 'alkoholfreier wein'],
         // ── Alkohol in Saucen ──
         [/\bweinbrand\b|\bbrandy\b|\bcognac\b|\barmagnac\b/gi, 'alkohol'],
         [/\bweiß?wein\b|\brotwein\b|\bsekt\b|\bchampagner\b|\bprosecco\b/gi, 'alkohol'],
@@ -4283,12 +4293,12 @@ function parseIngredients(inputText) {
         [/\binosit(?:ol)?\b/gi, 'vitamine'],
         [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
         // ── Süßungsmittel-Kombinationen ──
-        [/\bacesulfam-k\b|\bacesulfam\s+k\b|\bacesulfam-kalium\b/gi, 'süßungsmittel'],
+        [/\bacesulfam-k\b|\bacesulfam\s+k\b|\bacesulfam-kalium\b|\be950\b/gi, 'acesulfam'],  // → safe S0
         [/\bsüßungsmittel-k\b/gi, 'süßungsmittel'],  // Artefakt: "Acesulfam-K" → "süßungsmittel-k"
         // ── Proteinprodukte ──
         [/\bwedhy\s*\w*\b|\bmolken(?:protein)?(?:isolat|konzentrat|hydrolysat)?\b/gi, 'molke'],
         [/\bisomalto-?oligosaccharide?\b|\bimos\b/gi, 'süßungsmittel'],  // Ballaststoff-Süßer S0
-        [/\bvitamin\s*c\b|\bascorbinsäure\b|e300\b/gi, 'vitamine'],
+        [/\bvitamin\s*c\b/gi, 'vitamine'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
         [/\bvitamin\s*e\b|\btocopherol\b|e306\b|e307\b/gi, 'vitamine'],
         [/\bnatriumbicarbonat\b|\bnatriumhydrogencarbonat\b|e500\b/gi, 'e500'],
         [/\bmagnesiumcarbonat\b|e504\b/gi, 'e500'],
@@ -4469,7 +4479,9 @@ function parseIngredients(inputText) {
         [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
         [/\bhaselnusscreme?\b|\bnougatcreme?\b|\bhaselnusspaste?\b/gi, 'schokolade'],
         [/\bhaselnussmasse\b|\bhaselnuss(?:mus|öl)\b/gi, 'haselnuss'],              // Haselnussmasse → haselnuss → Liberator
-        [/\bhaselnuss(?:stücke?|splitter|blätter|mehl|chips|granulat)\b/gi, 'haselnuss'],  // Komposita
+        [/\bhaselnuss(?:stücke?|splitter|blätter|mehl|chips|granulat)\b/gi, 'haselnuss'],
+        [/\borg?angen?granulat\b|\borangen?(?:pulver|stücke?|chips|schalen?pulver)\b/gi, 'orange'],  // → high S3
+        [/\bzitronengranualt\b|\bzitronengranualt\b|\bzitronenpulver\b/gi, 'zitrone'],  // Komposita
         [/\bkaliumhydrogencarbonat\b|\bkaliumbicarbonat\b/gi, 'e501'],              // Backtriebmittel → safe
         [/\bammoniumchlorid\b|e510\b/gi, 'e510'],
         [/\bschwefelsäure\b|e513\b/gi, 'e513'],
@@ -5620,7 +5632,7 @@ function parseIngredients(inputText) {
         // ── Bier/Hopfen ──
         [/gärungs(?:kohlensäure|co2|kohlendioxid)\b/gi, 'kohlensäure'],  // = normale CO2
         [/hopfenextrakt\b|hopfenpellets?\b/gi, 'hopfen'],
-        [/\bpils\b|\bpilsner\b|\blager\b|\bale\b|\bweizen(?:bier)?\b/gi, 'bier'],
+        [/\bpils\b|\bpilsner\b|\blager\b|\bale\b|\bweizenbier\b/gi, 'bier'],
         [/alkoholfreies?\s+(bier|pils|lager|weizen|ale)\b/gi, 'alkoholfreies bier'],
         // ── Glukose-Fruktosesirup ──
         [/glukose-?fruktose-?sirup\b|fruktose-?glukose-?sirup\b/gi, 'glukosesirup'],
@@ -6593,7 +6605,7 @@ function parseIngredients(inputText) {
         [/\bkaffeesahne\b|\bkoffiesahne\b|\bcoffemate\b/gi, 'sahne'],
         [/\bschlagsahne\s*\d*%?\b|\bsüße?\s+sahne\b/gi, 'sahne'],
         [/\bh-milch\b|\bultrahocherhitzte\s+milch\b|\buht-milch\b/gi, 'milch'],
-        [/\bfrischmilch\b|\brohmilch\b|\bvorzugsmilch\b/gi, 'milch'],
+        [/\bfrischmilch\b|\bvorzugsmilch\b/gi, 'milch'],  // rohmilch → eigene Kategorie!
         // ── Eier-Varianten ──
         [/\bwachtelei(?:er)?\b|\bentenei(?:er)?\b|\bgänsei(?:er)?\b/gi, 'ei'],
         [/\bbio-?eier?\b|\bfreiland(?:eier?)?\b|\bkäfig(?:haltung)?(?:ei|eier?)?\b/gi, 'ei'],
@@ -7267,7 +7279,7 @@ function parseIngredients(inputText) {
         let extractedMitWords = [];
         {
             const CRITICAL_MIT_WORDS = /^(sellerie|senf|sesam|sulfit|soja|laktose|gluten|ei|nuss|nüsse|mandeln?|haselnuss|walnuss|erdnuss|cashew|pistazie|sojaöl)$/i;
-            const mitMatches = [...line.matchAll(/(?<!\w)(?:mit|und)\s+([\wäöüß-]+)/gi)];
+            const mitMatches = [...line.matchAll(/(?<!\w)(?:mit|und|enthält?|contains?)\s+([\wäöüß-]+)/gi)];
             mitMatches.forEach(m => {
                 const w = m[1].toLowerCase();
                 if (CRITICAL_MIT_WORDS.test(w)) extractedMitWords.push(w);
@@ -8170,6 +8182,8 @@ const SIGHI_DB = {
         'e500','natriumcarbonat','e501','kaliumcarbonat',
         'e504','magnesiumcarbonat',
         'sucralose','e955',
+        'acesulfam','e950','acesulfam k','acesulfam-kalium',  // ✅ S0 (SIGHI: verträglich)
+        'alkoholfreier wein','alkoholfreier sekt','alkoholfrei',  // ✅ S0 — kein Alkohol, kein Histaminproblem
         'stevia','steviosid','e960',
         'zinkacetat','e650',
         'erythorbinsäure','e315','natriumerythorbat','e316',
@@ -8379,6 +8393,8 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return 'Fermentierte Oliven enthalten Histamin und biogene Amine';
         if (n.match(/\bmarsala\b|\bsherry\b|\bport(?:wein)?\b|\bvermouth\b|\bmadeira\b/))
             return 'S3 — Likörwein (Marsala/Sherry/Portwein): Sehr hohe Histaminmengen durch Gärung + Oxidation. Stark meiden!';
+        if (n.match(/alkoholfreier?\s+wein|alkoholfreier?\s+sekt|alkoholfrei/))
+            return 'S0 — Alkoholfreier Wein/Sekt enthält keinen Alkohol. Keine DAO-Hemmung, kein zusätzliches Histaminrisiko durch Alkohol. Restzucker und Säure beachten!';
         if (n.match(/alkohol\s+wein|weinalkohol/))
             return 'S3 — Likörwein/Weinalkohol: Marsala, Sherry, Portwein, Vermouth enthalten sehr hohe Histaminmengen (Gärung + Oxidation + Alkohol). Vollständig meiden!';
         if (n.match(/rotwein|weißwein|sekt|champagner|prosecco|wein\b|wine\b/))
