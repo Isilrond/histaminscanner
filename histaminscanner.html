@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.82<br>
+                Histaminscanner v5.83<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4622,7 +4622,7 @@ function parseIngredients(inputText) {
         [/\btrennmittel\s*\(([^)]+)\)/gi, '$1'],
         [/\bbacktrieb\s*mittel\s*\(([^)]+)\)/gi, '$1'],
         [/\balaska\s*(?:see)?lachs(?:-filet)?\b/gi, 'fischfilet'],
-        [/\bfischfilet\s*filet\b/gi, 'fischfilet'],  // Dedup: fischfiletfilet → fischfilet
+        [/\bfisch\s*-\s*filet\b|\bfischfilet\s*filet\b|\bfischfilet\s*-\s*filet\b/gi, 'fischfilet'],  // Fisch-Filet, fischfiletfilet
         [/\bseelachs(?:-filet)?\b|\balaska\s*pollock\b|\bpollock\b/gi, 'fischfilet'],
         [/\bkabeljau(?:-filet)?\b|\bdorsch(?:-filet)?\b|\bcod\b/gi, 'fischfilet'],
         [/\bpangasius(?:-filet)?\b|\bwels(?:-filet)?\b/gi, 'fischfilet'],
@@ -5249,7 +5249,7 @@ function parseIngredients(inputText) {
         [/naturaromen?\b/gi,              'aromen'],
         [/anisöl\b/gi,                    'anis'],
         [/e(\d+[a-z]?)\s+pflanzlich\b/gi, 'e$1'],
-        [/e(\d+[a-z]?)\s+\w+/gi,          'e$1'],
+        [/e(\d+[a-z]?)\s+(?:pflanzlich|modifiziert|oxidiert|acetyliert|hydroxyliert|gehärtet)\b/gi, 'e$1'],  // nur echte Adjektive, NICHT andere Zutaten!
         [/ammoniumchlorid\b/gi,           ''],
         [/schellack\b/gi,                'e904'],
         [/karamellpulver\b/gi,            'karamell'],
@@ -5958,7 +5958,7 @@ function parseIngredients(inputText) {
         [/\bstrandkrabbe[n]?\b|\bkrabben?\b|\bscampi\b|\bkrill\b|\beisgarnele[n]?\b|\beismeergarnele[n]?\b/gi, 'garnele'],
         [/\bmeeresfrüchtefond\b|\bfischfond\b|\bfischbrühe\b/gi, 'fischfond'],
         [/\b(?:tintenfisch|sepia|oktopus|calamari)\b/gi, 'tintenfisch'],
-        [/\b(?:fisch)\b(?!\s*fond|\s*brühe)/gi, 'fischfilet'],
+        [/\b(?:fisch)\b(?!\s*fond|\s*brühe|\s*-\s*filet|\s*filet|\s*stäbchen)/gi, 'fischfilet'],
         // ── Gemüse ──
         [/\bgemüsepaprika\b|\bpaprikaschote[n]?\b|\bgemüsepaprika\b/gi, 'paprika'],
         [/\bzwiebeln?\b/gi, 'zwiebel'],
