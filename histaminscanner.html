@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.00<br>
+                Histaminscanner v6.02<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1535,7 +1535,11 @@ const DB = {
         'e120','karmin','cochenille',  // S1-2 Tierischer Farbstoff (Karmin aus Läusen)
         'orangeat',  // S1 eingelegte Orangenschale
         'zitronat','citronat',  // S1 eingelegte Zitronenschale
-        'e220','e221','e222','e223','e224','e225','e226','e227','e228','schwefeldioxid','schweflige säure','sulfite','sulphit','sulfit','sulphite',
+        'e220','e221','e222','e223','e224','e225','e226','e227','e228',
+        'schwefeldioxid','schweflige säure','sulfite','sulphit','sulfit','sulphite',
+        'natriumsulfit','natriumhydrogensulfit','natriumhydrogensulfid',  // OCR-Variante mit d
+        'natriummetabisulfit','kaliummetabisulfit','kaliumsulfit',
+        'calciumsulfit','calciumhydrogensulfit','kaliumhydrogensulfit',
         'natriumsulfit','kaliumsulfit','natriumdisulfit','kaliumdisulfit','natriummetabisulfit','kaliummetabisulfit','calciumsulfit','calciumhydrogensulfit',  // ❌ SIGHI 2 — potenter Mastzell-Liberator (Sulfit-Asthma/Weinkopfschmerz)
         'kakaonibs','kakaobohnen',  // S1-2 — wie Schokolade (Phenylethylamin)
     ],
@@ -1565,7 +1569,7 @@ const DB = {
         // benzoesäure/e210-e213 → liberator[] S2 L (SIGHI: Liberator, NICHT DAO-Blocker!)
         'kaliumnitrit','e249','natriumnitrit','e250',
         'natriumnitrat','e251','kaliumnitrat','e252',
-        'nitritpökelsalz','pökelsalz',
+        'nitritpökelsalz','pökelsalz','konservierungsstoff nitrit',
         'e340','kaliumphosphate','e341','calciumphosphate','phosphate',  // ⚠️ DAO-Blocker (histaminta: unverträglich)
         'propionsäure','e280','natriumpropionat','e281',
         'calciumpropionat','e282','kaliumpropionat','e283',
@@ -3923,6 +3927,17 @@ async function runAnalysis(product, ingredientsText) {
                 item.cat   = aiMap[item.name].cat  || 'unknown';
                 item.sighi = typeof aiMap[item.name].sighi === 'number' ? aiMap[item.name].sighi : null;
                 item.ai    = true;
+
+                // ── KI-Konsistenz: cat und sighi harmonisieren ──
+                // dao_blocker/liberator bei SIGHI S3 → high
+                if (item.sighi === 3 && (item.cat === 'dao_blocker' || item.cat === 'liberator')) {
+                    item.cat = 'high';
+                }
+                // high bei SIGHI S2 → liberator (Downgrade, wie in Konsistenz-Schleife)
+                if (item.sighi === 2 && item.cat === 'high') {
+                    item.cat = 'liberator';
+                }
+
                 // ── Ergebnis dauerhaft im Lern-Cache speichern ──
                 if (item.cat !== 'unknown') {
                     learnedCache[item.name] = { cat: item.cat, sighi: item.sighi };
@@ -4272,7 +4287,14 @@ function parseIngredients(inputText) {
         [/\bkokosmehl\b|\bkokosgrieß\b/gi, 'kokos'],
         // ── Schwefel / Konservierung getrocknete Früchte ──
         [/\bschwefeldiox?id\b|\bschweflige\s+säure\b|e220\b/gi, 'e220'],
+        [/\bnatriumsulfit\b|e221\b/gi, 'e220'],                            // E221 → sulfit
+        [/\bnatriumhydrogensulfit\b|\bnatriumhydrogensulfid\b|e222\b/gi, 'e220'],  // E222 + OCR-Fehler "sulfid"
         [/\bnatriummetabisulfit\b|e223\b/gi, 'e220'],
+        [/\bkaliummetabisulfit\b|e224\b/gi, 'e220'],
+        [/\bkaliumsulfit\b|e225\b/gi, 'e220'],
+        [/\bcalciumsulfit\b|e226\b/gi, 'e220'],
+        [/\bcalciumhydrogensulfit\b|e227\b/gi, 'e220'],
+        [/\bkaliumhydrogensulfit\b|e228\b/gi, 'e220'],
         [/\bsorbitsirup\b/gi, 'süßungsmittel'],
         [/\binulin\b|\bchicorée-?inulin\b|\bfrukto-?inulin\b/gi, 'inulin'],   // Explizit S0
         [/\bkaffee?extrakt\b|\bkaffee?konzentrat\b|\bcoffein\b|\bkaffeeextrakt\b|\bkaffee-extrakt\b/gi, 'kaffee'],
