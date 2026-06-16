@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.99 (debug)<br>
+                Histaminscanner v5.99<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3202,42 +3202,49 @@ async function startScanner() {
     if (hintEl) hintEl.style.display = '';
 
     try {
-        // Ansatz 1: Physische Device-ID erzwingen statt generischem facingMode
-        // → verhindert "logische Kamera" die torch blockiert (Android Multi-Linsen-Problem)
-        let videoConstraints = {
-            facingMode: { ideal: 'environment' },
-            width:  { ideal: 1920 },
-            height: { ideal: 1080 }
-        };
+        // Erst Basis-Permission einholen damit enumerateDevices Labels liefert
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(t => t.stop());
 
-        try {
-            // Erst Basis-Permission einholen damit enumerateDevices Labels liefert
-            const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            tempStream.getTracks().forEach(t => t.stop());
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
 
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        // Alle Rückkameras finden (Label-Filter)
+        const backCameras = videoDevices.filter(d =>
+            /back|rear|rück|environment|main/i.test(d.label)
+        );
+        const candidates = backCameras.length > 0 ? backCameras : [videoDevices[videoDevices.length - 1]];
 
-            // Rückkamera per Label suchen, sonst letzte Kamera (meist Rückseite)
-            const backCamera = videoDevices.find(d =>
-                /back|rear|rück|environment|main/i.test(d.label)
-            ) || videoDevices[videoDevices.length - 1];
+        // Jede Kandidaten-Kamera kurz öffnen und auf torch-Capability prüfen
+        let torchCamera = null;
+        for (const cam of candidates) {
+            try {
+                const testStream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: cam.deviceId } }
+                });
+                const testTrack = testStream.getVideoTracks()[0];
+                const caps = testTrack?.getCapabilities ? testTrack.getCapabilities() : {};
+                testStream.getTracks().forEach(t => t.stop());
 
-            if (backCamera?.deviceId) {
-                videoConstraints = {
-                    deviceId: { exact: backCamera.deviceId },
-                    width:  { ideal: 1920 },
-                    height: { ideal: 1080 }
-                };
-            }
-        } catch (e) { /* Fallback auf facingMode bleibt */ }
+                if (caps.torch === true) {
+                    torchCamera = cam;
+                    break;  // Erste Kamera mit torch nehmen
+                }
+            } catch (e) { /* weiter */ }
+        }
+
+        // Mit torch-Kamera öffnen, sonst Fallback auf erste Rückkamera
+        const chosenCamera = torchCamera || candidates[0];
+        const videoConstraints = chosenCamera?.deviceId
+            ? { deviceId: { exact: chosenCamera.deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            : { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } };
 
         mediaStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
 
-        // DEBUG: Kamera-Info anzeigen
+        // DEBUG: gewählte Kamera + torch-Status anzeigen
         const dbgTrack = mediaStream.getVideoTracks()[0];
         const dbgCaps = dbgTrack?.getCapabilities ? dbgTrack.getCapabilities() : {};
-        toast(`📷 ${dbgTrack?.label?.substring(0,30) || '?'} | torch: ${dbgCaps.torch ?? 'n/a'}`, 6000);
+        toast(`📷 ${dbgTrack?.label?.substring(0,28) || '?'} | torch: ${dbgCaps.torch ?? 'n/a'}`, 6000);
 
         const video = document.getElementById('video');
         video.srcObject = mediaStream;
