@@ -819,6 +819,15 @@
 <div id="screen-scanner" class="screen">
     <video id="video" autoplay playsinline muted></video>
     <div class="scanner-flash" id="scan-flash"></div>
+    <!-- Bildschirm-Licht Fallback wenn Hardware-Torch nicht verfügbar -->
+    <div id="torch-screen-light" style="
+        position:absolute;inset:0;
+        background:rgba(255,255,255,0.92);
+        pointer-events:none;
+        opacity:0;
+        transition:opacity 0.15s ease;
+        z-index:5;
+    "></div>
 
     <div class="scanner-ui">
         <div class="scan-topbar">
@@ -1006,7 +1015,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.86<br>
+                Histaminscanner v5.94<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1135,8 +1144,8 @@ const DB = {
         'himbeere','himbeer','raspberry','himbeeren',  // ❌ S2 (SIGHI 2024!)
         'limette','lime','limettensaft','limettenöl',  // ❌ S3 A L (SIGHI: sehr schlecht verträglich!)
         'orange','apfelsine','orangensaft','blutorange','orangen',  // ❌ S3 A L (SIGHI)
-        'mandarine','clementine','tangerine','satsuma','mandarine frisch',  // ❌ S2-3 (SIGHI)
-        'grapefruit','pomelo','pampelmuse',  // ❌ SIGHI S2 A L
+        // mandarine/clementine/grapefruit → liberator[] S2 A L (SIGHI: nicht S3!)
+        // orange → high[] S3 A L (SIGHI: S3)
         'salzgurken','salzgurke','saure gurken','eingelegte gurken',  // ❌ S2 H — Milchsäuregärung
         'jod','iod','iodine','kaliumiodid','kaliumiodat','jodtabletten',  // ❌ S3 L
         'kaliumjodat','natriumjodat','jodat',  // ❌ S3 L — alle Jodverbindungen (SIGHI!)
@@ -1333,6 +1342,8 @@ const DB = {
         'erdbeere','erdbeer','strawberry','wild strawberry',
         // himbeere → high[] S2 (SIGHI 2024: Himbeeren S2!)
         'zitrone','lemon','zitrus','citrus','grapefruit',  // orange/apfelsine → high[] S3!
+        'grapefruit','pomelo','pampelmuse','grapefruitsaft',  // ❌ S2 A L (SIGHI)
+        'mandarine','clementine','tangerine','satsuma',  // ❌ S2 A L (SIGHI)
         // limette → high[] S3 A L (SIGHI: sehr schlecht verträglich!)
         'ananas','pineapple','kiwi','kiwifruit',
         'banane','banana','bananenchips','bananenpulver',  // ⚠️ S2 A — biogene Amine (SIGHI)
@@ -2982,21 +2993,35 @@ async function toggleTorch(context) {
     const btn = document.getElementById('btn-torch-scanner');
     if (btn) btn.classList.toggle('on', torchOn);
 
+    // Bildschirm-Licht Fallback immer aktivieren (hilft auch wenn Torch nicht geht)
+    const overlay = document.getElementById('torch-screen-light');
+    if (overlay) overlay.style.opacity = torchOn ? '1' : '0';
+
     try {
         if (!mediaStream) return;
         const track = mediaStream.getVideoTracks()[0];
+        if (!track) return;
+
         const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-        if (!capabilities.torch) {
-            toast('Taschenlampe wird von diesem Gerät nicht unterstützt');
-            torchOn = false;
-            if (btn) btn.classList.remove('on');
-            return;
+
+        // Blind-Try: manche Browser verstecken torch in capabilities,
+        // unterstützen es aber trotzdem (Android-Chrome-Quirk)
+        if (capabilities.torch || capabilities.torch === undefined) {
+            try {
+                await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+                // Wenn erfolgreich: Bildschirm-Licht nicht nötig
+                if (overlay) overlay.style.opacity = '0';
+                return;
+            } catch (e) {
+                // Torch hardware nicht verfügbar — Bildschirm-Licht bleibt aktiv
+                if (torchOn) toast('🔦 Taschenlampe nicht verfügbar — Bildschirm-Licht aktiv');
+            }
+        } else {
+            // capabilities.torch ist explizit false — definitiv nicht verfügbar
+            if (torchOn) toast('🔦 Taschenlampe nicht unterstützt — Bildschirm-Licht aktiv');
         }
-        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
     } catch (e) {
-        toast('Taschenlampe nicht verfügbar');
-        torchOn = false;
-        if (btn) btn.classList.remove('on');
+        if (torchOn) toast('🔦 Bildschirm-Licht aktiv');
     }
 }
 
@@ -3004,6 +3029,8 @@ function stopTorchStream() {
     torchOn = false;
     const b1 = document.getElementById('btn-torch-scanner');
     if (b1) b1.classList.remove('on');
+    const overlay = document.getElementById('torch-screen-light');
+    if (overlay) overlay.style.opacity = '0';
 }
 let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
@@ -3411,14 +3438,21 @@ function setupCropEvents(canvas) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width  / rect.width;
         const scaleY = canvas.height / rect.height;
-        const src = e.touches ? e.touches[0] : e;
+        // Touch oder Maus — auch touchend hat changedTouches
+        const src = (e.touches && e.touches.length > 0)
+            ? e.touches[0]
+            : (e.changedTouches && e.changedTouches.length > 0)
+                ? e.changedTouches[0]
+                : e;
         return {
-            x: (src.clientX - rect.left) * scaleX,
-            y: (src.clientY - rect.top)  * scaleY
+            x: Math.max(0, Math.min(canvas.width,  (src.clientX - rect.left) * scaleX)),
+            y: Math.max(0, Math.min(canvas.height, (src.clientY - rect.top)  * scaleY))
         };
     };
+
     const onStart = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const p = getPos(e);
         cropState.startX = p.x; cropState.startY = p.y;
         cropState.endX   = p.x; cropState.endY   = p.y;
@@ -3427,25 +3461,49 @@ function setupCropEvents(canvas) {
     const onMove = (e) => {
         if (!cropState.dragging) return;
         e.preventDefault();
+        e.stopPropagation();
         const p = getPos(e);
         cropState.endX = p.x; cropState.endY = p.y;
         drawCropCanvas();
     };
     const onEnd = (e) => {
+        if (!cropState.dragging) return;
+        e.preventDefault();
         cropState.dragging = false;
         drawCropCanvas();
     };
-    // Alte Events entfernen (clone)
-    const newCanvas = canvas.cloneNode(true);
-    canvas.parentNode.replaceChild(newCanvas, canvas);
-    newCanvas.addEventListener('mousedown',  onStart, { passive: false });
-    newCanvas.addEventListener('mousemove',  onMove,  { passive: false });
-    newCanvas.addEventListener('mouseup',    onEnd);
-    newCanvas.addEventListener('touchstart', onStart, { passive: false });
-    newCanvas.addEventListener('touchmove',  onMove,  { passive: false });
-    newCanvas.addEventListener('touchend',   onEnd);
-    // Doppeltippen = bestätigen
-    newCanvas.addEventListener('dblclick', confirmCrop);
+
+    // Direkt auf Canvas registrieren (kein Clone nötig — wir entfernen erst alte Listener)
+    // Alten Canvas durch sauberen Ansatz ersetzen: Canvas selbst bleibt, nur Events neu
+    canvas.removeEventListener('mousedown',  canvas._onStart);
+    canvas.removeEventListener('mousemove',  canvas._onMove);
+    canvas.removeEventListener('mouseup',    canvas._onEnd);
+    canvas.removeEventListener('touchstart', canvas._onStart);
+    canvas.removeEventListener('touchmove',  canvas._onMove);
+    canvas.removeEventListener('touchend',   canvas._onEnd);
+
+    // Referenzen für späteres Entfernen speichern
+    canvas._onStart = onStart;
+    canvas._onMove  = onMove;
+    canvas._onEnd   = onEnd;
+
+    canvas.addEventListener('mousedown',  onStart, { passive: false });
+    canvas.addEventListener('mousemove',  onMove,  { passive: false });
+    canvas.addEventListener('mouseup',    onEnd,   { passive: false });
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove',  onMove,  { passive: false });
+    canvas.addEventListener('touchend',   onEnd,   { passive: false });
+
+    // Doppeltippen = bestätigen (Touch: dblclick funktioniert auf Mobile nicht zuverlässig)
+    canvas.addEventListener('dblclick', confirmCrop);
+
+    // Touch-Doppeltip via zwei schnelle Taps
+    let lastTap = 0;
+    canvas.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) { confirmCrop(); e.preventDefault(); }
+        lastTap = now;
+    }, { passive: false });
 }
 
 function confirmCrop() {
@@ -3510,8 +3568,8 @@ function handlePhotoFile(input) {
         document.getElementById('photo-preview').src = dataUrl;
         showScreen('screen-photo');
 
-        // Crop-UI initialisieren (nach kurzem Delay damit Layout berechnet ist)
-        setTimeout(() => initCrop(dataUrl), 150);
+        // Crop-UI initialisieren (nach kurzem Delay damit Layout auf Mobile berechnet ist)
+        setTimeout(() => initCrop(dataUrl), 300);
     };
     reader.readAsDataURL(file);
 
@@ -4006,7 +4064,11 @@ function parseIngredients(inputText) {
         [/\bdi-\s+(?=und|oder|\w)/gi, ''],                           // "Di- und" → strip "di-"
         [/\btriphosphate?\b/gi, 'e451'],                                        // Triphosphate = E451 → safe
         [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
-        [/\bvitamin\s*[abc]\d?\b/gi, 'vitamine'],                     // Vitamin A, B, C
+        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'e300'],  // B12 → safe (kein supplement)
+        [/\bvitamin\s*[ab]\d?\b/gi, 'vitamine'],                      // Vitamin A, B (NICHT C, B12!)
+        [/\bvitamin\s*c\b|e300\b/gi, 'e300'],                         // Vitamin C = E300 S0 (NICHT vitamine!)
+        // ── Multi-Wort Ausdrücke VOR dem \s+aus\s+-Strip! ───────────────
+        [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],
         [/\s+aus\s+/gi, ' '],                                          // "Pfirsichsaft aus Konzentrat" → space
         [/\.?\s*oder\s*:/gi, ' '],                                     // "oder:" Produkt-Varianten-Trenner
         [/\bzutaten\s*:/gi, ''],                                        // Label "Zutaten:"
@@ -4087,8 +4149,8 @@ function parseIngredients(inputText) {
         [/\bbulgur\b/gi, 'mehl'],
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
-        [/\bascorbinsäure\b|e300\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
-        [/\bascorbin(?:säure)?\b|\bvitamin\s*c\b|e300\b/gi, 'vitamine'],  // Mehlbehandlungsmittel
+        [/\bascorbinsäure\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
+        [/\bascorbin(?:säure)?\b/gi, 'vitamine'],  // Mehlbehandlungsmittel (ohne e300/vitamin c!)
         [/\breismilch(?:pulver)?\b/gi, 'milch'],
         // ── Baharat / Dukkah ──
         [/\bpiment\b|\bpimentkörner?\b|\ballspice\b/gi, 'gewürze'],
@@ -4140,6 +4202,7 @@ function parseIngredients(inputText) {
         [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
+        [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
         [/\beisen-?iii-?\w+\b/gi, 'mineralstoffe'],
         // ── Spurenelemente / Mineralien ──────────────────────────────────
         [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mineralstoffe'],          // Mangan → safe
@@ -4210,7 +4273,12 @@ function parseIngredients(inputText) {
         // ── Kulturen weitere ──
         [/\bbifidobacterium\s+\w+\b|\bbifidus\b|\bLactobacillus\s+\w+\b/gi, 'kulturen'],
         [/\breifungskulture?n?\b|\breifekulturen?\b|\bstarterkulturen?\b/gi, 'kulturen'],  // Wurst-Reifekulturen → safe
-        [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],       // Farbstoff → Liberator S1
+        [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],
+        [/\d+\s*%\s*rote-bete-saft\s+aus\s+rote-bete-saftkonzentrat\b/gi, 'rote bete'],
+        [/rote-bete-saft\s+aus\s+rote-bete-saftkonzentrat\b/gi, 'rote bete'],
+        [/rote-bete-saftkonzentrat\b/gi, 'rote bete'],  // Konzentrat-Rest → rote bete
+        [/\brote-bete-saft(?:konzentrat)?\b|\brote?\s*bete?\s*saft\b/gi, 'rote bete'],
+        [/\brote\s+bete\s+rote\s+bete\b/gi, 'rote bete'],  // Dedup-Artefakt
         [/\bfärbendes?\s+lebensmittel\s*:?\s*/gi, ''],  // "färbendes Lebensmittel: X" → "X" (muss zuerst!)
         // Generisch: "Beschreibung ... : Natrium-/Calcium-/E-Zusatzstoff" → nur den Zusatzstoff behalten
         // z.B. "essbare Wursthülle aus Alginat hergestellt: Natriumalginat" → "Natriumalginat"
@@ -4288,7 +4356,7 @@ function parseIngredients(inputText) {
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
         [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
         [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
-        [/\btaurin\b/gi, 'vitamine'],          // Aminosäure, S0
+        [/\btaurin\b/gi, 'taurin'],  // Aminosäure, S0 — bleibt als taurin (safe)
         [/\bguarana\w*\b/gi, 'koffein'],                    // guaranasamenextrakt, guaranaextrakt etc.
         [/\binosit(?:ol)?\b/gi, 'vitamine'],
         [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
@@ -4314,7 +4382,7 @@ function parseIngredients(inputText) {
         [/\bkardamom(?:pulver|samen?|kapseln?)?\b/gi, 'kardamom'],  // S1 Liberator — NICHT gewürze!
         // pistazie bereits oben korrekt auf 'pistazie' normiert
         // ── Funktionelle Zutaten Energy Drinks ──
-        [/\btaurin\b|\baminosäure\s+taurin\b/gi, 'vitamine'],
+        [/\baminosäure\s+taurin\b/gi, 'taurin'],
         [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
         [/\be101\b|\briboflavin\b/gi, 'vitamine'],
         [/\bvitamin\s*e\b|\balpha-tocopherol\b/gi, 'vitamine'],
@@ -4508,7 +4576,8 @@ function parseIngredients(inputText) {
         [/\bkaliumgluconat\b|e577\b/gi, 'e577'],
         [/\bcalciumgluconat\b|e578\b/gi, 'e578'],
         [/\beisen\(?ii\)?-?gluconat\b|\beisengluconat\b|e579\b/gi, 'e579'],
-        [/\beisen\(?ii\)?-?lactat\b|\beisenlactat\b|e585\b/gi, 'e585'],
+        [/\beisen\(?ii\)?-?lactat\b|\beisenlactat\b/gi, 'eisenlactat'],  // → safe S0 (E385 nicht E585!)
+        [/\beisen-?ii-?gluconat\b|e585\b/gi, 'e585'],  // E585 = Eisengluconat
         [/\b4-hexylresorcin\b|e586\b/gi, 'e586'],
         [/\btalkum\b|e553b\b/gi, 'e553b'],
         [/\bmagnesiumsilicat\b|e553a\b/gi, 'e553a'],
@@ -4972,12 +5041,25 @@ function parseIngredients(inputText) {
         [/zitronensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'zitrone'],
         [/apfelsaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'apfel'],
         [/birnensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'birne'],
+        [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],  // VOR allem anderen!
         [/traubensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'traube'],
+        [/schwarzer\s+johannisbeersaft\b|schwarzen\s+johannisbeersaft\b/gi, 'johannisbeere'],
         [/johannisbeersaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'johannisbeere'],
         [/cranberrysaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'cranberry'],
         [/mangosaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'mango'],
         [/ananassaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'ananas'],
+        [/grapefruitsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'grapefruit'],
+        [/mandarinensaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'mandarine'],
+        [/maracujasaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'maracuja'],
+        [/kirschsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b|sauerkirschsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'kirsche'],
+        [/schwarzer\s+johannisbeersaft\b|schwarzen\s+johannisbeersaft\b/gi, 'johannisbeere'],
+        [/sauerkirschmark\b|sauerkirschsaft\b|kirschmark\b/gi, 'kirsche'],
+        [/mandarinensaft\b/gi, 'mandarine'],
+        [/maracujasaft\b/gi, 'maracuja'],
+        [/grapefruitsaft\b/gi, 'grapefruit'],
+        [/traubensaft\s+aus\s+roten\s+und\s+weißen\s+trauben\b/gi, 'traube'],  // Multi-Wort vor Split
         [/\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, ''],   // Fallback: restliches "aus X" entfernen
+        [/\s+fruchtsaftkonzentraten?\b/gi, ''],         // Artefakt "fruchtsaftkonzentraten" entfernen
         [/\s+aus\s+[\wäöüÄÖÜ]+(saft|püree|mark)\b/gi, ''],
         [/knoblauchzehe[n]?/gi,          'knoblauch'],
         [/knoblauchknolle[n]?/gi,        'knoblauch'],
@@ -6906,6 +6988,12 @@ function parseIngredients(inputText) {
         // "Verdickungsmittel (Xanthan)" → "Xanthan"
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s+\(([^,)]+)\)/gi, '$1')
         .replace(/\([^)]*\n[^)]*\)/g, '')
+        // ── ALLERGEN-DISCLAIMER ZUERST entfernen (vor Klammer-Stripping!) ──────
+        // "Kann EIER, GLUTENHALTIGES GETREIDE, MILCH, SENF und SOJA enthalten."
+        // "Kann Spuren von Nüssen enthalten."
+        .replace(/[,.]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\wÄÖÜäöüß\s,]+(?:enthalten|beinhalten)\.?/g, '')
+        // "Enthält eine Phenylalaninquelle."
+        .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
         // ── Iterative innermost-paren removal (handles nested parens like Meerrettichzubereitung) ──
         // First: remove purely quantitative/detail parens: (8%), (3-4 Wochen), etc.
         .replace(/\(\d[^)]*\)/g, '')
@@ -6934,7 +7022,11 @@ function parseIngredients(inputText) {
         .replace(/\s*\([^()]+\)\s*/g, ' ')
         // "(Kann Spuren von Sesamsamen, ... enthalten.)" → ''
         .replace(/\([^)]*kann\s+spuren[^)]*\)/gi, '')
-        // Einzelzeile "Enthält: Senf." → leer
+        // "Kann (Spuren von) X, Y und Z enthalten." → komplett entfernen (inkl. Komma-Liste bis Satzende)
+        .replace(/[,.]?\s*[Kk]ann\s+(?:Spuren\s+von\s+)?[A-ZÄÖÜ][\s\S]*?enthalten\.?/g, '')
+        // "Enthält eine Phenylalaninquelle." → entfernen
+        .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/g, '')
+        // "Enthält: Senf, Sellerie." (Allergenliste ohne Spurenhinweis) → entfernen
         .replace(/^[\s(]*enthält\s*:.*$/gim, '')
         // "Was Du zu Hause haben solltest" Sektions-Trennzeile → leer
         .replace(/^.*(?:zu\s+hause\s+haben|immer\s+dabei|immer\s+im\s+haus|vorratszutaten|grundzutaten|was\s+(?:du|ihr|sie)\s+brauchen?).*$/gim, '')
@@ -8024,6 +8116,8 @@ const SIGHI_DB = {
         'ranitidin','cimetidin','h2-blocker',
     ],
     0: [
+        // ── Alkoholfreie Getränke (explizit S0) ──
+        'alkoholfreier wein','alkoholfreies bier','alkoholfreier sekt','alkoholfrei',
         // ── Sicher: Frisches Fleisch ──
         'hähnchen frisch','hühnerbrust frisch','pute frisch','rindfleisch frisch',
         'kalbfleisch','lammfleisch frisch','schweinefleisch frisch',
@@ -8182,7 +8276,9 @@ const SIGHI_DB = {
         'e500','natriumcarbonat','e501','kaliumcarbonat',
         'e504','magnesiumcarbonat',
         'sucralose','e955',
-        'acesulfam','e950','acesulfam k','acesulfam-kalium',  // ✅ S0 (SIGHI: verträglich)
+        'acesulfam','e950','acesulfam k','acesulfam-kalium',  // ✅ S0
+        'taurin','taurine',  // ✅ S0
+        'eisenlactat','eisensulfat','eisenfumarat',  // ✅ S0 — Eisenverbindungen als Nahrungsergänzung
         'alkoholfreier wein','alkoholfreier sekt','alkoholfrei',  // ✅ S0 — kein Alkohol, kein Histaminproblem
         'stevia','steviosid','e960',
         'zinkacetat','e650',
@@ -8206,6 +8302,8 @@ const SIGHI_META = {
 
 function getSIGHI(name) {
     const n = name.toLowerCase().trim();
+    // Alkoholfreie Produkte explizit S0 — vor SIGHI_DB-Lookup!
+    if (n.includes('alkoholfrei') || n === 'alkoholfreier wein' || n === 'alkoholfreies bier') return 0;
     for (const level of [3, 2, 1, 0]) {
         if (SIGHI_DB[level].some(k => sighiKeyMatch(k, n))) return level;
     }
@@ -8605,7 +8703,7 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
         if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/orange|mandarine|clementine|tangerine|pomelo/))
             return 'SIGHI 2-3 L — Orange/Zitrusfrüchte: enthalten Tyramin (DAO-Blocker) + Histaminliberator. Als Saft noch stärker (schnellere Resorption). Ersatz: Apfel, Birne, Mango.';
         if (n.match(/grapefruit/))
-            return 'SIGHI 3 L — Grapefruit: enthält Tyramin + hemmt CYP3A4-Enzyme (Wechselwirkung mit Medikamenten!). Meiden.';
+            return 'SIGHI 2 A L — Grapefruit: Histaminliberator + enthält biogene Amine + hemmt CYP3A4-Enzyme (Wechselwirkungen mit Medikamenten!). Meiden.';
         if (n.match(/ananas|pineapple/))
             return 'Enthält Bromelain und wirkt als ausgeprägter Histaminliberator';
         if (n.match(/banane|banana/))
