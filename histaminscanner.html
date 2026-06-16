@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.97<br>
+                Histaminscanner v5.98<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2989,16 +2989,24 @@ async function toggleTorch(context) {
         const track = mediaStream.getVideoTracks()[0];
         if (!track) return;
 
-        // ImageCapture instanziieren + getPhotoCapabilities() "weckt" die
-        // Hardware-Fähigkeiten in Android Chrome auf (SO #47153547)
+        // ImageCapture aufwecken (SO #47153547)
         if (window.ImageCapture) {
             try {
                 const imageCapture = new ImageCapture(track);
                 await imageCapture.getPhotoCapabilities();
-            } catch (e) { /* nur zum Aufwecken — Fehler ignorieren */ }
+            } catch (e) { /* nur zum Aufwecken */ }
         }
 
-        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        // Kurze Pause damit Track sich akklimatisiert (Android Race-Condition)
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        try {
+            // Standard: advanced-Array
+            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        } catch (e) {
+            // Fallback: flache Hierarchie (manche Chromium-Derivate)
+            await track.applyConstraints({ torch: torchOn });
+        }
 
     } catch (e) {
         torchOn = false;
@@ -3194,14 +3202,37 @@ async function startScanner() {
     if (hintEl) hintEl.style.display = '';
 
     try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: { ideal: 'environment' },
-                width:  { ideal: 1920 },
-                height: { ideal: 1080 },
-                advanced: [{ torch: false }]
+        // Ansatz 1: Physische Device-ID erzwingen statt generischem facingMode
+        // → verhindert "logische Kamera" die torch blockiert (Android Multi-Linsen-Problem)
+        let videoConstraints = {
+            facingMode: { ideal: 'environment' },
+            width:  { ideal: 1920 },
+            height: { ideal: 1080 }
+        };
+
+        try {
+            // Erst Basis-Permission einholen damit enumerateDevices Labels liefert
+            const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            tempStream.getTracks().forEach(t => t.stop());
+
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+            // Rückkamera per Label suchen, sonst letzte Kamera (meist Rückseite)
+            const backCamera = videoDevices.find(d =>
+                /back|rear|rück|environment|main/i.test(d.label)
+            ) || videoDevices[videoDevices.length - 1];
+
+            if (backCamera?.deviceId) {
+                videoConstraints = {
+                    deviceId: { exact: backCamera.deviceId },
+                    width:  { ideal: 1920 },
+                    height: { ideal: 1080 }
+                };
             }
-        });
+        } catch (e) { /* Fallback auf facingMode bleibt */ }
+
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
 
         const video = document.getElementById('video');
         video.srcObject = mediaStream;
