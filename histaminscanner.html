@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.98<br>
+                Histaminscanner v5.99 (debug)<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3233,6 +3233,11 @@ async function startScanner() {
         } catch (e) { /* Fallback auf facingMode bleibt */ }
 
         mediaStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+
+        // DEBUG: Kamera-Info anzeigen
+        const dbgTrack = mediaStream.getVideoTracks()[0];
+        const dbgCaps = dbgTrack?.getCapabilities ? dbgTrack.getCapabilities() : {};
+        toast(`📷 ${dbgTrack?.label?.substring(0,30) || '?'} | torch: ${dbgCaps.torch ?? 'n/a'}`, 6000);
 
         const video = document.getElementById('video');
         video.srcObject = mediaStream;
