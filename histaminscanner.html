@@ -819,15 +819,6 @@
 <div id="screen-scanner" class="screen">
     <video id="video" autoplay playsinline muted></video>
     <div class="scanner-flash" id="scan-flash"></div>
-    <!-- Bildschirm-Licht Fallback wenn Hardware-Torch nicht verfügbar -->
-    <div id="torch-screen-light" style="
-        position:absolute;inset:0;
-        background:rgba(255,255,255,0.92);
-        pointer-events:none;
-        opacity:0;
-        transition:opacity 0.15s ease;
-        z-index:5;
-    "></div>
 
     <div class="scanner-ui">
         <div class="scan-topbar">
@@ -1015,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v5.94<br>
+                Histaminscanner v5.97<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2988,40 +2979,31 @@ function gcTrack(eventName) {
 
 // ── Taschenlampe ──────────────────────────────────────────
 async function toggleTorch(context) {
-    if (context !== 'scanner') return; // Foto: nativer Kamera-Blitz zuständig
+    if (context !== 'scanner') return;
     torchOn = !torchOn;
     const btn = document.getElementById('btn-torch-scanner');
     if (btn) btn.classList.toggle('on', torchOn);
-
-    // Bildschirm-Licht Fallback immer aktivieren (hilft auch wenn Torch nicht geht)
-    const overlay = document.getElementById('torch-screen-light');
-    if (overlay) overlay.style.opacity = torchOn ? '1' : '0';
 
     try {
         if (!mediaStream) return;
         const track = mediaStream.getVideoTracks()[0];
         if (!track) return;
 
-        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-
-        // Blind-Try: manche Browser verstecken torch in capabilities,
-        // unterstützen es aber trotzdem (Android-Chrome-Quirk)
-        if (capabilities.torch || capabilities.torch === undefined) {
+        // ImageCapture instanziieren + getPhotoCapabilities() "weckt" die
+        // Hardware-Fähigkeiten in Android Chrome auf (SO #47153547)
+        if (window.ImageCapture) {
             try {
-                await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-                // Wenn erfolgreich: Bildschirm-Licht nicht nötig
-                if (overlay) overlay.style.opacity = '0';
-                return;
-            } catch (e) {
-                // Torch hardware nicht verfügbar — Bildschirm-Licht bleibt aktiv
-                if (torchOn) toast('🔦 Taschenlampe nicht verfügbar — Bildschirm-Licht aktiv');
-            }
-        } else {
-            // capabilities.torch ist explizit false — definitiv nicht verfügbar
-            if (torchOn) toast('🔦 Taschenlampe nicht unterstützt — Bildschirm-Licht aktiv');
+                const imageCapture = new ImageCapture(track);
+                await imageCapture.getPhotoCapabilities();
+            } catch (e) { /* nur zum Aufwecken — Fehler ignorieren */ }
         }
+
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+
     } catch (e) {
-        if (torchOn) toast('🔦 Bildschirm-Licht aktiv');
+        torchOn = false;
+        if (btn) btn.classList.remove('on');
+        toast('🔦 Taschenlampe nicht verfügbar');
     }
 }
 
@@ -3029,8 +3011,6 @@ function stopTorchStream() {
     torchOn = false;
     const b1 = document.getElementById('btn-torch-scanner');
     if (b1) b1.classList.remove('on');
-    const overlay = document.getElementById('torch-screen-light');
-    if (overlay) overlay.style.opacity = '0';
 }
 let apiKey      = localStorage.getItem('hs_api_key')      || '';
 let mistralKey  = localStorage.getItem('hs_mistral_key')  || '';
@@ -4084,6 +4064,8 @@ function parseIngredients(inputText) {
         // ── Maßangaben (Rezepte / manuelle Eingabe) ──────────────────────
         [/^(?:\d+\s*)?(?:½|¼|¾|⅓|⅔)?\s*(?:el|tl|g|kg|ml|l|cl|dl|prise[n]?|stk|stück|scheibe[n]?|zehe[n]?|bund|priese|essl|teel|stangen?|kapseln?|körner?|zweige?|blätter?|blatt)\.?\s+/gi, ''],  // "½ TL", "2 EL", "50 g" etc.
         [/^(?:½|¼|¾|⅓|⅔|\d+[,.]?\d*)\s*/gi, ''],                   // führende Bruchzahl/Zahl allein
+        [/\s+\d+[,.]\d*\s*%/gi, ''],                                   // "curry 0,4%" → "curry" (Dezimalzahl mit %)
+        [/\s+\d+\s*%/gi, ''],                                           // "dattel 2%" → "dattel"
         [/\bsaft\s+von\b/gi, ''],                                     // "Saft von ½ Zitrone" → "½ Zitrone"
         // ── Mandel-Komposita ─────────────────────────────────────────────
         [/\bmandelsplitter\b|\bmandelblätter\b|\bmandelstücke\b|\bmandelmehl\b/gi, 'mandel'],
@@ -6462,7 +6444,7 @@ function parseIngredients(inputText) {
         [/\bgrill(?:gewürz|mix|rub|marinade)?\b|\bsteak\s+rub\b|\bbbq\s+rub\b/gi, 'gewürze'],
         [/\bpulled\s+pork\s+(?:gewürz|rub|mix)?\b|\brotisserie\s+(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\bfisch(?:gewürz|mix|marinade)?\b/gi, 'gewürze'],
-        [/\bgeflügel(?:gewürz|mix)?\b|\bhähnchen(?:gewürz|mix)?\b/gi, 'gewürze'],
+        [/\bgeflügel(?:gewürz|mix|würze)\b|\bhähnchen(?:gewürz|mix|würze)\b/gi, 'gewürze'],  // Nur mit Suffix!
         [/\bgeflügel(?:fleisch|brust|keule|schnitzel|filet)\b/gi, 'hähnchen'],  // → safe S0
         [/\bsahnejoghurt\b|\bsahne-?joghurt\b/gi, 'joghurt'],                   // → safe S0
         [/\bbiotin\b|vitamin\s*h\b|e640\b/gi, 'vitamine'],                       // Biotin = Vitamin H
@@ -7843,7 +7825,7 @@ const SIGHI_DB = {
         // schwarztee/grüntee/kaffee/espresso → S1-2 DAO-Hemmer, NICHT S3!
         // energy drink bleibt S3 wegen Zusatzstoffe (Taurin, Benzoat etc.)
         'energy drink',
-        'sorbinsäure','e200','natriumsorbat','e201','kaliumsorbat','e202','calciumsorbat','e203',
+        // sorbinsäure/kaliumsorbat → SIGHI S2 L (nicht S3!), in SIGHI_DB[2]
         // Schmerzmittel (NSAR): starke Histaminliberatoren
         'acetylsalicylsäure','aspirin','asa',
         'diclofenac','voltaren','diclac',
@@ -9057,7 +9039,7 @@ const E_NAMES = {
     'e626':'Guanylsäure','e627':'Dinatriumguanylat','e628':'Dikaliumguanylat',
     'e629':'Calciumguanylat','e630':'Inosinsäure','e631':'Dinatriuminosinat',
     'e635':'Dinatriumribonukleotide','e650':'Zinkacetat',
-    'e901':'Bienenwachs','e262':'Calciumacetat','e263':'Calciumacetat',
+    'e901':'Bienenwachs','e262':'Natriumacetat','e263':'Calciumacetat',
     'e341':'Calciumphosphate','e340':'Kaliumphosphate','e339':'Natriumphosphate',
     'e333':'Calciumcitrate','e332':'Kaliumcitrate','e331':'Natriumcitrate',
     'e363':'Bernsteinsäure','e364':'Natriumsuccinat',
