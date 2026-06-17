@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.07<br>
+                Histaminscanner v6.10<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1385,6 +1385,7 @@ const DB = {
         'hülsenfrüchte','hülsenfrucht','legumes',  // S1 — alle Hülsenfrüchte als Liberator
         'weizenkeime','weizenkeimöl','wheat germ',  // S1 — laut alles-essen.de Liberator
         'schokolade','kakao','chocolate','cocoa','kakaopulver','cacao',
+        'schokoladenstücke','schokoladenchips','chocolate chips','kakaostücke',  // → liberator S2
         'nougat','praline','pralinen',
         'nutella','choco','schoko',
         'ei','eier','egg','eggs','vollei',  // ⚠️ S1 — Vollei/Eiklar: mastzellaktivierend (SIGHI L)
@@ -1551,13 +1552,16 @@ const DB = {
     dao_blocker: [
         // ── Alkohol (stark DAO-hemmend) ──
         'alkohol','alcohol','ethanol','methanol',
+        // ── Zuckerkulör E150 (DAO-Hemmer laut SIGHI B) ──
+        'e150','e150a','e150b','e150c','e150d','zuckercouleur','karamell','karamellfarbe','karamellfarbstoff',
         // ── Sellerie (leichter DAO-Hemmer) ──
         'sellerie','celery','knollensellerie','selleriewurzel','selleriesalz',  // SIGHI S1 DAO
         'schwarzer tee','black tea','grüner tee','green tea','matcha',
         'eistee','iced tea','kaffee','coffee','espresso','cold brew',
+        'kaffeeextrakt','kaffeextrakt','kaffee-extrakt','kaffeekonzentrat',  // Spelling-Varianten
         'energy drink','energydrink','red bull','monster energy',
         'guarana','koffein','caffeine',
-        'taurin','taurine',
+        'taurine',  // taurin → safe_hints[] S0
         // schwefeldioxid/sulfite/e220-228 + alle Sulfit-Salze → liberator[] S2
         // natriumnitrit/nitrit → high[] (konservativ richtig, Pökelwaren S3)
         // e249/e250/e251/e252 → high[] (konservativ, SIGHI: ?, aber Pökelwaren HIGH)
@@ -1647,7 +1651,7 @@ const DB = {
 
         // ── Salicylate (in Medikamenten + natürlich in Lebensmitteln) ──
         'salicylat','salicylate','acetylsalicylsäure',
-        'taurin',
+        // taurin → safe_hints[] S0 (Aminosäure, kein DAO-Hemmer!)
         'theobromin',
 
         'sesamöl',
@@ -1719,7 +1723,7 @@ const DB = {
         'calciumcarbonat','e170',
         'natriumcarbonat','natriumhydrogencarbonat','e500','e501',
         'curcumin','e100','kurkumaextrakt',
-        'karamell','e150a','e150b','e150c','e150d','zuckerkulör',
+        // karamell/e150a-d → dao_blocker[] (SIGHI B!)
         'chlorophyll','e140','e141',
         'beta-carotin','e160a',
         // paprikaextrakt/e160c → liberator S2, NICHT safe_hints!
@@ -1837,7 +1841,7 @@ const DB = {
         'pfirsich','peach','nektarine','nectarine','plattpfirsich','saturnpfirsich','donutpfirsich',
         'pflaume (frisch)','plum (fresh)',
         'trauben (frisch)','grapes (fresh)','weintrauben (frisch)',
-        // granatapfel → liberator[] S1-2 L (SIGHI 2024!)
+        'granatapfel','pomegranate',  // ⚠️ S1-2 L (SIGHI 2024!)
         'kaki','persimmon','dattelkaki',
         'stachelbeere (frisch)','gooseberry (fresh)',
         'johannisbeere (schwarz)','blackcurrant',
@@ -2750,7 +2754,7 @@ const DB = {
         // bockshornklee → liberator S2, NICHT safe_hints!
         'koriander',                         // S0
         'paprikapulver','paprika gemahlen',  // S0
-        'rauchpulver','rauchaoma',           // S0-1
+        'rauchpulver','raucharoma',           // S0-1
         // Honig
         'honig',                             // S0-1 (naturreines Honig ✅)
     
@@ -2777,7 +2781,7 @@ const DB = {
         'e508','kaliumchlorid',              // S0
         'e501','pottasche',                  // S0
         'e503','hirschhornsalz',             // S0 Backtriebmittel
-        'e340','dipotassiumphosphat','dikaliumphosphat',  // S0
+        // e340/dikaliumphosphat → dao_blocker[] (DAO-Hemmer, NICHT safe!)
         // e412/guarkernmehl/guargummi → dao_blocker[] (histaminta: SIGHI Vorsicht Verdickungsmittel)
         'e491','sorbitanmonostearat',         // S0 Emulgator Hefe
         // sumach/sumak → liberator, NICHT safe_hints!
@@ -2802,7 +2806,7 @@ const DB = {
         'e163','anthocyane',                 // S0
         'e171','titandioxid',                // S0 (inert)
         // Schokoladenstücke
-        'schokoladenstücke','schokoladenchips','chocolate chips',  // 🟠 S1-2
+        // schokoladenstücke/chips → liberator[] S2 (Kakao = Liberator!)
         // Vegan-Käse
         // hefeflocken/nährhefeflocken → liberator[] S2 (Hefeprodukt)
         // Zwiebel/Knoblauch Pulver
@@ -2837,7 +2841,7 @@ const DB = {
         'e466','carboxymethylcellulose',                  // S0
         'e463',                                           // S0
         'inulin','chicorée-inulin',                       // S0
-        'kaffeextrakt',                                    // Spelling-Variante
+        // kaffeextrakt → dao_blocker[] (Koffein-Quelle!)
     
         'inulin','e466','e463',  // S0 (schon in Normen aber safe_hints als Fallback)
     
@@ -2925,10 +2929,12 @@ const DB = {
         'apfeldicksaft',                           // S0
         'e1422',                                   // S0 Verdickungsmittel
         // Fischsauce-Artefakte
-        'huhn-hefeextrakt','huhn-brühpulver',     // S1-2
+        // huhn-hefeextrakt → dao_blocker/high (Hefeextrakt = starker Trigger!)
+        'huhn-brühpulver',     // S0 wenn ohne Hefeextrakt
     
         // Backzutaten
-        'e334','weinsteinpulver','cream of tartar',  // S0
+        'e336','weinsteinpulver','weinsteinbackpulver','cream of tartar',  // E336 Kaliumtartrat S0
+        'e334','weinsäure',  // E334 Weinsäure S0 (kein Weinsteinpulver!)
         'e406','agar-agar','agar',                   // S0
         // Getreide
         'roggenmalz',  // weizenmalz → dao_blocker/high S2 (SIGHI: Malz S2)
@@ -8230,7 +8236,7 @@ const SIGHI_DB = {
         'feigen','feige frisch','feige getrocknet',
         'rosinen','sultaninen',
         'datteln','dattel',
-        'granatapfel','aronia','holunder','holunderbeeren',
+        // granatapfel → liberator[] (SIGHI S1-2 L!)
         'weintraube','trauben','weinbeeren',
         'physalis','kapstachelbeere',
         'cranberry','preiselbeere','moosbeere','kronsbeere',
@@ -8257,7 +8263,7 @@ const SIGHI_DB = {
         'anthocyane','e163',
         'calciumcarbonat','e170',
         'eisenoxide','e172',
-        'e150a','einfacher zuckerkulör',
+        // e150a → dao_blocker[] (SIGHI B!)
         'e460','cellulose','e552','calciumsilicat','e551','siliciumdioxid',
         'e470a','e470b','e553',
         'e471','mono- und diglyceride','e472a','e472b','e472c','e472e',
@@ -8310,7 +8316,7 @@ const SIGHI_DB = {
         'e100','curcumin',
         'e140','chlorophylle',
         'e141','kupferkomplexe',
-        'e150','e150a','zuckercouleur',
+        // e150/e150a/zuckercouleur → dao_blocker[] (SIGHI B — DAO-Hemmer!)
         'e153','pflanzenkohle',
         'e160a','carotin','beta-carotin',
         'e160c','capsanthin',
