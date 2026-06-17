@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.05<br>
+                Histaminscanner v6.07<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1120,6 +1120,7 @@ const DB = {
         'schwarzwälder schinken','westfälischer schinken',
         'bresaola','coppa','mortadella','lardo','pancetta',
         'speck','bacon','schinkenspeck',
+        'kasseler','kasselerfleisch','kassler',  // ❌ gepökelt+geräuchert S3
         'sauerkraut','kimchi','miso','natto','tempeh','kombucha',
         'saure gurken','essiggurken','cornichons','mixed pickles',
         'eingelegte oliven','oliven','pickles',
@@ -1836,7 +1837,7 @@ const DB = {
         'pfirsich','peach','nektarine','nectarine','plattpfirsich','saturnpfirsich','donutpfirsich',
         'pflaume (frisch)','plum (fresh)',
         'trauben (frisch)','grapes (fresh)','weintrauben (frisch)',
-        'granatapfel','pomegranate',
+        // granatapfel → liberator[] S1-2 L (SIGHI 2024!)
         'kaki','persimmon','dattelkaki',
         'stachelbeere (frisch)','gooseberry (fresh)',
         'johannisbeere (schwarz)','blackcurrant',
@@ -1963,7 +1964,7 @@ const DB = {
         // → kompromiss: belassen, da Konfliktsituation
 
         // ── Früchte (safe per 2025-Tabelle) ──
-        'granatapfel','pomegranate',
+        // granatapfel → liberator[] S1-2 L (SIGHI 2024!)
         'weintrauben','grapes','trauben','tafeltrauben',
         'kaki','persimmon','sharon fruit',
         // papaya → liberator[] S1 (SIGHI A, leicht unverträglich)
@@ -2124,8 +2125,8 @@ const DB = {
         'milcheiweiss','milcheiweiß','milchprotein','kasein',  // S0-1
     
         'e331','natriumcitrat','kaliumcitrat','calciumcitrat',  // S0 Citrate
-        'e150','karamell','karamellfarbe',                       // S1 Farbstoff (umstritten)
-    
+        // e150/karamellfarbe → dao_blocker[] (SIGHI B — DAO-Hemmer, nicht S0!)
+
         'hopfen','hopfenextrakt','hopfenpellet',  // S0 — Hopfen selbst kein Histaminproblem
     
         'pflanzenöl','öl','neutrales öl',          // S0
@@ -2336,7 +2337,7 @@ const DB = {
         'johannisbeere','johannisbeeren','rote johannisbeere','ribisel','rote ribisel',  // ✅ S0 (SIGHI)
         'schwarze johannisbeere','cassis','schwarze ribisel',  // ✅ S0 (SIGHI)
         'nektarine','pfirsich',  // papaya → liberator[] S1
-        'granatapfel',                              // S0
+        // granatapfel → liberator[] S1-2 L (SIGHI 2024!)
         'heidelbeere','blaubeere',                  // S0-1
         'physalis',                                 // S0
         'holunderblüte','holunderblütensirup',      // S0 (Blüten, nicht Beeren!)
@@ -2672,7 +2673,7 @@ const DB = {
         // e410/johannisbrotkernmehl → dao_blocker[] (SIGHI: Vorsicht bei Verdickungsmitteln!)
         'e322','sojalecithin','lecithin','sonnenblumenlecithin',  // S0 Emulgator
         'e160a','beta-carotin',               // S0 Farbstoff
-        'e150','karamellfarbstoff',           // S0 Farbstoff
+        // e150/karamellfarbe → dao_blocker[] (SIGHI B!)
         'e503','natriumsesquicarbonat',       // S0 Backtriebmittel
         // Süßwaren-Zutaten
         'waffelblätter','waffelteig',         // S0
@@ -4010,6 +4011,11 @@ function parseIngredients(inputText) {
         // ── Kritische Compound-Begriffe VOR allem anderen ──────────────────
         [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
+        [/^%\s*/g, ''],
+        [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],
+        [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
+        [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
+        [/\bammonsulfit[-\s]?zuckerkulör\b|\bzuckerkulör\b|\bsulfit[-\s]?ammoniakzuckerkulör\b/gi, 'e150'],
         // ── Präfix-Stripping (muss zuerst!) ──
         [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
         // "2-fach konzentriert" / "3fach konz." etc. → entfernen (Mengenangabe, keine eigene Zutat)
@@ -4398,12 +4404,14 @@ function parseIngredients(inputText) {
         [/\bweizen\s+gepufft\b|\bgepuffter?\s+weizen\b/gi, 'puffweizen'],      // Weizen gepufft → puffweizen
         [/\breis\s+gepufft\b|\bgepuffter?\s+reis\b/gi, 'puffreis'],            // Reis gepufft → puffreis
         [/\bsubmolkenpulver\b/gi, 'molke'],                                    // Submolkenpulver → molke S0
-        [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'essig'],       // Wein-Branntweinessig → essig S3
+        [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'branntweinessig'],  // → safe S0 (kein Weinessig!)
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
         [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
         [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
         [/\btaurin\b/gi, 'taurin'],  // Aminosäure, S0 — bleibt als taurin (safe)
-        [/\bguarana\w*\b/gi, 'koffein'],                    // guaranasamenextrakt, guaranaextrakt etc.
+        [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],  // guarana-auszug etc.
+        [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
+        [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],  // Farbextrakt → Zutat
         [/\binosit(?:ol)?\b/gi, 'vitamine'],
         [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
         // ── Süßungsmittel-Kombinationen ──
@@ -4430,6 +4438,7 @@ function parseIngredients(inputText) {
         // ── Funktionelle Zutaten Energy Drinks ──
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
         [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
+        [/\bammonsulfit[-\s]?zuckerkulör\b|\bzuckerkulör\b|\bsulfit[-\s]?ammoniakzuckerkulör\b/gi, 'e150'],  // E150c/d Varianten
         [/\be101\b|\briboflavin\b/gi, 'vitamine'],
         [/\bvitamin\s*e\b|\balpha-tocopherol\b/gi, 'vitamine'],
         [/\bgelierzucker\b|\bpektin\b|e440\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
@@ -5333,8 +5342,13 @@ function parseIngredients(inputText) {
         [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
         [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
         // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
-        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],  // Liberator-Früchte retten
-        [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],  // Liberator-Basis
+        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],
+        [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],
+        [/\bgranatapfelsaft(?:konzentrat)?\b|\bgranatapfelkonzentrat\b/gi, 'granatapfel'],  // VOR generischem Strip!
+        [/\bkiwikonzentrat\b|\bkiwisaftkonzentrat\b/gi, 'kiwi'],
+        [/\bananas(?:saft)?konzentrat\b/gi, 'ananas'],
+        [/\bmango(?:saft)?konzentrat\b/gi, 'mango'],
+        [/\bmaracuja(?:saft)?konzentrat\b/gi, 'maracuja'],
         [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
@@ -5481,7 +5495,8 @@ function parseIngredients(inputText) {
         [/knoblauchpulver\b/gi,             'knoblauch'],
         [/pinkelwürste?\b/gi,            'pinkelwurst'],
         [/mettenden\b/gi,                'mettenden'],  // Grünkohl-Wurst (geräuchert)
-        [/kasseler\s*kotelett[s]?\b/gi,  'kasseler'],   // gepökeltes Fleisch → S3
+        [/kasseler\s*kotelett[s]?\b/gi,  'kasseler'],
+        [/\bkasseler\s+(?:würfel|stücke?|fleisch|nacken|rücken)(?:\s+aus(?:\s+\w+)+)?\b/gi, 'kasseler'],  // Kasseler Würfel aus Schulter...
         [/\bkasseler\b/gi,               'kasseler'],
         [/kochwürste?\b/gi,              'kochwurst'],
         [/grillwürste?\b/gi,             'grillwurst'],
@@ -6328,7 +6343,7 @@ function parseIngredients(inputText) {
         [/\bhirtenkäse\b|\bschafskäse\b/gi, 'feta'],   // ähnlich Feta
         // ── Fleisch-Gerichte/-Produkte ──
         [/\brinderroulade[n]?\b|\broulade[n]?\b/gi, 'rindfleisch'],  // gekocht, S2
-        [/\bkasseler\b|\bkasselerfleisch\b/gi, 'schinken'],  // gepökelt+geräuchert S3
+        // kasseler bereits bei Zeile 5485 normiert → kein zweiter Schritt nötig
         [/\bbratwurst\b|\brostbratwurst\b|\bnürnberger\b|\bthüringer\b/gi, 'wurst'],
         [/\bcurrywurst\b/gi, 'wurst'],
         [/\bmettbrötchen\b|\bmett\b|\bhackepeter\b/gi, 'hackfleisch'],  // rohes Fleisch S2
