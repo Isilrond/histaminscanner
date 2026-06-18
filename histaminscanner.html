@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.12<br>
+                Histaminscanner v6.16<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1178,7 +1178,6 @@ const DB = {
         // ── Innereien & Fleischextrakte (TUM München) ──
         'innereien','leber','liver','niere','herz','milz','kutteln','kaldaunen',
         'fleischextrakt','meat extract','bone broth','knochenbrühe',
-        'dry aged','bündnerfleisch','trockenfleisch','beef jerky',
         'edamer','chester','cheshire','gouda (alt)','alter gouda',
         'mittelalter gouda','schnittkäse','sauermilchkäse','handkäse',
         // morcheln/morchel/morel → liberator[] S1, NICHT high!
@@ -1229,8 +1228,7 @@ const DB = {
         'räucherwurst','geräucherte wurst','schwarzwurst',
         'fischsalat','fish salad',
         'rollmops','bismarckhering','heringsfiletsalat','heringssalat',
-        'fischsauce','fish sauce','nam pla','nuoc mam',
-        'worcestersauce','worcestershire',
+        'worcestersauce',
         'liköre','likör','amaretto','baileys',
         'käse gereift','gereifter käse',
         'edelschimmelkäse','fontina',
@@ -1244,16 +1242,14 @@ const DB = {
         'malz','gerstenmalz','weizenmalz',  // S2 — Brauprozess, biogene Amine
         'teriyaki','tomatenmark',
         'seitan',  // S3 — fermentiertes/konzentriertes Weizenprotein-Fertigprodukt
-        'schinken','hinterschinken',  // kochschinken → liberator[] S1
+        'hinterschinken',  // kochschinken → liberator[] S1
         'fischfond',
         'krustentierfond','krustentierextrakt','krustentierpaste', // S3 — konzentrierte Schalen+Tomaten
-        'muschel','muscheln',
         'brühe','fleischbrühe','rindfleischextrakt','geflügelextrakt',  // S2-3
         'garnele','königsgarnele','tigergarnele','riesengarnele',  // S2-3 singular forms
         'tzatziki',  // S2 — fermentierter Joghurt + Knoblauch
         'stollen',  // S2 — Rosinen + Marzipan
         'obatzda','obazda',  // S2-3 — Camembert-Creme fermentiert
-        'kasseler',  // S3 — gepökelt + geräuchert
         'wurst','bratwurst','currywurst','weißwurst','mettwurst',  // S2-3
         'räuchertofu',  // S2 — Tofu + Rauchgeschmack = Liberator
         'gochujang','gochugaru',  // S2-3 fermentierte Chilipaste (Soja+Chili)
@@ -1264,12 +1260,11 @@ const DB = {
         'katsuobushi','bonito',  // S3 geräuchert+fermentiert
         'kvass',  // S2-3 — fermentiertes Brodbier
         'sherry','madeira','marsala',  // S3 — Dessertweine fortified
-        'fischöl','krillöl','lachsöl',  // S2-3 Fischöl
+        'fischöl','krillöl','lachsöl',  // S2-3 Fischöl,'fischfiletöl','garneleöl',  // S2-3
         'tsuyu','mentsuyu',  // S3 Soja+Dashi
         'xo sauce','xo soße',  // S3 Garnelen+Schinken fermentiert
         'doubanjiang',  // S3 fermentierte Bohnen+Chili-Paste
         'tom yum',  // S2-3 (Chili+Fischsoße+Garnelenpaste)
-        'fischfiletöl','fischöl','garneleöl','krillöl',  // S2-3 Omega-3 Fischöle
         'roastbeef',  // S2 — Rindfleisch, ggf. gereift
         'corned beef','pastrami',  // S3 — gepökelt
         'landrauchschinken','katenschinken','schwarzwälder',  // S3 — gepökelt+geräuchert
@@ -1289,10 +1284,8 @@ const DB = {
         'pökelsalz','nitritpökelsalz','e250','natriumnitrit',  // S2-3 — Pökelsalz/Nitrit-Marker (siehe auch E-Nummer-Sonderregel E249-252)
         // e407/carrageen bereits via safe_hints (S0-1) klassifiziert; e451 → dao_blocker (Triphosphat)
         // essigsäure/e260 (isolierter Zusatzstoff) → S0 lt. SIGHI 2024, siehe safe_hints
-        'weinessig','weißweinessig','rotweinessig','malzessig','reisessig',  // S2-3 — Essig als Lebensmittel (fermentiert)
         // apfelessig → liberator[] S1 (milder, oft toleriert), NICHT high!
         'destillierter essig',  // S2-3 Destillierter Weinessig
-        'fischsosse','fischsauce','fischextrakt',  // S3 — fermentierter Fisch (wie Anchovis)
     ],
 
     // ═══════════════════════════════════════════════════════
@@ -1314,7 +1307,6 @@ const DB = {
         'gouda',  // ⚠️ S2 H — gereifter Gouda (jung=S0 bleibt safe)
         'schweinefleisch','pork','schweinefilet',  // ⚠️ S1 — umstritten, sehr verderblich (SIGHI H!)
         'rohmilch','rohmilchkäse','raw milk',  // ⚠️ S1 H! — SIGHI: sehr verderblich, Histamin bildet sich rasch
-        'wildfleisch','wildbret','venison',  // ⚠️ S1 — Fleischreifung (SIGHI H)
         'crème fraîche','creme fraiche','schmand',       // S1 Liberator
         // ── Gewürze Liberatoren ──
         'sumach','sumak',                               // S1-2 Liberator — war fälschlich in safe_hints
@@ -3998,6 +3990,8 @@ function parseIngredients(inputText) {
         [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
         [/^%\s*/g, ''],
+        [/\bkatenspeck\b|\bkatenrauchspeck\b|\bkatenschinken\b/gi, 'speck'],
+        [/\bkörniger\s+frischkäse\b|\bhüttenkäse\b|\bcottage\s+cheese\b/gi, 'frischkäse'],  // VOR hüttenkäse-Regel!  // geräuchert+gepökelt → HIGH
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
@@ -4584,6 +4578,7 @@ function parseIngredients(inputText) {
         [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
         [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
         [/\bkaramellfarbstoff\b|\bkaramellsirup\b|e150\w?\b/gi, 'e150'],
+        [/\bkaramellzuckersirup\b|\bkaramellisierter\s+zucker\b/gi, 'e150'],  // → dao_blocker!
         // ── Waffelblätter / Süßwaren-Spezifika ──
         [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
         [/\bhaselnusscreme?\b|\bnougatcreme?\b|\bhaselnusspaste?\b/gi, 'schokolade'],
@@ -5701,7 +5696,7 @@ function parseIngredients(inputText) {
         [/\bshea(?:butter)?\b/gi, 'sheabutter'],                                 // standalone 'shea' → safe
         [/\bglycer(?:in|ol)\b|e422\b/gi, 'e422'],                               // Glycerin → safe Feuchthaltemittel
         [/\bchilies\b|\bcajun\b/gi, 'chili'],                                   // Plural chilies
-        [/\bhühnereieiwei[bß]?\b/gi, 'ei'],                                      // Tippfehler Ei-Eiweiß
+        [/\bhühnereieiwei[sß]+\b|\bhühnereieiweib\b/gi, 'ei'],                // Tippfehler Ei-Eiweiß
         [/\bmaltodextin\b/gi, 'maltodextrin'],                                   // Tippfehler maltodextrin
         [/\bsenfsaaten?\b/gi, 'senf'],                                           // Plural senfsaaten
         [/\bgetreide\b/gi, 'mehl'],                                              // generisches Getreide → safe
@@ -6210,7 +6205,8 @@ function parseIngredients(inputText) {
         [/\bhähnchenbrustinnenfilet\w*\b/gi, 'hähnchen'],
         // ── Fette / Schmalz ──
         [/\brinderfett\b|\brindertalg\b/gi, 'pflanzenöl'],         // neutral S0
-        [/\bschweineschmalz\b|\bschmalz\b(?!\s*suppe)/gi, 'schweinefett'],
+        [/\bschweineschmalz\b|\bgänseschmalz\b|\bentenschmalz\b/gi, 'schmalz'],  // S1 tierisch
+        [/\bschmalz\b(?!\s*suppe)/gi, 'schmalz'],
         [/\bschweinefett\b|\bhühnerfett\b|\bgänsefett\b/gi, 'pflanzenöl'],  // S0-1 tierisch
         // ── Zwiebel-Varianten ──
         [/\bröstzwiebeln?\b|\bfriedezwiebeln?\b/gi, 'zwiebel'],
@@ -7021,7 +7017,7 @@ function parseIngredients(inputText) {
     const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält\w*|gehackt\w*|gewürfelt\w*|gerieben\w*|geröstet\w*|getrocknet\w*|geschmolzen\w*|tiefgekühlt\w*|tiefgefroren\w*|geräuchert\w*|gepökelt\w*|gestreift\w*|pasteurisiert\w*|homogenisiert\w*|modifiziert\w*|gehärtet\w*|hydrolisiert\w*|hydrolysiert\w*|gekörnt\w*|gegart\w*|mariniert\w*|geraspelt\w*|gefüllt\w*|getrennt|gewaschen|aufgetaut|abgezogen|fettarm\w*|feinherb\w*|vollkorn-?|frische?[rns]?(?!\w)|reife[rs]?|überreife[rs]?|weich\w*|hart\w*|mittlere[rs]?|groß\w*|klein\w*|jung\w*|roh\w*|gekocht\w*|kalt\w*|lauwarm\w*|doppelt\b|konzentriert\w*|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf\w*|milden?|warm\w*|edelsüß\w*|trocken\w*|stückig\w*|zart\w*|pflanzliche[rs]?|natürliche[rs]?|fein|grob|dünn|dick|bio|tk|naturell|natur|pure[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut\w*|kräftig\w*|daumengroß\w*|eingeweicht\w*|alternative[rs]?|reif\w*|braun\w*|mager\w*|gemahlen\w*|halb\w*|voll\w*|hell\w*)\b/gi;
 
     // ── Füllzeilen komplett überspringen ────────────────────
-    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*)$/i;
+    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c)$/i;
 
     // ── PRE-STRIP: Allergen-Hinweise, (Enthält:), (Kann Spuren von) entfernen ──
     // HelloFresh und andere Meal-Kit-Anbieter listen diese nach jeder Zutat
@@ -7041,6 +7037,9 @@ function parseIngredients(inputText) {
         .replace(/[,.]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\wÄÖÜäöüß\s,]+(?:enthalten|beinhalten)\.?/g, '')
         // "Enthält eine Phenylalaninquelle."
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
+        // "Bei +2°C bis +7°C" / "Bei 2 °C bis 7 °C" → Lagerhinweis entfernen
+        .replace(/[,.]?\s*[Bb]ei\s+[+\-]?\s*\d+\s*°\s*[Cc][^.]*\.?/g, '')
+        .replace(/\s*[+\-]?\s*\d+\s*°\s*[Cc]\s*(?:bis|to|-)\s*[+\-]?\s*\d+\s*°\s*[Cc]/g, '')
         // ── Iterative innermost-paren removal (handles nested parens like Meerrettichzubereitung) ──
         // First: remove purely quantitative/detail parens: (8%), (3-4 Wochen), etc.
         .replace(/\(\d[^)]*\)/g, '')
