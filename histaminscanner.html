@@ -1373,7 +1373,7 @@ const DB = {
         // ── Neu aus Biogena / Histaminikus ──
         // gluten/weizengluten → safe_hints S0 (Klebereiweiß-Zusatz, normaler Mehlbestandteil)
         // kasein/casein → safe (Milchprotein, kein Histaminproblem per se)
-        'sonnenblumenkerne','sunflower seeds',
+        'sonnenblumen','sonnenblumenkerne','sunflower seeds',
         'lakritz','liquorice','süßholz','lakritze',
         // Crème fraîche & fermentierte Sahne → leicht S1, kein safe_hint
         'marzipan','persipan','marzipanrohmasse','marzipanmasse',  // ⚠️ S1 — Mandel-/Aprikosenkern-Basis, Liberator
@@ -3982,6 +3982,20 @@ function parseIngredients(inputText) {
     if (!inputText) return [];
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
+
+    // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
+    inputText = inputText
+        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
+        .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '');
+
+    // ── Klammern mit Zutatenlisten AUFLÖSEN (vor NORMALIZE!) ─────────────────
+    // "Proteine 23% (Erbsen, Sonnenblumen, Hafer)" → "Proteine 23%, Erbsen, Sonnenblumen, Hafer"
+    // Aber NICHT: "(enthält Senf)" → bleibt für MIT-Extraktor
+    inputText = inputText.replace(
+        /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß]*(?:\s*\d+[,.]?\d*\s*%)?)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]+,[^()]+)\)/gi,
+        '$1, $2'
+    );
+
     let text = inputText;
 
     // ── Normierung bekannter Verbundnamen ───────────────────
@@ -3993,7 +4007,8 @@ function parseIngredients(inputText) {
         [/\bkatenspeck\b|\bkatenrauchspeck\b|\bkatenschinken\b/gi, 'speck'],
         [/\bkörniger\s+frischkäse\b|\bhüttenkäse\b|\bcottage\s+cheese\b/gi, 'frischkäse'],
         [/\bpflanzliche[sr]?\s+protein(?:e|mix|blend|isolat|konzentrat|quelle)?(?:\s+\d+\s*%)?(?:\s*\([^)]*\))?/gi, 'pflanzenprotein'],  // → safe S0
-        [/\bpflanzen(?:basiert[es]*|basiertes?)\s+protein\b/gi, 'pflanzenprotein'],  // VOR hüttenkäse-Regel!  // geräuchert+gepökelt → HIGH
+        [/\bpflanzen(?:basiert[es]*|basiertes?)\s+protein\b/gi, 'pflanzenprotein'],
+        // sonnenblumen ohne Suffix bleibt 'sonnenblumen' → safe_hints[] S0
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
@@ -6175,7 +6190,7 @@ function parseIngredients(inputText) {
         [/\bkartoffelpüreepulver\b|\bkartoffelpüree\w*\b|\bdehydrierte?\s+kartoffeln?\b/gi, 'kartoffel'],
         [/\bkartoffelflocken\b|\bkartoffelpulver\b/gi, 'kartoffel'],
         // ── Öl-Listen ohne "Öle" Keyword ──
-        [/\bsonnenblumen\b(?!\s*öl|\s*kerne|\s*samen|\s*protein)/gi, 'sonnenblumenöl'],
+        // sonnenblumen ohne Suffix → safe_hints[] S0 (keine Öl-Annahme)
         // mais→maisöl rule removed (too aggressive),
         // ── Käse-/Milchpulver-Varianten ──
         [/\bfrischkäsepulver\b|\bkäsepulver\b/gi, 'milchpulver'],
@@ -7019,27 +7034,30 @@ function parseIngredients(inputText) {
     const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält\w*|gehackt\w*|gewürfelt\w*|gerieben\w*|geröstet\w*|getrocknet\w*|geschmolzen\w*|tiefgekühlt\w*|tiefgefroren\w*|geräuchert\w*|gepökelt\w*|gestreift\w*|pasteurisiert\w*|homogenisiert\w*|modifiziert\w*|gehärtet\w*|hydrolisiert\w*|hydrolysiert\w*|gekörnt\w*|gegart\w*|mariniert\w*|geraspelt\w*|gefüllt\w*|getrennt|gewaschen|aufgetaut|abgezogen|fettarm\w*|feinherb\w*|vollkorn-?|frische?[rns]?(?!\w)|reife[rs]?|überreife[rs]?|weich\w*|hart\w*|mittlere[rs]?|groß\w*|klein\w*|jung\w*|roh\w*|gekocht\w*|kalt\w*|lauwarm\w*|doppelt\b|konzentriert\w*|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf\w*|milden?|warm\w*|edelsüß\w*|trocken\w*|stückig\w*|zart\w*|pflanzliche[rs]?|natürliche[rs]?|fein|grob|dünn|dick|bio|tk|naturell|natur|pure[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut\w*|kräftig\w*|daumengroß\w*|eingeweicht\w*|alternative[rs]?|reif\w*|braun\w*|mager\w*|gemahlen\w*|halb\w*|voll\w*|hell\w*)\b/gi;
 
     // ── Füllzeilen komplett überspringen ────────────────────
-    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c)$/i;
+    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c|\.\s*kann\s+.+)$/i;
 
-    // ── PRE-STRIP: Allergen-Hinweise, (Enthält:), (Kann Spuren von) entfernen ──
-    // HelloFresh und andere Meal-Kit-Anbieter listen diese nach jeder Zutat
-    inputText = inputText
+    // ── PRE-STRIP: Allergen-Hinweise ALLERERST entfernen (vor allem anderen!) ──
+    // Punkt→Komma-Konversion würde "Vitamin B12. Kann Spuren..." zerreißen
+    // WICHTIG: auf 'text' anwenden (nicht inputText) — text ist die Arbeitsvariable!
+    text = text
+        // Alles ab "Kann Spuren" / "Kann ... enthalten" bis Satzende entfernen
+        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
+        // ". Kann ..." am Satzanfang (nach Punkt ohne vorherigem Komma)
+        .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '');
+    inputText = text;  // sync zurück für Signalwort-Check
+
+    // ── PRE-STRIP: weitere Bereinigungen ────────────────────────────────────
+    text = text
         // Unicode-Bindestrich-Normalisierung (OCR-Artefakte: En-Dash, Em-Dash, Minus, Weiches Trennzeichen)
         .replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-')
         // Fix für fehlende schließende Klammern nach Prozentangaben: "Kaffee (0,3%, X" → "Kaffee (0,3%), X"
-        .replace(/\((\d[\d,.]*)%,/g, '($1%), ')
+        .replace(/\((\d[\d,.]*) %,/g, '($1%), ')
         // Mehrzeilige Klammern entfernen: "(Brühwürfel für 2,5 ltr. ...\nauflösen)"
         // ── Kategorie (Einzelinhalt) → Inhalt extrahieren ──
         // "Verdickungsmittel (Xanthan)" → "Xanthan"
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s+\(([^,)]+)\)/gi, '$1')
         .replace(/\([^)]*\n[^)]*\)/g, '')
-        // ── ALLERGEN-DISCLAIMER ZUERST entfernen (vor Klammer-Stripping!) ──────
-        // "Kann EIER, GLUTENHALTIGES GETREIDE, MILCH, SENF und SOJA enthalten."
-        // "Kann Spuren von Nüssen enthalten."
-        .replace(/[,.]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\wÄÖÜäöüß\s,]+(?:enthalten|beinhalten)\.?/g, '')
-        // ". Kann Spuren..." mit führendem Punkt
-        .replace(/\.\s*[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '')
-        // "Enthält eine Phenylalaninquelle."
+        // ── ALLERGEN-DISCLAIMER (zweite Runde, nach ggf. Umwandlungen) ──────
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
         // "Bei +2°C bis +7°C" / "Bei 2 °C bis 7 °C" → Lagerhinweis entfernen
         .replace(/[,.]?\s*[Bb]ei\s+[+\-]?\s*\d+\s*°\s*[Cc][^.]*\.?/g, '')
@@ -7066,8 +7084,13 @@ function parseIngredients(inputText) {
         .replace(/\([^()]*\([^()]*\)[^()]*\)/g, m => m.replace(/\([^()]*\)/g, ''))
         // Composite ingredient names with parens: "Meerrettichzubereitung (sub-list)" → keep as identifier
         .replace(/^(\w{8,}zubereitung|\w{8,}extrakt|\w{8,}konzentrat)\s+\([^)]+\)/gim, '$1')
-        // ANY word followed by paren containing 2+ commas = sub-ingredient list → strip paren
-        .replace(/(\w+)\s+\(([^()]*,){2,}[^()]*\)/g, '$1')
+        // Klammern mit Aufzählungen AUFLÖSEN → Inhalt als eigene Zutaten befreien
+        // "Proteine 23% (Erbsen, Sonnenblumen, Hafer)" → "Proteine 23%, Erbsen, Sonnenblumen, Hafer"
+        .replace(/(\w+(?:[\s\w]*\d+[,.]?\d*\s*%)?)\s*\(([^()]*,[^()]*)\)/g, (m, pre, inner) => {
+            if (/enthält|contains|davon|darunter|inkl\.|including/i.test(inner)) return m;
+            if (/^\s*\d/.test(inner)) return pre ? pre : '';
+            return (pre ? pre.trim() + ', ' : '') + inner;
+        })
         // Remaining single-level parens with content after paren stripping → remove
         .replace(/\s*\([^()]+\)\s*/g, ' ')
         // "(Kann Spuren von Sesamsamen, ... enthalten.)" → ''
@@ -7101,6 +7124,10 @@ function parseIngredients(inputText) {
         .replace(/[\u00B9\u00B2\u00B3\u2070-\u2079*†‡§¶]+/g, '')
         // " / " als Synonym-Trenner: "Branntweinessig / Weingeistessig" → beide als Zutaten
         .replace(/\s+\/\s+/g, ', ');
+
+    // ── 2. Kann-Filter nochmals NACH Punkt→Komma-Konversion ──────────────────
+    // Falls Punkt→Komma-Konversion "Vitamin B12, Kann Spuren..." erzeugt hat
+    text = text.replace(/,\s*[Kk]ann\s+[^,]*/g, '');
 
 
     // Erkennt: "Zutaten: Pflanzenöl* 81%, EI 8%, Konservierungsstoff: Kaliumsorbat"
@@ -7566,7 +7593,7 @@ function parseIngredients(inputText) {
         /thunfisch/i, /makrele/i, /hering/i, /sardine/i,
         /spinat/i, /aubergine/i,
         /weinessig/i, /rotweinessig/i, /sherryessig/i,
-        /sekt/i, /champagner/i, /prosecco/i, /rotwein/i, /weißwein/i,
+        /sekt/i, /champagner/i, /prosecco/i, /rotwein/i, /\bweißwein\b/i,
         /sojasoße/i, /soy\s*sauce/i, /tamari/i,
         /\bgouda\b/i, /\bedamer\b/i, /emmentaler/i, /parmesan/i,
     ];
