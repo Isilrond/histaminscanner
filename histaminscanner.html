@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.16<br>
+                Histaminscanner v6.17<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3991,7 +3991,9 @@ function parseIngredients(inputText) {
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
         [/^%\s*/g, ''],
         [/\bkatenspeck\b|\bkatenrauchspeck\b|\bkatenschinken\b/gi, 'speck'],
-        [/\bkörniger\s+frischkäse\b|\bhüttenkäse\b|\bcottage\s+cheese\b/gi, 'frischkäse'],  // VOR hüttenkäse-Regel!  // geräuchert+gepökelt → HIGH
+        [/\bkörniger\s+frischkäse\b|\bhüttenkäse\b|\bcottage\s+cheese\b/gi, 'frischkäse'],
+        [/\bpflanzliche[sr]?\s+protein(?:e|mix|blend|isolat|konzentrat|quelle)?(?:\s+\d+\s*%)?(?:\s*\([^)]*\))?/gi, 'pflanzenprotein'],  // → safe S0
+        [/\bpflanzen(?:basiert[es]*|basiertes?)\s+protein\b/gi, 'pflanzenprotein'],  // VOR hüttenkäse-Regel!  // geräuchert+gepökelt → HIGH
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
@@ -7035,6 +7037,8 @@ function parseIngredients(inputText) {
         // "Kann EIER, GLUTENHALTIGES GETREIDE, MILCH, SENF und SOJA enthalten."
         // "Kann Spuren von Nüssen enthalten."
         .replace(/[,.]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\wÄÖÜäöüß\s,]+(?:enthalten|beinhalten)\.?/g, '')
+        // ". Kann Spuren..." mit führendem Punkt
+        .replace(/\.\s*[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '')
         // "Enthält eine Phenylalaninquelle."
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
         // "Bei +2°C bis +7°C" / "Bei 2 °C bis 7 °C" → Lagerhinweis entfernen
@@ -8333,6 +8337,7 @@ const SIGHI_DB = {
         'sucralose','e955',
         'acesulfam','e950','acesulfam k','acesulfam-kalium',  // ✅ S0
         'taurin','taurine',  // ✅ S0
+        'pflanzenprotein','pflanzliches protein','erbsenprotein','sonnenblumenprotein','reisprotein',  // ✅ S0
         'eisenlactat','eisensulfat','eisenfumarat',  // ✅ S0 — Eisenverbindungen als Nahrungsergänzung
         'alkoholfreier wein','alkoholfreier sekt','alkoholfrei',  // ✅ S0 — kein Alkohol, kein Histaminproblem
         'stevia','steviosid','e960',
