@@ -916,6 +916,7 @@
     <!-- SIGHI-Legende -->
     <div style="margin-top:0.75rem; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.03); border-radius:10px; border:1px solid rgba(255,255,255,0.07)">
         <div style="font-size:0.7rem; color:var(--muted); margin-bottom:0.4rem; font-weight:500; letter-spacing:0.04em">SIGHI-KLASSIFIKATION (Swiss Interest Group Histamine Intolerance)</div>
+        <div style="font-size:0.65rem; color:var(--muted); margin-bottom:0.5rem; line-height:1.4">Die Stufe S0–S3 gibt den <strong>Schweregrad</strong> an und gilt unabhängig von der Kategorie (z.&nbsp;B. kann auch ein DAO-Hemmer wie Alkohol Stufe S3 erreichen).</div>
         <div style="display:flex; gap:6px; flex-wrap:wrap">
             <span style="font-size:0.67rem; padding:2px 7px; border-radius:4px; background:#ff1a2e22; color:var(--red); border:1px solid #ff1a2e44">S3 Stopp</span>
             <span style="font-size:0.67rem; padding:2px 7px; border-radius:4px; background:#ff7a0022; color:#ff9500; border:1px solid #ff7a0044">S2 Warnung</span>
@@ -1006,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.29<br>
+                Histaminscanner v6.32<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1524,7 +1525,7 @@ const DB = {
         'e620','glutaminsäure','e622','monokaliumglutamat',
         'e623','calciumdiglutamat','e624','monoammoniumglutamat','e625','magnesiumdiglutamat',
         // ── Alkohol (stark DAO-hemmend) ──
-        'alkohol','alcohol','ethanol','methanol',
+        'alkohol','alcohol','ethanol','methanol','e1510','ethylalkohol',
         // ── Zuckerkulör E150 (DAO-Hemmer laut SIGHI B) ──
         'e150','e150a','e150b','e150c','e150d','zuckercouleur','karamell','karamellfarbe','karamellfarbstoff',
         // ── Sellerie (leichter DAO-Hemmer) ──
@@ -4009,7 +4010,14 @@ function parseIngredients(inputText) {
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]*)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]{3,},[^()]*)\)/gi,
         (m, pre, inner) => pre.trim() + ', ' + inner
     );
+    // Single-Ingredient-Klammern: "Fischzubereitung (Thunfisch)" → "Fischzubereitung, Thunfisch"
+    // (kein Komma im Inneren nötig — verhindert Datenverlust bei nachfolgendem Klammer-Strip)
+    const liberateSingleBrackets = (text) => text.replace(
+        /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]{3,})\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s]{2,30})\)/gi,
+        (m, pre, inner) => pre.trim() + ', ' + inner.trim()
+    );
     inputText = liberateBrackets(liberateBrackets(inputText));
+    inputText = liberateSingleBrackets(liberateSingleBrackets(inputText));
 
     let text = inputText;
 
@@ -4411,7 +4419,8 @@ function parseIngredients(inputText) {
         [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],  // VOR hühnerei-Regel!
         [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
         [/\belwei[sß]\b|\bel-?wei[sß]\b/gi, 'ei'],      // OCR-Fehler: Elweiß → ei (Liberator S1)
-        [/\bethylalkohol\b|\bethanol\b|\balkohol\s+\d/gi, 'alkohol'],  // Ethylalkohol/Ethanol → alkohol S3
+        [/\bethylalkohol\b|\bethanol\b|e1510\b/gi, 'e1510'],  // Ethylalkohol/Ethanol = E1510 (DAO-Hemmer S3)
+        [/\balkohol\s+\d/gi, 'alkohol'],
         [/\bdikaliumphosphat\b|\bdipotassiumphosphat\b|\bdipotassium\s*phosphat\b|e340ii\b/gi, 'e340'],
         [/\bguarkernmehl\b|\bguargummi\b|\bguar\b|e412\b/gi, 'e412'],
         [/\be491\b|\bsorbitanmonostearat\b/gi, 'e491'],
@@ -4569,7 +4578,7 @@ function parseIngredients(inputText) {
         [/\banchovis(?:paste|extrakt|filet|öl)?\b/gi, 'sardelle'],  // S3!
         [/\bpassionsfrucht(?:saft|mark|konzentrat|aroma)?\b/gi, 'maracuja'],
         [/\bananassaft(?:konzentrat)?\b|\bananas\s+(?:saft|konzentrat)\b/gi, 'ananas'],
-        [/\bkaffee(?:extrakt|konzentrat)?\b(?!\s*s)/gi, 'kaffee'],  // koffeinhaltiger Extrakt
+        [/\bkaffee(?:extrakt|konzentrat)?\b(?!\s*sahne)/gi, 'kaffee'],  // koffeinhaltiger Extrakt
         [/\bkohlensäure\b|\bco2\b/gi, 'e290'],               // Kohlensäure = CO2, S0 — eigenes Token statt irreführend 'salz'
         [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
         // ── Vitamine / Mineralstoffe (Anreicherung) ──
@@ -7081,11 +7090,11 @@ function parseIngredients(inputText) {
         .replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-')
         // Fix für fehlende schließende Klammern nach Prozentangaben: "Kaffee (0,3%, X" → "Kaffee (0,3%), X"
         .replace(/\((\d[\d,.]*) %,/g, '($1%), ')
-        // Mehrzeilige Klammern entfernen: "(Brühwürfel für 2,5 ltr. ...\nauflösen)"
+        // Mehrzeilige Klammern: Zeilenumbruch zu Leerzeichen normalisieren (Inhalt bleibt erhalten!)
         // ── Kategorie (Einzelinhalt) → Inhalt extrahieren ──
         // "Verdickungsmittel (Xanthan)" → "Xanthan"
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s+\(([^,)]+)\)/gi, '$1')
-        .replace(/\([^)]*\n[^)]*\)/g, '')
+        .replace(/\(([^)]*\n[^)]*)\)/g, (m, inner) => '(' + inner.replace(/\n/g, ' ') + ')')
         // ── ALLERGEN-DISCLAIMER (zweite Runde, nach ggf. Umwandlungen) ──────
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
         // "Bei +2°C bis +7°C" / "Bei 2 °C bis 7 °C" → Lagerhinweis entfernen
@@ -7929,7 +7938,7 @@ const SIGHI_DB = {
         'rollmops','räucherlachs','räucherfisch','fischkonserve',
         'sauerkraut','kimchi','miso','natto','tempeh','fermentiert',
         'rotwein','champagner','sekt','weißwein','bier','weizenbier',
-        'schnaps','likör','alkohol','spirituosen','rum','whisky','gin','wodka',
+        'schnaps','likör','alkohol','spirituosen','rum','whisky','gin','wodka','e1510','ethylalkohol','ethanol',
         'weinessig','rotweinessig','balsamico','aceto balsamico','tafelessig',
         'hefeextrakt','marmite','vegemite','hefeautolysat',
         'sojasauce','worcestersauce','fischsauce','oystersauce',
@@ -9031,7 +9040,7 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
     }
 
     if (cat === 'dao_blocker') {
-        if (n.match(/alkohol|alcohol|ethanol/))
+        if (n.match(/alkohol|alcohol|ethanol|e1510/))
             return 'Hemmt das DAO-Enzym direkt — blockiert den Histaminabbau vollständig';
         if (n.match(/schwarzer tee|black tea/))
             return 'Enthält Methylxanthine, die das DAO-Enzym hemmen';
@@ -9176,7 +9185,7 @@ const E_NAMES = {
     'e626':'Guanylsäure','e627':'Dinatriumguanylat','e628':'Dikaliumguanylat',
     'e629':'Calciumguanylat','e630':'Inosinsäure','e631':'Dinatriuminosinat',
     'e635':'Dinatriumribonukleotide','e650':'Zinkacetat',
-    'e901':'Bienenwachs','e903':'Carnaubawachs','e904':'Schellack','e262':'Natriumacetat','e263':'Calciumacetat',
+    'e901':'Bienenwachs','e903':'Carnaubawachs','e904':'Schellack','e262':'Natriumacetat','e263':'Calciumacetat','e1510':'Ethanol',
     'e341':'Calciumphosphate','e340':'Kaliumphosphate','e339':'Natriumphosphate',
     'e333':'Calciumcitrate','e332':'Kaliumcitrate','e331':'Natriumcitrate',
     'e363':'Bernsteinsäure','e364':'Natriumsuccinat',
