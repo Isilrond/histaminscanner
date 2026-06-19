@@ -1006,7 +1006,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.17<br>
+                Histaminscanner v6.29<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1115,6 +1115,7 @@ const DB = {
         'mettwurst','teewurst','cervelatwurst','fleischwurst','jagdwurst',
         'leberwurst','blutwurst','schwarzwurst','zungenwurst',
         'landjäger','biltong','beef jerky','jerky',
+        'rohschinken','salami','tiroler speck','schinken roh',
         'räucherschinken','parmaschinken','serranoschinken','ibérico',
         'schwarzwälder schinken','westfälischer schinken',
         'bresaola','coppa','mortadella','lardo','pancetta',
@@ -3784,7 +3785,9 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         childrenRaw.split(',').forEach(child => {
             const childClean = child.trim().toLowerCase()
                 .replace(/\s*\d+[,.]?\d*\s*%\s*/g, '').trim();
-            if (childClean.length > 1) {
+            // Generische Zutaten nicht mit Parent verknüpfen (würde "Wasser aus Senf" erzeugen)
+            const GENERIC = /^(wasser|salz|speisesalz|zucker|öl|rapsöl|pflanzenöl|gewürze?|aroma|stärke|wein|essig|branntweinessig|weizenmehl|mehl|essigsäure|e260|senfsaat|senf|eier?|ei\b)$/i;
+            if (childClean.length > 1 && !GENERIC.test(childClean)) {
                 parentMap[childClean] = parentRaw;
             }
         });
@@ -3800,6 +3803,9 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
 
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
+        // Triviale Zutaten brauchen keinen Original-Label
+        const TRIVIAL = /^(wasser|salz|zucker|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm)$/i;
+        if (TRIVIAL.test(normToken)) continue;
         let bestOriginal = null;
         let bestScore = 0;
 
@@ -3810,7 +3816,9 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
             if (!rawLower || rawLower.length < 2) continue;
 
             if (rawLower === normToken) { bestOriginal = raw; bestScore = 100; break; }
-            if (rawLower.includes(normToken) && normToken.length > 3) {
+            // Nur matchen wenn normToken als ganzes Wort im raw vorkommt (nicht als Teilstring)
+            const wordRe = new RegExp(`\\b${normToken.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`);
+            if (wordRe.test(rawLower) && normToken.length > 3) {
                 const score = normToken.length / rawLower.length * 80;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
@@ -3985,16 +3993,23 @@ function parseIngredients(inputText) {
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
-        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
-        .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '');
+        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, ', ')
+        .replace(/\.\s*[Kk]ann\s+[^.]*\./g, '.');
+
+    // ── Stereochemie-Marker entfernen (vor Klammer-Auflösung!) ───────────────
+    inputText = inputText.replace(/\s*\(\s*[LDld][+\-]?\s*\)/g, '');
+
+    // ── Prozent-Klammern entfernen "(47%)" vor Auflösung, damit "(47%) (Spinat...)" korrekt geht ──
+    inputText = inputText.replace(/\s*\(\s*\d+[,.]?\d*\s*%\s*\)/g, '');
 
     // ── Klammern mit Zutatenlisten AUFLÖSEN (vor NORMALIZE!) ─────────────────
-    // "Proteine 23% (Erbsen, Sonnenblumen, Hafer)" → "Proteine 23%, Erbsen, Sonnenblumen, Hafer"
-    // Aber NICHT: "(enthält Senf)" → bleibt für MIT-Extraktor
-    inputText = inputText.replace(
-        /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß]*(?:\s*\d+[,.]?\d*\s*%)?)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]+,[^()]+)\)/gi,
-        '$1, $2'
+    // Zwei Pässe: erst innerste Klammern, dann äußere (löst verschachtelte Strukturen auf)
+    // NICHT: enthält/kann → MIT-Extraktor
+    const liberateBrackets = (text) => text.replace(
+        /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]*)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]{3,},[^()]*)\)/gi,
+        (m, pre, inner) => pre.trim() + ', ' + inner
     );
+    inputText = liberateBrackets(liberateBrackets(inputText));
 
     let text = inputText;
 
@@ -4004,8 +4019,18 @@ function parseIngredients(inputText) {
         [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
         [/^%\s*/g, ''],
-        [/\bkatenspeck\b|\bkatenrauchspeck\b|\bkatenschinken\b/gi, 'speck'],
+        [/[()[\]]/g, ''],  // verwaiste Klammern entfernen
+        [/\bjoghurt\s+(?:mild|natur|griechisch|cremig|fettarm|mager|vollfett)?(?:\s+(?:aus\s+)?(?:entrahmter?|fettarmer?|ganzer?)?\s*milch)?\b/gi, 'joghurt'],  // alle Joghurt-Varianten → joghurt
+        [/\bjoghurt\s+mild\s+entrahmter?\b/gi, 'joghurt'],  // explizit für diesen Fall
+        [/\bkatenspeck\b|\bkatenrauchspeck\b/gi, 'speck'],  // reiner Speck, NICHT katenschinken
         [/\bkörniger\s+frischkäse\b|\bhüttenkäse\b|\bcottage\s+cheese\b/gi, 'frischkäse'],
+        [/\bsalatmayonnaise\b|\bsalatcreme\b|\bsalat-mayonnaise\b/gi, 'mayonnaise'],
+        [/\bglukosesirup\b|\bglukosirup\b|\bglucosesirup\b|\bglucose\s+syrup\b/gi, 'zucker'],
+        [/\beingelegte?\s+(?:gekochte?\s+)?eier?\b|\beingelegte?\s+ei\b/gi, 'ei'],
+        [/\beier\b/gi, 'ei'],  // Plural → Singular für Dedup
+        [/\beingelegte?\s+gurken?\b/gi, 'gurke'],
+        [/\beingelegte?\s+zwiebeln?\b/gi, 'zwiebel'],
+        [/\bl[+-]?\s*weinsäure\b|\bweinsäure\s*\([^)]*\)/gi, 'e334'],  // "Weinsäure (L+)" → e334 vor Klammer-Split
         [/\bpflanzliche[sr]?\s+protein(?:e|mix|blend|isolat|konzentrat|quelle)?(?:\s+\d+\s*%)?(?:\s*\([^)]*\))?/gi, 'pflanzenprotein'],  // → safe S0
         [/\bpflanzen(?:basiert[es]*|basiertes?)\s+protein\b/gi, 'pflanzenprotein'],
         // sonnenblumen ohne Suffix bleibt 'sonnenblumen' → safe_hints[] S0
@@ -4435,10 +4460,10 @@ function parseIngredients(inputText) {
         // ── Funktionelle Zutaten Energy Drinks ──
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
         [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
-        [/\bammonsulfit[-\s]?zuckerkulör\b|\bzuckerkulör\b|\bsulfit[-\s]?ammoniakzuckerkulör\b/gi, 'e150'],  // E150c/d Varianten
+        // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
         [/\be101\b|\briboflavin\b/gi, 'vitamine'],
         [/\bvitamin\s*e\b|\balpha-tocopherol\b/gi, 'vitamine'],
-        [/\bgelierzucker\b|\bpektin\b|e440\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
+        [/\bgelierzucker\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
         [/\bpektin\b|e440\b/gi, 'e440'],                       // Pektin allein = E440 S0
         [/\bbienenhonig\b|\bwildhonig\b|\bblutenhoig\b|\bakazienhonig\b/gi, 'honig'],
         [/\baprikosen?\b(?!\s*(?:saft|geschmack|öl))/gi, 'aprikose'],  // Aprikose als Frucht
@@ -4462,7 +4487,7 @@ function parseIngredients(inputText) {
         [/\bbbq-?würzung\b|\bbbq-?gewürz\b/gi, 'gewürze'],
         [/\bsauerrahmwürzung\b|\bsauerrahm-?gewürz\b/gi, 'gewürze'],
         [/\bpaprikawürzung\b|\bpaprika-?gewürz\b/gi, 'gewürze'],
-        [/\bbuttermilchpulver\b/gi, 'molke'],
+        // buttermilchpulver → milchpulver (siehe unten, konsolidiert)
         [/\bmalzextrakt\b(?!\s*(?:gerste|weizen))/gi, 'gerstenmalz'],
         [/\bgelbflossenthunfisch\b|\bweißer\s+thunfisch\b|\blistao\b|\bskipjack\b/gi, 'thunfisch'],
         [/\bthun(?:fisch)?\b/gi, 'thunfisch'],
@@ -4989,7 +5014,7 @@ function parseIngredients(inputText) {
         [/\bhaferfleks?\b|\bvollkorn-?haferfleks?\b|\bhafer-?fleks?\b/gi, 'hafer'],
         [/\bhaselnuss(?:krokant|konfekt)?\b|\bhafernuss(?:krokant)?\b/gi, 'haselnuss'],
         [/\bkrokant\b|\bnusskrokant\b/gi, 'haselnuss'],  // Krokant = karamellisierte Nüsse
-        [/\bpalm(?:öl|fett|kernfett|kernöl)\b/gi, 'palmöl'],
+        // palmöl-Varianten bereits oben konsolidiert (Zeile ~5010)
         [/\bbananen?flocken?\b|\bbananen?stücke?\b/gi, 'banane'],
         [/\bbananen?chips?\b/gi, 'banane'],
         [/\bzitronensaft(?:pulver|konzentrat|extrakt)?\b/gi, 'zitrone'],
@@ -5234,7 +5259,7 @@ function parseIngredients(inputText) {
         [/\w*milch\w*joghurt\w*/gi,        'joghurt'],
         [/joghurt-erdbeer\w*/gi,              'erdbeere'],
         // Milch/Molke-Pulver-Compounds
-        [/buttermilchpulver\b/gi,              'buttermilch'],
+        // buttermilchpulver → milchpulver (siehe unten, konsolidiert)
         [/kokosmilchpulver\b/gi,               'kokosmilch'],
         [/sahnepulver\b/gi,                    'sahne'],
         [/buttermilch\b/gi,                    'buttermilch'],
@@ -5293,14 +5318,12 @@ function parseIngredients(inputText) {
         [/diacetyl\w*tartrat\w*/gi, 'e472e'],
         [/calciumstearoyl.{0,5}lactylat\b/gi, 'e482'],
         [/calciumpropionat\b/gi, 'e282'],
-        [/natriumpropionat\b/gi, 'e281'],
+        // natriumpropionat → e281 (siehe Zeile weiter oben)
         [/dinatrium\w*phosphat\b/gi, 'e450'],
         [/dinatriumdiphosphat\b/gi, 'e450'],
         [/natriumacetat[e]?\b/gi, 'e262'],
         [/calciumacetat\b/gi, 'e263'],
         [/apfelsinenaroma\b/gi, 'orangenaroma'],
-        [/orangenaroma\b/gi, 'orangenaroma'],
-        [/natürliches apfelsinenaroma\b/gi, 'orangenaroma'],
         [/natürliches butteraroma\b/gi, 'butteraroma'],
         [/butter.{0,3}aroma\b/gi, 'butteraroma'],
         // sojalecithin/lecithin → consolidated to e322 above
@@ -5582,7 +5605,7 @@ function parseIngredients(inputText) {
         // ── Produkt-Normalierungen (Verpackungszutatenlisten) ──
         [/^fett$/gi,                      'pflanzenöl'],  // generisches Fett → Pflanzenöl
         [/^öl$/gi,                        'pflanzenöl'],  // generisches Öl
-        [/rapsfett|palmfett/gi,          'pflanzenöl'],
+        [/rapsfett/gi,          'pflanzenöl'],  // palmfett bereits oben zu palmöl normiert
         [/hefeautolysat|hefepulver/gi,   'hefeextrakt'],
         [/käsepulver|käsezubereitung/gi, 'käse'],
         [/glukosesirup|glucosesirup|dextrose/gi, 'zucker'],
@@ -6509,7 +6532,7 @@ function parseIngredients(inputText) {
         [/\bbonito(?:flocken)?\b|\bkatsuobushi\b/gi, 'thunfisch'], // geräuchert+fermentiert S3
         [/\bdashi\b/gi, 'brühe'],                        // Fischbrühe S2-3
         // ── Essig-Varianten ──
-        [/\bsherryessig\b|\bchampagner?essig\b/gi, 'essig'],
+        [/\bsherryessig\b|\bchampagner[-\s]?essig\b|\bchampagnessig\b/gi, 'essig'],
         [/\bchinkiang\s+essig\b|\bschwarzer\s+reisessig\b/gi, 'essig'],  // S3
         [/\breisessig\s+(?:weiß|schwarz|hell|dunkel)?\b/gi, 'essig'],
         // ── Europäische Kräutermischungen → alle zu 'kräuter' ──
@@ -6703,12 +6726,12 @@ function parseIngredients(inputText) {
         [/\bfuet\b|\bchorizo\b(?!\s*mild)/gi, 'salami'],
         [/\bprosciutto\b|\bserrano\b|\biberico\b/gi, 'schinken'],  // Rohschinken S3
         // guanciale/lardo/pancetta → rohschinken (consolidated below)
-        [/\blandrauchschinken\b|\bkatenschinken\b|\bschwarzwälder\b/gi, 'schinken'],  // geräuchert S3
+        // landrauchschinken/katenschinken/schwarzwälder → rohschinken (siehe Zeile weiter unten)
         [/\bgeflügelwurst\b|\bhähnchenwurst\b|\bputen(?:wurst|aufschnitt|schinken)?\b/gi, 'wurst'],
         [/\broastbeef\s*(?:aufgeschnitten|gebraten|kalt)?\b/gi, 'rindfleisch'],
         [/\bcorned\s+beef\b|\brindfleisch\s+gepökelt\b/gi, 'wurst'],    // gepökelt S3
         [/\bpastrami\b/gi, 'wurst'],           // gepökelt+geräuchert S3
-        [/\bdöner\s*(?:fleisch|kebab)?\b|\bgyros\s*(?:fertig|fleisch)?\b/gi, 'wurst'],
+        // döner/gyros → 'döner' direkt (siehe Zeile weiter unten, spezifischere Regel)
         [/\bfrikandel\b|\bfrikadelle\b/gi, 'hackfleisch'],
         // ── Fischprodukte ──
         [/\bfischstäbchen\b|\bfischburger\b|\bfischbällchen\b/gi, 'fischfilet'],
@@ -7031,7 +7054,7 @@ function parseIngredients(inputText) {
     const SECTION_RE = /^(für\s+die|für\s+den|für\s+das|außerdem|zubehör|dazu|beilage|füllung|marinade|dressing|topping|garnitur|teig|glasur|dekoration|zum\s+servieren|zum\s+garnieren|zum\s+bestreuen|zum\s+bestreichen|außen|innen|basis|zutaten\s+für|frucht-?\s*und\s+pflanz\w+|frucht\s*-\s*und\s+pflanz)/i;
 
     // ── Descriptor-Adjektive entfernen ──────────────────────
-    const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält\w*|gehackt\w*|gewürfelt\w*|gerieben\w*|geröstet\w*|getrocknet\w*|geschmolzen\w*|tiefgekühlt\w*|tiefgefroren\w*|geräuchert\w*|gepökelt\w*|gestreift\w*|pasteurisiert\w*|homogenisiert\w*|modifiziert\w*|gehärtet\w*|hydrolisiert\w*|hydrolysiert\w*|gekörnt\w*|gegart\w*|mariniert\w*|geraspelt\w*|gefüllt\w*|getrennt|gewaschen|aufgetaut|abgezogen|fettarm\w*|feinherb\w*|vollkorn-?|frische?[rns]?(?!\w)|reife[rs]?|überreife[rs]?|weich\w*|hart\w*|mittlere[rs]?|groß\w*|klein\w*|jung\w*|roh\w*|gekocht\w*|kalt\w*|lauwarm\w*|doppelt\b|konzentriert\w*|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf\w*|milden?|warm\w*|edelsüß\w*|trocken\w*|stückig\w*|zart\w*|pflanzliche[rs]?|natürliche[rs]?|fein|grob|dünn|dick|bio|tk|naturell|natur|pure[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut\w*|kräftig\w*|daumengroß\w*|eingeweicht\w*|alternative[rs]?|reif\w*|braun\w*|mager\w*|gemahlen\w*|halb\w*|voll\w*|hell\w*)\b/gi;
+    const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält\w*|gehackt\w*|gewürfelt\w*|gerieben\w*|geröstet\w*|getrocknet\w*|geschmolzen\w*|tiefgekühlt\w*|tiefgefroren\w*|geräuchert\w*|gepökelt\w*|gestreift\w*|pasteurisiert\w*|homogenisiert\w*|modifiziert\w*|gehärtet\w*|hydrolisiert\w*|hydrolysiert\w*|gekörnt\w*|gegart\w*|mariniert\w*|geraspelt\w*|gefüllt\w*|getrennt|gewaschen|aufgetaut|abgezogen|fettarm\w*|feinherb\w*|vollkorn-?|frische?[rns]?(?!\w)|reife[rs]?|überreife[rs]?|weich\w*|hart\w*|mittlere[rs]?|groß\w*|klein\w*|jung\w*|roh(?!schinken)\w*|gekocht\w*|kalt\w*|lauwarm\w*|doppelt\b|konzentriert\w*|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf\w*|milden?|warm\w*|edelsüß\w*|trocken\w*|stückig\w*|zart\w*|pflanzliche[rs]?|natürliche[rs]?|fein|grob|dünn|dick|bio|tk|naturell|natur|pure[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut\w*|kräftig\w*|daumengroß\w*|eingeweicht\w*|alternative[rs]?|reif\w*|braun\w*|mager\w*|gemahlen\w*|halb\w*|voll\w*|hell\w*)\b/gi;
 
     // ── Füllzeilen komplett überspringen ────────────────────
     const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c|\.\s*kann\s+.+)$/i;
@@ -7043,7 +7066,13 @@ function parseIngredients(inputText) {
         // Alles ab "Kann Spuren" / "Kann ... enthalten" bis Satzende entfernen
         .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
         // ". Kann ..." am Satzanfang (nach Punkt ohne vorherigem Komma)
-        .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '');
+        .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '')
+        // Verwaiste leere Klammern nach Disclaimer-Entfernung: "Salz ()" → "Salz"
+        .replace(/\s*\(\s*\)/g, '')
+        // Mehrsprachige Spuren-Hinweise (EN/FR/NL) — analog zum deutschen Filter
+        .replace(/\.?\s*may\s+contain\s+[\s\S]*?traces?\s+of[\s\S]*?(?=[.,;]|$)\.?/gi, '')
+        .replace(/\.?\s*peut\s+contenir\s+[\s\S]*?(?=[.,;]|$)\.?/gi, '')
+        .replace(/\.?\s*kan\s+sporen\s+(?:van\s+)?[\s\S]*?bevatten\.?/gi, '');
     inputText = text;  // sync zurück für Signalwort-Check
 
     // ── PRE-STRIP: weitere Bereinigungen ────────────────────────────────────
@@ -7065,8 +7094,8 @@ function parseIngredients(inputText) {
         // ── Iterative innermost-paren removal (handles nested parens like Meerrettichzubereitung) ──
         // First: remove purely quantitative/detail parens: (8%), (3-4 Wochen), etc.
         .replace(/\(\d[^)]*\)/g, '')
-        // Remove "und/ oder X" and "und/oder X" alternative notation
-        .replace(/\s+und\s*\/\s*oder\s+[\wäöüÄÖÜß]+/gi, '')
+        // "und/oder X" → ", X" — beide Alternativen als eigene Zutaten behalten (Worst-Case-Prinzip)
+        .replace(/\s+und\s*\/\s*oder\s+/gi, ', ')
         // Remove "enthält X" parens
         .replace(/\([^)]*\)/g, '').replace(/\([^()]*\)/g, '')
         .replace(/\([^()]*\)/g, '').replace(/\([^()]*\)/g, '')
@@ -7163,8 +7192,8 @@ function parseIngredients(inputText) {
         out = out.replace(/\[[^\]]*\]/g, '');
         // Iterative innermost paren removal for deeply nested structures
         // e.g. "(frischer Meerrettich (8%...), pflanzliche Öle (enthält...))"
-        // Remove "und/oder X" alternative notation first
-        out = out.replace(/\s+und\s*\/\s*oder\s+[\wäöüÄÖÜß]+/gi, '');
+        // "und/oder X" → ", X" — beide Alternativen als eigene Zutaten behalten (Worst-Case-Prinzip)
+        out = out.replace(/\s+und\s*\/\s*oder\s+/gi, ', ');
         // Iteratively strip innermost parens (no nested parens inside)
         for (let _i = 0; _i < 6; _i++) out = out.replace(/\([^()]*\)/g, '§');
         out = out.replace(/§/g, '');   // clean up placeholders
@@ -7595,7 +7624,7 @@ function parseIngredients(inputText) {
         /weinessig/i, /rotweinessig/i, /sherryessig/i,
         /sekt/i, /champagner/i, /prosecco/i, /rotwein/i, /\bweißwein\b/i,
         /sojasoße/i, /soy\s*sauce/i, /tamari/i,
-        /\bgouda\b/i, /\bedamer\b/i, /emmentaler/i, /parmesan/i,
+        /\bgouda\b/i, /emmentaler/i, /parmesan/i,
     ];
     const origLower = inputText.toLowerCase();
     const resultJoined = result.join(' | ');
@@ -7666,7 +7695,11 @@ function classifyIngredient(name) {
         if (idx < 0) return false;
         const before = idx === 0 || /[\s,;(\-]/.test(n[idx - 1]);
         const after  = idx + kw.length >= n.length || /[\s,;)\-]/.test(n[idx + kw.length]);
-        return before && after;
+        if (!before || !after) return false;
+        // "Hefe-frei" / "Hefe frei" / "hefefrei" → safe, nicht hefe-Trigger!
+        const afterText = n.slice(idx + kw.length);
+        if (/^[\s\-]*frei\b/.test(afterText)) return false;
+        return true;
     };
 
     // Längster Match gewinnt: wenn ein high/liberator/dao_blocker-Keyword LÄNGER
@@ -7890,8 +7923,7 @@ const SIGHI_DB = {
         'parmesan','gran padano','grana padano','pecorino sardo','emmentaler','bergkäse','roquefort','camembert','brie','tilsiter',
         'cheddar','edamer','gouda gereift','stilton','gruyère','harzer','schimmelkäse',
         'schmelzkäse','käse gereift',
-        'salami','chorizo','rohschinken','westfälischer schinken','landjäger',
-        'mettwurst','cervelatwurst','räucherwurst','geräucherte wurst','leberwurst',
+        // salami/chorizo/rohschinken/landjäger/mettwurst/etc. → high[] S3! (waren fälschlich hier)
         'bresaola','schinken roh','tiroler speck','osso collo',
         'thunfisch','makrele','sardelle','hering','sardine','anchovis','matjes',
         'rollmops','räucherlachs','räucherfisch','fischkonserve',
