@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.32<br>
+                Histaminscanner v6.35<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1411,7 +1411,7 @@ const DB = {
         'propylgallat','octylgallat','dodecylgallat','gallat','tbhq',
         'ethylparaben','methylparaben','orthophenylphenol',
         'e127','e128','e154','e155','e180',
-        'e214','e215','e218','e219','e231','e232',
+        'e214','e215','e218','e219','e230','e231','e232',
         'e319',
         'traganth','carubin','gellan',
         'rosinen','sultaninen','korinthen','raisins',
@@ -1992,6 +1992,9 @@ const DB = {
         'saccharin','natriumsaccharin','e954',
 
         'polydextrose','e1200',
+        'carbamid','harnstoff','e927b',  // S0 — Kaugummi-Stabilisator, keine HIT-Relevanz
+        'polyvinylpyrrolidon','polyvidon','e1201','polyvinylpolypyrrolidon','e1202',  // S0 — Klärungs-/Bindemittel
+        'polyethylenglycol','peg','e1521',  // S0 — Filmbildner
         // hibiskustee/hibiskus → liberator[] S1-2 (hoher Säuregehalt)
         'kandiszucker','kandiszuckersirup',
         'weizenstärke','weizenvollkornmehl','vollkornweizenmehl',
@@ -3827,6 +3830,14 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
                 const score = 50;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
+            // Suffix-Match: "fischfilet" vs. "Alaska Seelachs-Filet" (gemeinsames Suffix "filet")
+            if (normToken.length > 5) {
+                const suffix = normToken.slice(-Math.max(4, Math.floor(normToken.length * 0.5)));
+                if (rawLower.endsWith(suffix) || rawLower.includes(suffix + ' ') || new RegExp(`\\b${suffix}\\b`).test(rawLower)) {
+                    const score = 40;
+                    if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+                }
+            }
         }
 
         // Original-Name nur speichern wenn wirklich anders als normierter Name
@@ -4027,6 +4038,8 @@ function parseIngredients(inputText) {
         [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
         [/^%\s*/g, ''],
+        [/\s+\d+[,.]?\d*\s*(?:g|kg|mg|ml|l)\b\s*$/gi, ''],
+        [/\berdnüsse\b/gi, 'erdnuss'],  // Plural → Singular für konsistentes Matching  // "Thunfisch 150g" → "Thunfisch" (nackte Gewichtsangabe ohne Klammer)
         [/[()[\]]/g, ''],  // verwaiste Klammern entfernen
         [/\bjoghurt\s+(?:mild|natur|griechisch|cremig|fettarm|mager|vollfett)?(?:\s+(?:aus\s+)?(?:entrahmter?|fettarmer?|ganzer?)?\s*milch)?\b/gi, 'joghurt'],  // alle Joghurt-Varianten → joghurt
         [/\bjoghurt\s+mild\s+entrahmter?\b/gi, 'joghurt'],  // explizit für diesen Fall
@@ -4334,6 +4347,9 @@ function parseIngredients(inputText) {
         [/\bcalciumsulfit\b|e226\b/gi, 'e226'],                            // E226 = Calciumsulfit
         [/\bcalciumhydrogensulfit\b|e227\b/gi, 'e227'],                    // E227 = Calciumhydrogensulfit
         [/\bkaliumhydrogensulfit\b|e228\b/gi, 'e228'],                     // E228 = Kaliumhydrogensulfit
+        [/\bbiphenyl\b|\bdiphenyl\b|e230\b/gi, 'e231'],                     // E230 → SIGHI-mäßig wie E231/232 behandelt
+        [/\borthophenylphenol\b|e231\b/gi, 'e231'],
+        [/\bnatriumorthophenylphenol\b|\bsopp\b|e232\b/gi, 'e232'],
         [/\bsorbitsirup\b/gi, 'süßungsmittel'],
         [/\binulin\b|\bchicorée-?inulin\b|\bfrukto-?inulin\b/gi, 'inulin'],   // Explizit S0
         [/\bkaffee?extrakt\b|\bkaffee?konzentrat\b|\bcoffein\b|\bkaffeeextrakt\b|\bkaffee-extrakt\b/gi, 'kaffee'],
@@ -6246,7 +6262,11 @@ function parseIngredients(inputText) {
         [/^säureregulator[en]?\s*$/gi, ''],  // isoliertes Kategorienwort
         // ── Ei-Varianten ──
         [/\bhühnereipulver\b|\bhühnerei-eiweiß\b|\bhühnerei\b/gi, 'ei'],
-        [/\blysozym\b|\blysozyme\b/gi, 'ei'],                              // Konservierungsmittel aus Hühnereiprotein
+        [/\blysozym\b|\blysozyme\b|\be1105\b/gi, 'ei'],                              // Konservierungsmittel aus Hühnereiprotein
+        [/\bcarbamid\b|\bharnstoff\b|e927b\b/gi, 'e927b'],
+        [/\bpolyvinylpyrrolidon\b|\bpolyvidon\b|\bpvp\b|e1201\b/gi, 'e1201'],
+        [/\bpolyvinylpolypyrrolidon\b|\bpvpp\b|e1202\b/gi, 'e1202'],
+        [/\bpolyethylenglycol\b|\bpolyethylenglykol\b|\bpeg\b|e1521\b/gi, 'e1521'],
         // balsamico-essig variants → consolidated above
         [/\beiweiß(?:pulver)?\b(?!.*\w)/gi, 'ei'],
         // ── Hähnchen mit Adjektiv-Prefix-Rest ──
@@ -7277,6 +7297,10 @@ function parseIngredients(inputText) {
 
             // Strip "Zutaten:" Prefix
             let clean = line.replace(/^(?:zutaten|inhaltsstoffe)\s*:\s*/i, '');
+
+            // Strip Komponenten-Präfixe nach Semikolon: "Teig: Mehl; Belag: Tomate" → "Mehl; Tomate"
+            // (kurzes Wort + Doppelpunkt direkt nach Semikolon oder am Anfang = Kategoriename, keine Zutat)
+            clean = clean.replace(/(^|;\s*)[A-ZÄÖÜ][a-zäöüß]{2,20}\s*:\s*/g, '$1');
 
             // Asterisk vor Großbuchstaben als Trenner aufmachen
             clean = clean.replace(/\*(?=[A-ZÄÖÜ])/g, ', ');
@@ -9123,6 +9147,7 @@ const E_NAMES = {
     'e219':'Natrium-Methyl-PHB','e220':'Schwefeldioxid','e221':'Natriumsulfit',
     'e222':'Natriumhydrogensulfit','e223':'Natriumdisulfit','e224':'Kaliumdisulfit',
     'e225':'Kaliumsulfit','e226':'Calciumsulfit','e227':'Calciumhydrogensulfit','e228':'Kaliumhydrogensulfit',
+    'e230':'Biphenyl','e231':'Orthophenylphenol','e232':'Natriumorthophenylphenol',
     'e234':'Nisin','e235':'Natamycin','e239':'Hexamethylentetramin',
     'e249':'Kaliumnitrit','e250':'Natriumnitrit','e251':'Natriumnitrat',
     'e252':'Kaliumnitrat','e280':'Propionsäure','e281':'Natriumpropionat',
@@ -9186,6 +9211,7 @@ const E_NAMES = {
     'e629':'Calciumguanylat','e630':'Inosinsäure','e631':'Dinatriuminosinat',
     'e635':'Dinatriumribonukleotide','e650':'Zinkacetat',
     'e901':'Bienenwachs','e903':'Carnaubawachs','e904':'Schellack','e262':'Natriumacetat','e263':'Calciumacetat','e1510':'Ethanol',
+    'e927b':'Carbamid','e1105':'Lysozym','e1521':'Polyethylenglycol',
     'e341':'Calciumphosphate','e340':'Kaliumphosphate','e339':'Natriumphosphate',
     'e333':'Calciumcitrate','e332':'Kaliumcitrate','e331':'Natriumcitrate',
     'e363':'Bernsteinsäure','e364':'Natriumsuccinat',
