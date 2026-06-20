@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.35<br>
+                Histaminscanner v6.36<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -7680,6 +7680,8 @@ function parseIngredients(inputText) {
 // ═══════════════════════════════════════════════════════════
 function classifyIngredient(name) {
     let n = name.toLowerCase().trim();
+    // Defensive Randzeichen-Bereinigung: verwaiste Punkte/Klammern/Satzzeichen an den Token-Grenzen
+    n = n.replace(/^[.)\]\s,;-]+|[.)\]\s,;-]+$/g, '').trim();
 
     // ── Eigene Ausschlussstoffe (höchste Priorität) ──────────────────────────
     if (customExclusions.length > 0) {
