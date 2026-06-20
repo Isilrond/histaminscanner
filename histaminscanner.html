@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.41<br>
+                Histaminscanner v6.47<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3745,8 +3745,15 @@ async function processBarcode(barcode) {
             `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
         ];
         for (const url of urls) {
-            const r = await fetch(url);
-            const d = await r.json();
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            let r, d;
+            try {
+                r = await fetch(url, { signal: controller.signal });
+                d = await r.json();
+            } finally {
+                clearTimeout(timeoutId);
+            }
             if (d.status === 1 && d.product) {
                 product = d.product;
                 const de = product.ingredients_text_de || '';
@@ -3762,6 +3769,9 @@ async function processBarcode(barcode) {
         }
     } catch (e) {
         console.warn('Open Food Facts:', e);
+        if (e.name === 'AbortError') {
+            toast('⚠️ Zeitüberschreitung — schwache Verbindung? Bitte manuell eingeben');
+        }
     }
 
     if (!product && !ingredientsText) {
@@ -3909,7 +3919,11 @@ async function runAnalysis(product, ingredientsText) {
         try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch { return {}; }
     }
     function saveLearnedCache(cache) {
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+        try {
+            // Frischen Stand erneut lesen und mergen, um Verluste bei parallelen Scans zu minimieren
+            const fresh = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ ...fresh, ...cache }));
+        } catch {}
     }
 
     const learnedCache = loadLearnedCache();
@@ -4013,6 +4027,9 @@ function parseIngredients(inputText) {
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
+    // OCR-Verschmelzung Buchstabe+Zahl trennen: "Tomatenpulver05" → "Tomatenpulver 05"
+    // (verhindert dass z.B. eine verschmolzene Prozentangabe das Wort für den DB-Abgleich unkenntlich macht)
+    inputText = inputText.replace(/([a-zäöüßA-ZÄÖÜ]{4,})(\d{1,3})\b/g, '$1 $2');
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
@@ -4026,7 +4043,8 @@ function parseIngredients(inputText) {
     inputText = inputText.replace(/\s*\(\s*\d+[,.]?\d*\s*%\s*\)/g, '');
 
     // ── Klammern mit Zutatenlisten AUFLÖSEN (vor NORMALIZE!) ─────────────────
-    // Zwei Pässe: erst innerste Klammern, dann äußere (löst verschachtelte Strukturen auf)
+    // Iterativ bis Fixpunkt: löst auch mehrfach verschachtelte Strukturen auf
+    // (z.B. "Füllung (Tomatenmark, Verdickungsmittel (Guarkernmehl))" — 2 Ebenen)
     // NICHT: enthält/kann → MIT-Extraktor
     const liberateBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]*)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]{3,},[^()]*)\)/gi,
@@ -4038,8 +4056,13 @@ function parseIngredients(inputText) {
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]{3,})\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s]{2,30})\)/gi,
         (m, pre, inner) => pre.trim() + ', ' + inner.trim()
     );
-    inputText = liberateBrackets(liberateBrackets(inputText));
-    inputText = liberateSingleBrackets(liberateSingleBrackets(inputText));
+    // Fixpunkt-Iteration (max. 6 Durchläufe als Sicherheitsgrenze gegen Endlosschleifen)
+    for (let i = 0; i < 6; i++) {
+        const before = inputText;
+        inputText = liberateBrackets(inputText);
+        inputText = liberateSingleBrackets(inputText);
+        if (inputText === before) break;
+    }
 
     let text = inputText;
 
@@ -4069,6 +4092,7 @@ function parseIngredients(inputText) {
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'koffein'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
+        [/\bfärbende[rn]?\s+(?:karotte|möhren?)(?:n)?(?:extrakt|saftkonzentrat|konzentrat)?\b/gi, 'karotte'],  // "färbender Karotteextrakt" → karotte (S0)
         [/\bammonsulfit[-\s]?zuckerkulör\b|\bzuckerkulör\b|\bsulfit[-\s]?ammoniakzuckerkulör\b/gi, 'e150'],
         // ── Präfix-Stripping (muss zuerst!) ──
         [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
@@ -7116,6 +7140,22 @@ function parseIngredients(inputText) {
     inputText = text;  // sync zurück für Signalwort-Check
 
     // ── PRE-STRIP: weitere Bereinigungen ────────────────────────────────────
+    // Kritische Allergene aus "(enthält X und Y)"-Klammern VOR der generischen
+    // Klammer-Löschung retten (sonst werden sie unwiderruflich vernichtet)
+    {
+        const CRITICAL_MIT_WORDS_EARLY = /^(sellerie|senf|sesam|sulfit|soja|laktose|gluten|ei|nuss|nüsse|mandeln?|haselnuss|walnuss|erdnuss|cashew|pistazie|sojaöl|hühnerei|hühnereieiweiß|milch|weizen)$/i;
+        const rescuedWords = [];
+        const enthältMatches = [...text.matchAll(/\(enthält\s+([^)]+)\)/gi)];
+        for (const em of enthältMatches) {
+            em[1].split(/[,;]\s*|\s+und\s+|\s+oder\s+/i).forEach(w => {
+                const word = w.trim().toLowerCase().replace(/\s.*$/, '');
+                if (CRITICAL_MIT_WORDS_EARLY.test(word)) rescuedWords.push(word);
+            });
+        }
+        if (rescuedWords.length > 0) {
+            text = text.replace(/\s*$/, '') + ', ' + rescuedWords.join(', ');
+        }
+    }
     text = text
         // Unicode-Bindestrich-Normalisierung (OCR-Artefakte: En-Dash, Em-Dash, Minus, Weiches Trennzeichen)
         .replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-')
@@ -7125,6 +7165,8 @@ function parseIngredients(inputText) {
         // ── Kategorie (Einzelinhalt) → Inhalt extrahieren ──
         // "Verdickungsmittel (Xanthan)" → "Xanthan"
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s+\(([^,)]+)\)/gi, '$1')
+        // "Farbstoff: Tartrazin" → "Tartrazin" (Doppelpunkt-Form, Klarname ohne E-Nummer)
+        .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s*:\s*/gi, '')
         .replace(/\(([^)]*\n[^)]*)\)/g, (m, inner) => '(' + inner.replace(/\n/g, ' ') + ')')
         // ── ALLERGEN-DISCLAIMER (zweite Runde, nach ggf. Umwandlungen) ──────
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
@@ -7310,8 +7352,13 @@ function parseIngredients(inputText) {
             let clean = line.replace(/^(?:zutaten|inhaltsstoffe)\s*:\s*/i, '');
 
             // Strip Komponenten-Präfixe nach Semikolon: "Teig: Mehl; Belag: Tomate" → "Mehl; Tomate"
-            // (kurzes Wort + Doppelpunkt direkt nach Semikolon oder am Anfang = Kategoriename, keine Zutat)
-            clean = clean.replace(/(^|;\s*)[A-ZÄÖÜ][a-zäöüß]{2,20}\s*:\s*/g, '$1');
+            // NUR bekannte Strukturwörter (Whitelist), NICHT generisch — sonst werden legitime
+            // Zutatennamen wie "Magnesium: 200mg" fälschlich als Kategorie-Präfix entfernt
+            clean = clean.replace(/(^|;\s*)(teig|belag|guss|füllung|garnitur|topping|sauce|soße|dressing|marinade|glasur|dekoration|basis|kern|hülle|ummantelung|panade|creme|crème)\s*:\s*/gi, '$1');
+
+            // "Hühnerbrühe : Wasser" (Leerzeichen vor Doppelpunkt = Zutat-Aufschlüsselung, keine Kategorie)
+            // → Komma, damit beide Seiten als eigene Tokens erhalten bleiben
+            clean = clean.replace(/([a-zäöüßA-ZÄÖÜ]{4,})\s+:\s+/g, '$1, ');
 
             // Asterisk vor Großbuchstaben als Trenner aufmachen
             clean = clean.replace(/\*(?=[A-ZÄÖÜ])/g, ', ');
@@ -7526,7 +7573,7 @@ function parseIngredients(inputText) {
             // Zusätzlich: alle Worte in enthält-Klammern als Kandidaten prüfen
             const enthältContent = line.match(/\(enthält\s+([^)]+)\)/i);
             if (enthältContent) {
-                enthältContent[1].split(/[,;]\s*/).forEach(w => {
+                enthältContent[1].split(/[,;]\s*|\s+und\s+|\s+oder\s+/i).forEach(w => {
                     const word = w.trim().toLowerCase().replace(/\s.*$/, ''); // erstes Wort
                     if (CRITICAL_MIT_WORDS.test(word)) extractedMitWords.push(word);
                 });
@@ -7697,7 +7744,11 @@ function classifyIngredient(name) {
     // ── Eigene Ausschlussstoffe (höchste Priorität) ──────────────────────────
     if (customExclusions.length > 0) {
         for (const excl of customExclusions) {
-            if (excl.length > 1 && (n === excl || n.includes(excl) || excl.includes(n) && excl.length <= n.length + 2)) {
+            if (excl.length < 2) continue;
+            // n === excl: exakt | n.includes(excl): Zutat enthält Ausschlussbegriff ("Weinessig" enthält "Wein")
+            // excl.includes(n) NUR bei n.length >= 4: verhindert dass kurze Tokens wie "ei" (2 Zeichen)
+            // zufällig als Substring in langen Ausschlüssen wie "wein" matchen
+            if (n === excl || n.includes(excl) || (n.length >= 4 && excl.includes(n) && excl.length <= n.length + 2)) {
                 return 'custom_exclusion';
             }
         }
