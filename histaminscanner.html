@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.40<br>
+                Histaminscanner v6.41<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3028,7 +3028,11 @@ function loadCustomExclusions() {
 function saveCustomExclusions() {
     const inp = document.getElementById('custom-exclusions-inp');
     const raw = inp ? inp.value : '';
-    localStorage.setItem('hs_custom_exclusions', raw);
+    try {
+        localStorage.setItem('hs_custom_exclusions', raw);
+    } catch (e) {
+        toast('⚠️ Speicherplatz voll — Ausschlussstoffe evtl. nicht gespeichert');
+    }
     customExclusions = raw.split(',')
         .map(s => s.trim().toLowerCase())
         .filter(s => s.length > 1);
@@ -3107,9 +3111,13 @@ function saveSettings() {
     }
     // Wenn beide oder keiner: Toggle-Auswahl des Users bleibt
 
-    localStorage.setItem('hs_api_key',     apiKey);
-    localStorage.setItem('hs_mistral_key', mistralKey);
-    localStorage.setItem('hs_provider',    aiProvider);
+    try {
+        localStorage.setItem('hs_api_key',     apiKey);
+        localStorage.setItem('hs_mistral_key', mistralKey);
+        localStorage.setItem('hs_provider',    aiProvider);
+    } catch (e) {
+        toast('⚠️ Speicherplatz voll — Einstellungen evtl. nicht gespeichert');
+    }
     updateProviderIndicator();
     toast('Einstellungen gespeichert ✓');
     showScreen('screen-home');
@@ -7787,9 +7795,10 @@ function levenshtein(a, b) {
 }
 
 function findFuzzyMatch(term) {
-    // Nur für Terme ≥ 5 Zeichen sinnvoll; max. Distanz 2 (1 Buchstabe bei kurzen Wörtern)
-    if (term.length < 5) return null;
-    const maxDist = term.length <= 7 ? 1 : 2;
+    // Ab 4 Zeichen sinnvoll (kritische kurze Trigger: hefe/soja/wein/bier/käse);
+    // bei 4 Zeichen nur Distanz 1 erlaubt, sonst zu viele Fehltreffer
+    if (term.length < 4) return null;
+    const maxDist = term.length === 4 ? 1 : (term.length <= 7 ? 1 : 2);
     let bestMatch = null, bestDist = Infinity, bestCat = null;
     const catMap = [
         ['high', DB.high], ['liberator', DB.liberator], ['dao_blocker', DB.dao_blocker]
@@ -7797,7 +7806,7 @@ function findFuzzyMatch(term) {
     for (const [cat, arr] of catMap) {
         for (const kw of arr) {
             if (Math.abs(kw.length - term.length) > maxDist) continue;
-            if (kw.length < 5) continue;
+            if (kw.length < 4) continue;
             const d = levenshtein(term, kw);
             if (d <= maxDist && d < bestDist) {
                 bestDist = d; bestMatch = kw; bestCat = cat;
@@ -8526,7 +8535,12 @@ function saveToHistory(entry) {
 
     hist.unshift(entry);
     if (hist.length > HISTORY_MAX) hist.pop();
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+    try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+    } catch (e) {
+        // QuotaExceededError o.ä.: History-Eintrag verwerfen, App darf nicht abstürzen
+        console.warn('Verlauf konnte nicht gespeichert werden (Speicherplatz?):', e.message);
+    }
 }
 
 function showHistory() {
@@ -9443,10 +9457,11 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
     // ── Zutatenliste ─────────────────────────────────────
     // Sortierung: primär nach SIGHI (3→0), sekundär nach Kategorie
     analyzed.sort((a, b) => {
-        const sa = a.sighi ?? -1, sb = b.sighi ?? -1;
-        if (sb !== sa) return sb - sa;  // höheres SIGHI zuerst
         const ORDER = { high: 0, liberator: 1, dao_blocker: 2, unknown: 3, safe: 4 };
-        return (ORDER[a.cat] || 3) - (ORDER[b.cat] || 3);
+        const orderA = ORDER[a.cat] ?? 3, orderB = ORDER[b.cat] ?? 3;
+        if (orderA !== orderB) return orderA - orderB;  // Kategorie zuerst: high > liberator > dao_blocker > unknown > safe
+        const sa = a.sighi ?? -1, sb = b.sighi ?? -1;
+        return sb - sa;  // bei gleicher Kategorie: höheres SIGHI zuerst
     });
 
     const list = document.getElementById('ing-list');
