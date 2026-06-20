@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.38<br>
+                Histaminscanner v6.40<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4000,6 +4000,9 @@ async function runAnalysis(product, ingredientsText) {
 // ═══════════════════════════════════════════════════════════
 function parseIngredients(inputText) {
     if (!inputText) return [];
+    // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
+    // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
+    inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
 
@@ -4035,7 +4038,7 @@ function parseIngredients(inputText) {
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
         // ── Kritische Compound-Begriffe VOR allem anderen ──────────────────
-        [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],
+        [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis\b|\bhühnerei-eiweiß(?![a-zäöü])|\bhühnerei(?:ei)?weiß(?![a-zäöü])/gi, 'ei'],
         [/\bhühnereipulver\b|\bvollei(?:pulver)?\b/gi, 'ei'],
         [/^%\s*/g, ''],
         [/\s+\d+[,.]?\d*\s*(?:g|kg|mg|ml|l)\b\s*$/gi, ''],
@@ -4432,7 +4435,7 @@ function parseIngredients(inputText) {
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
         [/\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'ei'],
-        [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei-eiweiß\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],  // VOR hühnerei-Regel!
+        [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis\b|\bhühnerei-eiweiß(?![a-zäöü])|\bhühnerei(?:ei)?weiß(?![a-zäöü])/gi, 'ei'],  // VOR hühnerei-Regel!
         [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
         [/\belwei[sß]\b|\bel-?wei[sß]\b/gi, 'ei'],      // OCR-Fehler: Elweiß → ei (Liberator S1)
         [/\bethylalkohol\b|\bethanol\b|e1510\b/gi, 'e1510'],  // Ethylalkohol/Ethanol = E1510 (DAO-Hemmer S3)
@@ -6174,7 +6177,7 @@ function parseIngredients(inputText) {
         [/\bsteinpilz(?:pulver|konzentrat|stücke)?\b/gi, 'steinpilz'],
         [/\bschwarz(?:er?)?\s+karotten?\b|\bblack\s+carrot\b/gi, 'karotte'],         // schwarze Karotte → safe
         [/\bhühnerei-trockeneiweiß\b|\bhühnerei-trockeneiwei[sß]+\b/gi, 'ei'],       // Hühnerei-Trockeneiweiss → ei
-        [/\bhühnereieiweiß\b|\bhühnereieiweis\b|\bhühnerei(?:ei)?weiß\b/gi, 'ei'],  // Hühnereieiweiß ohne Bindestrich
+        [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis\b|\bhühnerei(?:ei)?weiß(?![a-zäöü])/gi, 'ei'],  // Hühnereieiweiß ohne Bindestrich
         [/\blösliche\s+maisfaser\b|\bmaisfaser\b|\bcorn\s*fi(?:ber|bre)\b/gi, ''],   // Maisfaser = Ballaststoff → safe
         [/\bnatürliches?\s+limetten?-?aroma\b|\blimetten?-aroma\b/gi, 'limette'],    // Limetten-Aroma → limette
         [/\bpilzpulver\b|\bpilzextrakt\b|\bgetrocknete\s+pilze\b/gi, 'pilze'],      // Pilzpulver als Würze → Liberator S1
@@ -7679,7 +7682,7 @@ function parseIngredients(inputText) {
 // CLASSIFICATION (lokal)
 // ═══════════════════════════════════════════════════════════
 function classifyIngredient(name) {
-    let n = name.toLowerCase().trim();
+    let n = name.normalize('NFC').toLowerCase().trim();
     // Defensive Randzeichen-Bereinigung: verwaiste Punkte/Klammern/Satzzeichen an den Token-Grenzen
     n = n.replace(/^[.)\]\s,;-]+|[.)\]\s,;-]+$/g, '').trim();
 
