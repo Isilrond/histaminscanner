@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.47<br>
+                Histaminscanner v6.50<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2844,8 +2844,7 @@ const DB = {
         'e575',                             // S0
         // Fermentiertes
         // koji/aspergillus → liberator/high (fermentierter Schimmelpilz)
-,
-    
+
         // Milch-Varianten
         'büffelmilch','rohmilch',             // S0-1
         // Geflügel
@@ -4027,9 +4026,8 @@ function parseIngredients(inputText) {
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
-    // OCR-Verschmelzung Buchstabe+Zahl trennen: "Tomatenpulver05" → "Tomatenpulver 05"
-    // (verhindert dass z.B. eine verschmolzene Prozentangabe das Wort für den DB-Abgleich unkenntlich macht)
-    inputText = inputText.replace(/([a-zäöüßA-ZÄÖÜ]{4,})(\d{1,3})\b/g, '$1 $2');
+    // E-Nummern-Schreibweisen vereinheitlichen: "E-250", "E 412", "E.250" → "E250"
+    inputText = inputText.replace(/\bE[\s.-]+(\d{3,4}[a-d]?)\b/gi, 'E$1');
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
@@ -4097,7 +4095,7 @@ function parseIngredients(inputText) {
         // ── Präfix-Stripping (muss zuerst!) ──
         [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
         // "2-fach konzentriert" / "3fach konz." etc. → entfernen (Mengenangabe, keine eigene Zutat)
-        [/\s*\d+\s*-?\s*fach\s*(?:konzentriert|konz\.?)?\b/gi, ''],
+        [/\s*(?:\d+\s*-?\s*|ein|zwei|drei|vier|fünf)fach\s*(?:konzentriert|konz\.?)?\b/gi, ''],
         // Nährwerttabellen-Fragmente, die versehentlich in die Zutatenliste gerutscht sind
         [/\b(?:durchschnittliche\s+)?nährwerte?\s*/gi, ''],
         [/\bdurchschnittliche[rsn]?\s+/gi, ''],
@@ -4791,9 +4789,9 @@ function parseIngredients(inputText) {
         [/\bvollmilch(?:pulver)?\b|\bfrischmilch\b/gi, 'milch'],
         [/\bspeisequark\b|\bmagerquark\b|\bquarkzubereitung\b|\bspeisequarkzubereitung\b/gi, 'quark'],
         [/\bedamer(?:käse)?\b|\bedammer\b/gi, 'milchkäse'],  // S1-2 Liberator wie junger Gouda — NICHT Hartkäse!
-        [/\bemmentaler(?:käse)?\b|\bemmental\b/gi, 'käse'],
+        [/\bemmentaler(?:käse)?\b|\bemmental\b/gi, 'emmentaler'],
         [/\bjunge[rm]?\s+gouda\b|\bgouda\s+jung\b/gi, 'milchkäse'],  // VOR gouda→käse! → 'milchkäse' S1-2
-        [/\bgouda(?:käse)?\b(?!\s+alt)/gi, 'käse'],
+        [/\bgouda(?:käse)?\b(?!\s+alt)/gi, 'gouda'],
         [/\bgouda\s+alt\b|\baltgouda\b/gi, 'käse gereift'],
         [/\bmilchfett\b|\bbutterfett\b/gi, 'butter'],
         // ── Hartweizengrieß / Semola ──
@@ -6178,7 +6176,7 @@ function parseIngredients(inputText) {
         [/\blabaustauschstoff\b|\bmikrobieller\s+labaustauschstoff\b/gi, 'lab'],  // S0 Enzym
         [/\bschafsmilch\b|\bstutenmilch\b|\bschafsmilchkäse\b/gi, 'milch'],
         [/\bjunger?\s+gouda\b|\bgouda\s+jung\b|\bjunger?\s+\w{4,}käse\b/gi, 'junger gouda'],  // S1-2 Liberator
-        [/\bgouda\b|\bcheddar\b|\bemmentaler\b|\bgauda\b/gi, 'cheddar'],
+        [/\bcheddar\b|\bgauda\b/gi, 'cheddar'],
         [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomate'],
         [/\bschmelzkäse\w*\b/gi, 'käse'],
         [/\bpanko\s*paniermehl\b|\bpaniermehl\b|\bsemmelbrös[e]?l\b/gi, 'mehl'],
@@ -7121,7 +7119,7 @@ function parseIngredients(inputText) {
     const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält\w*|gehackt\w*|gewürfelt\w*|gerieben\w*|geröstet\w*|getrocknet\w*|geschmolzen\w*|tiefgekühlt\w*|tiefgefroren\w*|geräuchert\w*|gepökelt\w*|gestreift\w*|pasteurisiert\w*|homogenisiert\w*|modifiziert\w*|gehärtet\w*|hydrolisiert\w*|hydrolysiert\w*|gekörnt\w*|gegart\w*|mariniert\w*|geraspelt\w*|gefüllt\w*|getrennt|gewaschen|aufgetaut|abgezogen|fettarm\w*|feinherb\w*|vollkorn-?|frische?[rns]?(?!\w)|reife[rs]?|überreife[rs]?|weich\w*|hart\w*|mittlere[rs]?|groß\w*|klein\w*|jung\w*|roh(?!schinken)\w*|gekocht\w*|kalt\w*|lauwarm\w*|doppelt\b|konzentriert\w*|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf\w*|milden?|warm\w*|edelsüß\w*|trocken\w*|stückig\w*|zart\w*|pflanzliche[rs]?|natürliche[rs]?|fein|grob|dünn|dick|bio|tk|naturell|natur|pure[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut\w*|kräftig\w*|daumengroß\w*|eingeweicht\w*|alternative[rs]?|reif\w*|braun\w*|mager\w*|gemahlen\w*|halb\w*|voll\w*|hell\w*)\b/gi;
 
     // ── Füllzeilen komplett überspringen ────────────────────
-    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c|\.\s*kann\s+.+)$/i;
+    const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|spuren\s+von\s*:?.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c|\.\s*kann\s+.+)$/i;
 
     // ── PRE-STRIP: Allergen-Hinweise ALLERERST entfernen (vor allem anderen!) ──
     // Punkt→Komma-Konversion würde "Vitamin B12. Kann Spuren..." zerreißen
@@ -7852,7 +7850,7 @@ function findFuzzyMatch(term) {
     const maxDist = term.length === 4 ? 1 : (term.length <= 7 ? 1 : 2);
     let bestMatch = null, bestDist = Infinity, bestCat = null;
     const catMap = [
-        ['high', DB.high], ['liberator', DB.liberator], ['dao_blocker', DB.dao_blocker]
+        ['high', DB.high], ['liberator', DB.liberator], ['dao_blocker', DB.dao_blocker], ['safe', DB.safe_hints]
     ];
     for (const [cat, arr] of catMap) {
         for (const kw of arr) {
@@ -7865,7 +7863,7 @@ function findFuzzyMatch(term) {
         }
     }
     if (!bestMatch) return null;
-    const catLabel = { high: 'Histaminreich', liberator: 'Liberator', dao_blocker: 'DAO-hemmend' }[bestCat];
+    const catLabel = { high: 'Histaminreich', liberator: 'Liberator', dao_blocker: 'DAO-hemmend', safe: 'Unbedenklich' }[bestCat];
     return {
         cat: bestCat,
         match: bestMatch,
@@ -9618,7 +9616,15 @@ function clearLearnedCache() {
     toast('Lern-Cache geleert');
 }
 
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function cap(s) {
+    // Kleinwörter, die nicht großgeschrieben werden (deutsche Artikel/Präpositionen/Konjunktionen)
+    const LOWERCASE_WORDS = /^(aus|und|oder|mit|von|der|die|das|den|dem|des|im|in|am|an|zu|für|bei|auf|ein|eine|einer|eines)$/i;
+    return s.split(' ').map((word, i) => {
+        if (i > 0 && LOWERCASE_WORDS.test(word)) return word.toLowerCase();
+        if (word.length === 0) return word;
+        return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+}
 function setLoad(msg, sub) {
     document.getElementById('load-msg').textContent = msg;
     document.getElementById('load-sub').textContent = sub;
