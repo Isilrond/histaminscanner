@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.50<br>
+                Histaminscanner v6.51<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3791,6 +3791,9 @@ async function processBarcode(barcode) {
 // und trackt Eltern-Kontext bei Klammer-Zutaten (z.B. "Biskotten (Mehl, ...)")
 function buildOriginalTokenMap(inputText, normalizedTokens) {
     const map = {};
+    // Satzpunkt-zu-Komma-Vorbereitung, damit "Petersile. Verdickungsmittel" nicht
+    // als zusammenhängender Original-Name fehlinterpretiert wird
+    inputText = inputText.replace(/\.\s+(?=[A-ZÄÖÜ])/g, ', ');
 
     // ── Schritt 1: Eltern-Kontext aus Klammern extrahieren ──
     // z.B. "Savoiardi Biskotten (11%) (Mehl, Zucker, Eier)" → parent="Savoiardi Biskotten", children=[Mehl, Zucker, Eier]
@@ -4028,6 +4031,9 @@ function parseIngredients(inputText) {
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
     // E-Nummern-Schreibweisen vereinheitlichen: "E-250", "E 412", "E.250" → "E250"
     inputText = inputText.replace(/\bE[\s.-]+(\d{3,4}[a-d]?)\b/gi, 'E$1');
+    // Produktname-Überschrift vor "mit X% Zutat :" entfernen (OpenFoodFacts-Artefakt):
+    // "Hühner-Reistopf mit 47% Hühnerbrühe : Wasser" → "Hühnerbrühe : Wasser"
+    inputText = inputText.replace(/^[^,;:]{4,40}\s+mit\s+\d+[,.]?\d*\s*%\s+/i, '');
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
