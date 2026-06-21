@@ -1007,7 +1007,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v6.51<br>
+                Histaminscanner v6.53<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4034,6 +4034,11 @@ function parseIngredients(inputText) {
     // Produktname-Überschrift vor "mit X% Zutat :" entfernen (OpenFoodFacts-Artefakt):
     // "Hühner-Reistopf mit 47% Hühnerbrühe : Wasser" → "Hühnerbrühe : Wasser"
     inputText = inputText.replace(/^[^,;:]{4,40}\s+mit\s+\d+[,.]?\d*\s*%\s+/i, '');
+    // Produktname-Überschrift vor "Wort: Zutat X%" entfernen, wenn die Zutat im
+    // Folge-Block direkt wiederholt wird (OpenFoodFacts-Artefakt):
+    // "Gebackener Camembert, paniert: Camembert 67%" → "Camembert 67%"
+    inputText = inputText.replace(/^([a-zäöüßA-ZÄÖÜ][\wäöüßÄÖÜ\s]{2,40}),?\s+\w+\s*:\s*(?=([a-zäöüßA-ZÄÖÜ][\wäöüßÄÖÜ]+)\s+\d+[,.]?\d*\s*%)/i,
+        (m, heading, repeated) => heading.toLowerCase().includes(repeated.toLowerCase()) ? '' : m);
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
@@ -4050,15 +4055,16 @@ function parseIngredients(inputText) {
     // Iterativ bis Fixpunkt: löst auch mehrfach verschachtelte Strukturen auf
     // (z.B. "Füllung (Tomatenmark, Verdickungsmittel (Guarkernmehl))" — 2 Ebenen)
     // NICHT: enthält/kann → MIT-Extraktor
+    const CATEGORY_WORDS_RE = /^(panade|geliermittel|gelierstoffe?|verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker|füllung|belag|topping|dressing|sauce|soße|glasur|panierung|ummantelung)$/i;
     const liberateBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]*)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]{3,},[^()]*)\)/gi,
-        (m, pre, inner) => pre.trim() + ', ' + inner
+        (m, pre, inner) => (CATEGORY_WORDS_RE.test(pre.trim()) ? '' : pre.trim() + ', ') + inner
     );
     // Single-Ingredient-Klammern: "Fischzubereitung (Thunfisch)" → "Fischzubereitung, Thunfisch"
     // (kein Komma im Inneren nötig — verhindert Datenverlust bei nachfolgendem Klammer-Strip)
     const liberateSingleBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]{3,})\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s]{2,30})\)/gi,
-        (m, pre, inner) => pre.trim() + ', ' + inner.trim()
+        (m, pre, inner) => (CATEGORY_WORDS_RE.test(pre.trim()) ? '' : pre.trim() + ', ') + inner.trim()
     );
     // Fixpunkt-Iteration (max. 6 Durchläufe als Sicherheitsgrenze gegen Endlosschleifen)
     for (let i = 0; i < 6; i++) {
@@ -7171,6 +7177,9 @@ function parseIngredients(inputText) {
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s+\(([^,)]+)\)/gi, '$1')
         // "Farbstoff: Tartrazin" → "Tartrazin" (Doppelpunkt-Form, Klarname ohne E-Nummer)
         .replace(/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoffe?|geschmacksverstärker)\s*:\s*/gi, '')
+        // "Pflanzenöl: (Kokos, Sonnenblume, Raps)" → "Pflanzenöl (Kokos, Sonnenblume, Raps)"
+        // (Doppelpunkt vor Klammer-Aufzählung entfernen, damit die nachfolgende Klammer-Liberation greifen kann)
+        .replace(/\b(pflanzenöl|pflanzenfett|pflanzliche[ns]?\s+öle?|pflanzliche[ns]?\s+fette?)\s*:\s*(?=\()/gi, '$1 ')
         .replace(/\(([^)]*\n[^)]*)\)/g, (m, inner) => '(' + inner.replace(/\n/g, ' ') + ')')
         // ── ALLERGEN-DISCLAIMER (zweite Runde, nach ggf. Umwandlungen) ──────
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/gi, '')
@@ -7359,6 +7368,10 @@ function parseIngredients(inputText) {
             // NUR bekannte Strukturwörter (Whitelist), NICHT generisch — sonst werden legitime
             // Zutatennamen wie "Magnesium: 200mg" fälschlich als Kategorie-Präfix entfernt
             clean = clean.replace(/(^|;\s*)(teig|belag|guss|füllung|garnitur|topping|sauce|soße|dressing|marinade|glasur|dekoration|basis|kern|hülle|ummantelung|panade|creme|crème)\s*:\s*/gi, '$1');
+
+            // Zusammengesetzte Komponenten-Überschrift vor Doppelpunkt: "Wildpreiselbeer-Dip:", "Vanille-Sauce:" etc.
+            // (Wort-Dip/-Sauce/-Soße/-Creme/-Topping/-Dressing/-Glasur am Satzanfang oder nach Punkt, gefolgt von Doppelpunkt)
+            clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+-(?:dip|sauce|soße|creme|crème|topping|dressing|glasur|marinade)\s*:\s*/gi, '$1');
 
             // "Hühnerbrühe : Wasser" (Leerzeichen vor Doppelpunkt = Zutat-Aufschlüsselung, keine Kategorie)
             // → Komma, damit beide Seiten als eigene Tokens erhalten bleiben
@@ -8498,7 +8511,7 @@ const SIGHI_DB = {
         'sucralose','e955',
         'acesulfam','e950','acesulfam k','acesulfam-kalium',  // ✅ S0
         'taurin','taurine',  // ✅ S0
-        'pflanzenprotein','pflanzliches protein','erbsenprotein','sonnenblumenprotein','reisprotein',  // ✅ S0
+        'pflanzenprotein','pflanzliches protein','sonnenblumenprotein','reisprotein',  // ✅ S0 (erbsenprotein NICHT hier — eigene S2-Klassifizierung!)
         'eisenlactat','eisensulfat','eisenfumarat',  // ✅ S0 — Eisenverbindungen als Nahrungsergänzung
         'alkoholfreier wein','alkoholfreier sekt','alkoholfrei',  // ✅ S0 — kein Alkohol, kein Histaminproblem
         'stevia','steviosid','e960',
