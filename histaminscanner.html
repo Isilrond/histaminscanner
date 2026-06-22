@@ -984,6 +984,23 @@
     </div>
 
     <div class="settings-sec">
+        <div class="settings-sec-title">KI-Lerngedächtnis</div>
+        <div class="settings-box">
+            <div class="settings-field">
+                <label class="settings-lbl">Gelernte Zutaten</label>
+                <div id="cache-stats" style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;">Wird geladen…</div>
+                <div id="cache-list" style="max-height:260px;overflow-y:auto;margin-bottom:0.5rem;"></div>
+                <button class="btn-secondary" onclick="clearLearnedCache()" style="width:100%">
+                    🗑️ Alle löschen
+                </button>
+                <div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;">
+                    Einzelne Einträge mit ✕ löschen. KI analysiert gelöschte Zutaten beim nächsten Scan neu.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-sec">
         <div class="settings-sec-title">Eigene Ausschlussstoffe</div>
         <div class="settings-box">
             <div class="settings-field">
@@ -1007,7 +1024,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v7.1<br>
+                Histaminscanner v7.15<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1135,7 +1152,8 @@ const DB = {
         'mahon','idiazábal','ossau-iraty',
         'kraftkäse','schmelzkäse','processed cheese','velveeta',
         'himbeere','himbeer','raspberry','himbeeren',  // ❌ S2 (SIGHI 2024!)
-        'borretsch',  // ❌ S2
+        'borretsch',
+        'sauerteig','sauerteigkulturen',  // S2 fermentiert
         'piment','allspice','neugewürz',  // S2 — eugenolreich
         'amchur','mangopulver',  // S2 — Säure + Liberator
         'selleriesamen',  // S2 — Allergen + Liberator
@@ -1218,7 +1236,7 @@ const DB = {
         'alkoholfreier sekt','sekt alkoholfrei','alcohol-free sparkling wine',
         'alkoholfreies bier','bier alkoholfrei','non-alcoholic beer','alcohol-free beer',
         'backferment',
-        'sauerteigbrot','sauerteig','sourdough','brot mit sauerteig',
+        'sauerteigbrot','sourdough','brot mit sauerteig',
         'fruchtjoghurt','fruit yogurt','joghurtdrink',   // S2 — Zusätze/Aromen
         // buttermilch → liberator[] S1 (SIGHI H, Milchsäuregärung, nicht S2-3)
         'sauermilch',
@@ -1327,7 +1345,7 @@ const DB = {
         'banane','banana','bananenchips','bananenpulver',  // ⚠️ S2 A — biogene Amine (SIGHI)
         // salzgurken → high[] S2 (Milchsäuregärung)
         'zwiebel','zwiebelringe','schalotte','shallot','frühlingszwiebel','gemüsezwiebel',  // ⚠️ S1 L
-        'aroma','aromen','aromastoffe','natürliches aroma',  // ⚠️ S1 — unspezifiziert; Quelle unbekannt (SIGHI: Vorsicht)
+        // aroma/aromen → safe_hints S0 mit SIGHI_DB S1 Warnung (kein Liberator ohne Quellennachweis!)
         'bärlauch','wildknoblauch','ramson',  // ⚠️ S1 L — kleine Mengen meist ok
         'dill','dillkraut','dillfenchel',  // ⚠️ S1 — stark salicylathaltig
         'schnittlauch','chives',  // ⚠️ S1 — in großen Mengen unverträglich
@@ -1443,7 +1461,8 @@ const DB = {
         'himbeersirup','himbeeressig',  // S2 Himbeer
         'chiliflocken','pul biber','jalapeñopaste',  // ⚠️ S1-2 — Capsaicin = Liberator, erhöht Darmpermeabilität
         'liebstöckel','liebstöckelwurzel','lovage',
-        'koriander','coriander','koriandersamen',  // S1 — individuelle Toleranz
+        'liebstöckel','liebstöckelwurzel','lovage','maggikraut',  // S1 — in Extrakten konzentriert
+        'koriander','coriander','koriandersamen',  // S1
         'anis','anissamen',  // S1 — ätherische Öle
         'sternanis','star anise',  // S1
         'lorbeer','lorbeerblatt','bay leaf',  // S1
@@ -1699,6 +1718,7 @@ const DB = {
         'stärke','starch','maisstärke','kartoffelstärke','weizenstärke',
         'tapiokastärke','tapioca starch',
         'maltodextrin','dextrin',
+        'malzmehl',  // S0
         'backpulver','baking powder','natron','baking soda',
         'weinsteinbackpulver','cream of tartar',
         // hefe/backhefe/trockenhefe → liberator[] S1 (SIGHI: kann verträglich sein, aber Ausnahmen!)
@@ -1855,7 +1875,7 @@ const DB = {
         'wacholderbeeren','wacholder','juniper berries',  // ✅ S0 (SIGHI: verträglich)
         'salbei','sage','lorbeer','bay leaf','estragon','tarragon',
         'majoran','marjoram','bohnenkraut','savory',
-        'kerbel','chervil','liebstöckel','lovage',
+        'kerbel','chervil',  // S0 — liebstöckel → liberator S1
         'schwarzwurzel','salsify','scorzonera',
 
         // ── Süßes (NDR: ok bei HIT) ──
@@ -2109,6 +2129,7 @@ const DB = {
     
         'xanthan','e415','xanthangum',              // S0 SIGHI
         'guargummi','guar gum',                     // S0
+        'weizen','wheat','dinkel','roggen','gerste','hirse','buchweizen','hafer','reis',  // S0 — Getreide roh
         'griess','hartweizengriess','grieß',        // S0
         'invertzuckersirup','invertzucker',         // S0
         'modifizierte stärke','modifizierte stärken', // S0
@@ -2257,7 +2278,6 @@ const DB = {
         'lorbeer','lorbeers',                          // S0
         'majoran',                                     // S0-1 (mild)
         'thymian','oregano','safran',                  // S0
-        'liebstöckel','maggikraut',                   // S0
         'fenchel','fenchelsamen',                      // S0
         'brokkoli',                                    // S0
         // senf → liberator[] S1
@@ -2311,7 +2331,6 @@ const DB = {
         'e631','ribonukleotid','dinatriuminosinat',     // S0 (Geschmacksverstärker)
     
         'zitronenpulver','zitronenschale',          // S1
-        'liebstöckel','liebstöckelwurzel','maggikraut',  // S0
         // muskat/muskatnuss → liberator S1-2, NICHT safe_hints!
         'röstzwiebeln','rote zwiebeln',             // S0
         // sauerrahm → Liberator, speck → high S3 — beide hier FALSCH
@@ -2583,7 +2602,8 @@ const DB = {
         'knäckebrotäckebrot','wasa knäckebrot',  // Wasa-Artefakt
     
         'e331','trinatriumcitrat','natriumcitrat',  // S0 Säureregulator
-        'vanillin','ethylvanillin','vanillearoma','natürliches vanillearoma',             // S0 sehr sicher (einfaches Molekül)
+        'aroma','aromen','aromastoffe','natürliches aroma',  // S0 — Kategorie neutral; SIGHI_DB S1 für Warnhinweis
+        'vanillin','ethylvanillin','vanillearoma','natürliches vanillearoma',             // S0 sehr sicher
         'geschmacksgebender blend',  // S0 neutral
         // aroma/aromen → liberator S1 (SIGHI: unspezifiziert = Vorsicht; Quelle unbekannt)
         // aromaextrakt → dao_blocker (konzentrierte Lösungsmittelextrakte)
@@ -2904,7 +2924,6 @@ const DB = {
         'rosmarin','rosmarin extrakt',              // S0
         'salbei',                                   // S0
         'bohnenkraut','estragon',                   // S0
-        'liebstöckel','kerbel',                     // S0
         'dukkah','baharat',                         // S0 Gewürzmischungen
         // Couscous/Bulgur
         'couscous','bulgur',                        // S0
@@ -4066,8 +4085,9 @@ function parseIngredients(inputText) {
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
-        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, ', ')
-        .replace(/\.\s*[Kk]ann\s+[^.]*\./g, '.');
+        .replace(/[.,]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[^.]*?(?:enthalten|beinhalten)[^.]*\.?/gi, '')
+        .replace(/[.,]?\s*[Mm]ay\s+contain[^.]*\.?/gi, '')
+        .replace(/\s*:\s*(?:Eier?|Fisch|Soja|Sellerie|Senf|Lupine|Erdnuss|Sesam|Nüsse|Milch|Gluten|Weizen|Dinkel|Gerste|Roggen|Hafer|Kamut)[^.]*\.?/gi, '')  // Restliste nach Kann enthalten:
 
     // ── Stereochemie-Marker entfernen (vor Klammer-Auflösung!) ───────────────
     inputText = inputText.replace(/\s*\(\s*[LDld][+\-]?\s*\)/g, '');
@@ -4102,7 +4122,7 @@ function parseIngredients(inputText) {
             const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelb|weiß|braun|grün|rot|blau|schwarz|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|sehr\s+\w+)$/i;
             // Einzelne Zutatenherkunft als Qualifier: 'Molkenpulver (Milch)' → keep pre
             // Wenn inner ein einzelnes bekanntes Lebensmittel ist (keine echte Sub-Zutat)
-            if (/^(?:milch|sahne|wasser|soja|erbse|reis|hafer|mandel|kokos|dinkel|roggen|gerste|quinoa)$/i.test(inner.trim())) return pre.trim();
+            if (/^(?:milch|sahne|wasser|soja|erbse|mandel|kokos|quinoa)$/i.test(inner.trim())) return pre.trim();  // nur echte Herkunfts-Qualifier
             // Herkunftsangabe mit Essig-Typ: 'Essig (aus Apfelwein)' → apfelessig
             if (/^(?:aus|von)\s+apfelwein\b/i.test(inner.trim())) return 'apfelessig';
             if (/^(?:aus|von)\s+obstessig\b/i.test(inner.trim())) return 'apfelessig';
@@ -4130,6 +4150,9 @@ function parseIngredients(inputText) {
         [/\s+\d+[,.]?\d*\s*(?:g|kg|mg|ml|l)\b\s*$/gi, ''],
         [/\berdnüsse\b/gi, 'erdnuss'],  // Plural → Singular für konsistentes Matching  // "Thunfisch 150g" → "Thunfisch" (nackte Gewichtsangabe ohne Klammer)
         // INCI-Langnamen mit Emulgator-Präfix VOR Klammer-Entfernung retten
+        [/\bemulgator(?:en)?\s*\(\s*lecithine?\s*\(\s*(?:sonnenblume|soja|raps)\s*\)\s*\)/gi, 'e322'],  // Emulgator (Lecithine (Sonnenblume))
+        [/\blecithine?\s*\(\s*(?:sonnenblume|soja|raps|sonnenblumen)\s*\)/gi, 'e322'],  // Lecithine (Sonnenblume)
+        [/\blecithine?\s+(?:sonnenblume|soja|raps|sonnenblumen)\b/gi, 'e322'],  // nach Bracket-Expansion: 'Lecithine Sonnenblume'
         [/\bemulgator(?:en)?\s*\(\s*polyoxyethylen(?:-?20)?-?sorbitan-?monostearat\s*\)/gi, 'e435'],
         [/\bemulgator(?:en)?\s*\(\s*polyoxyethylensorbitanmonostearat\s*\)/gi, 'e435'],
         [/\bemulgator(?:en)?\s*\(\s*polyoxyethylensorbitanmonooleat\s*\)/gi, 'e433'],
@@ -4201,7 +4224,7 @@ function parseIngredients(inputText) {
         [/\bagar-?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
         // ── Getreide / Malz ──
         [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
-        [/\bmalzmehl\b/gi, 'hafer'],  // Malzmehl = feines Mehl, milder als Extrakt → hafer S0
+        [/\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token S0
         [/\bweizenkörner?\b|\bweizenbeeren?\b/gi, 'mehl'],
         // ── Kulturen (Fermentierung) ──
         [/\bkefirknollen?\b|\bkefirkristalle?\b|\bscoby\b|\bkombucha-?kulturen?\b/gi, 'kulturen'],
@@ -4293,7 +4316,7 @@ function parseIngredients(inputText) {
         [/\b(?:wild)?preiselbeeren?\b|\bcowberries?\b/gi, 'preiselbeere'],
         [/\bapfeldicksaft\b|\bapfelmark\b|\bapfelkonzentrat\b/gi, 'apfel'],
         [/\bpfirsichnektar\b|\bpfirsichmark\b|\bpfirsichsaft(?:aus)?\b/gi, 'pfirsich'],  // "saftaus" Artefakt
-        [/\bweizen(?:roggen|dinkel)?sauerteig\b|\bsauerteig(?:brot|starter|weizen)?\b/gi, 'sauerteig'], // Komposita
+        [/\bweizen(?:roggen|dinkel)?sauerteig\b|\bsauerteig(?:brot|starter|weizen|kulturen)?\b/gi, 'sauerteig'], // Komposita
         [/\bkirschnektar\b|\bkirschmark\b|\bkirschsaft\b/gi, 'kirsche'],
         [/\bkirsch\b(?!en?\b|extrakt|likör|wasser)/gi, 'kirsche'],     // "Kirsch" allein → kirsche
         [/\bbirnensaft\b|\bbirnenmark\b/gi, 'birne'],
@@ -4304,7 +4327,7 @@ function parseIngredients(inputText) {
         [/\be452\b|\bpolyphosphat\b|\bnatriumpolyphosphat\b/gi, 'e452'],
         // ── Bärlauch ──
         [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'kräuter'],
-        [/\bschnittlauch\b|\bchives?\b/gi, 'kräuter'],
+        // schnittlauch → eigener Token (nicht kräuter!)
         [/\bfrühlingszwiebeln?\b|\blauchzwiebeln?\b/gi, 'lauch'],
         // ── Süß-Saure Chili ──
         [/\be1422\b|\bacetylierte\s+distärkeadipate?\b/gi, 'e1422'],
@@ -4683,7 +4706,7 @@ function parseIngredients(inputText) {
         [/\bmilchkaramell\b|\bkaramell(?:creme|füllung|sauce)?\s*(?:mit)?\s*milch\b/gi, 'zucker'],  // Milchkaramell → zucker (Zuckerprodukt S0)
         [/\bhaferspelzfaser\b|\bhaferspelz(?:flocken|mehl)?\b|\bspelzfaser\b/gi, 'hafer'],   // Ballaststoff S0
         [/\beisendiphosphat\b|\biron\s*diphosphat\b/gi, 'e450'],                              // Eisenverbindung Mineral → safe
-        [/\bweizenmalzmehl\b|\bmalzmehl\b/gi, 'mehl'],
+        [/\bweizenmalzmehl\b|\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token
         [/\bmehlbehandlungsmittel\b(?:\s*\([^)]+\))?/gi, ''],  // Kategorienwort → strip
         // ── Backmittel ──
         [/\bascorbinsäure\b|e300\b/gi, 'e300'],
@@ -4733,8 +4756,8 @@ function parseIngredients(inputText) {
         [/\bmilchsäurebakterien(?:kulturen?)?\b|\blactobacillus\s+\w+\b|\bstreptococcus\s+\w+\b/gi, 'kulturen'],
         [/\bjoghurtkulturen?\b|\bkefirkulturen?\b|\bstarterkulturen?\b|\bbifterkulturen?\b/gi, 'kulturen'],
         [/\bpenicillium\s+\w+\b|\bschimmelkulturen?\b|\bkäsekulturen?\b/gi, 'kulturen'],
-        [/\btierisches?\s+lab\b|\bmicrobiell[eo]\s+gerinnungsmittel\b|\blab\b(?!\s*(?:or))/gi, 'kulturen'],
-        [/\btierisches?\s+lab\b|\bkälberlab\b|\blammlabb?\b/gi, 'kulturen'],
+        // [/\btierisches?\s+lab\b|/gi, 'kulturen'],  // DEAKTIVIERT — lab bleibt als 'lab'
+        [/\btierisches?\s+lab\b|\bkälberlab\b|\blammlabb?\b|\bmikrobielles?\s+lab\b/gi, 'lab'],
         // ── Konservierungs-/Hilfsstoffe Fleisch ──
         [/\bnatriumascorbat\b|\bnatriumascorbinat\b|e301\b/gi, 'e301'],
         [/\bnatriumnitrit\b|\bnatriumnitrat\b|e250\b|e252\b/gi, 'e250'],
@@ -4836,7 +4859,8 @@ function parseIngredients(inputText) {
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
         [/\bholunder(?:blüten?|beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter!
         // ── Getreidezutaten ──
-        [/\bweizenprotein\b/gi, 'gluten'],  // S0 — texturiertes Weizenprotein als Backzutat ≠ Seitan
+        [/\bweizenquellmehl\b|\bquellmehl\b/gi, 'mehl'],  // Quellmehl S0
+        [/\bweizenprotein\b/gi, 'gluten'],  // S0
         [/\bweizenfasern?\b|\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
         [/\bvollkornreis\b|\bvollkornreismehl\b/gi, 'reis'],
         [/\bvollkornweizenmehl\b|\bvollkorndinkelmehl\b/gi, 'mehl'],
@@ -5310,6 +5334,7 @@ function parseIngredients(inputText) {
         [/lasagneplatte[n]?/gi,          'lasagne'],
         [/parmesanspäne/gi,              'parmesan'],
         [/tomaten[,\s]*(geschält[e]?|gehackt[e]?|gestückt[e]?|dose[n]?)/gi, 'tomaten'],
+        [/\bschältomaten?\b|\bgeschälte\s+tomaten?\b/gi, 'tomate'],
         [/möhre[n]?/gi,                  'karotte'],
         [/chilischote[n]?/gi,            'chili'],
         [/paprikaschote[n]?/gi,          'paprika'],
@@ -5460,7 +5485,7 @@ function parseIngredients(inputText) {
         [/bunter\s*pfeffer\b/gi,             'pfeffer'],
         [/natriumstearoyl-?2-lactylat\b/gi,  ''],
 
-        [/malzmehl\b/gi,                      ''],     // S0 lt. SIGHI (Backwaren ok)
+        // [/malzmehl\b/gi, ''],  // DEAKTIVIERT — malzmehl bleibt als eigener Token
         [/gerstenmalzextrakt\b/gi,             'malz'],  // S2!
 
         [/malzextrakt\b/gi,                    'malz'],
@@ -5871,6 +5896,7 @@ function parseIngredients(inputText) {
         [/pflanzliche?\s+öle?\s+(palm|raps|sonnenblume|kokos)\b/gi, '$1öl'], // "pflanzliche Öle Palm" → "palmöl"
         [/\bpalmkernöl\b/gi, 'palmöl'],  // palmkernöl → palmöl
         [/\braps\b(?!\w)/gi, 'rapsöl'],              // isolated "Raps" → "rapsöl"
+        [/\blecithine?\s+sonnenblume\b/gi, 'e322'],  // Lecithin-Sonnenblume VOR sonnenblume→öl!
         [/\bsonnenblume\b(?!\w)/gi, 'sonnenblumenöl'],
         // ── Post-merge: "pflanzenöl palm" → "palmöl" (after generic oil rule fires) ──
         [/pflanzen[öo]l\s+palm\b/gi, 'palmöl'],
@@ -6089,6 +6115,7 @@ function parseIngredients(inputText) {
         // D.O.P./g.U./AOP Herkunftssiegel-Suffixe entfernen
         [/\b(?:d\.?o\.?p\.?|g\.?u\.?|a\.?o\.?p\.?|p\.?d\.?o\.?)\b/gi, ''],
         // Parmigiano Reggiano → parmesan (muss VOR generischer parmesan-Regel stehen)
+        [/\bparmesan[-\s]milch\b/gi, 'parmesan'],  // Artefakt aus Käse-Subzutaten
         [/\bparmigiano\s+reggiano\b/gi, 'parmesan'],
         [/\bgrana\s+padano\b|\bgran\s+padano\b/gi, 'parmesan'],
         // Pecorino → eigener Token (nicht parmesan — sonst Dedup-Problem wenn beide im Produkt)
@@ -6371,7 +6398,7 @@ function parseIngredients(inputText) {
         [/\bpecorino-?käse\b|\bpecorino\s+romano\b/gi, 'parmesan'],
         // ── Käse-Compound-Artefakte bereinigen ──
         [/\b(gouda|cheddar|parmesan|emmentaler|mozzarella|camembert|brie)[-–](gouda|cheddar|parmesan|emmentaler|mozzarella|camembert|brie|milch)\b/gi, '$1'],
-        [/\b(gouda|cheddar|parmesan|emmentaler)-?(milch|käse)\b/gi, '$1'],
+        [/\b(gouda|cheddar|parmesan|emmentaler|mozzarella|provolone|camembert|brie)-?(milch|käse)\b/gi, '$1'],
         [/\bpecorino\s+romano[-–]parmesan\b/gi, 'parmesan'],
         // ── "gouda-milch" usw. → gouda ──
         [/\bgouda[-–]\w+/gi, 'gouda'],
@@ -7470,6 +7497,7 @@ function parseIngredients(inputText) {
         if (/^(?:ultrahocherhitzt|uht|granuliert|fraktioniert|pasteurisiert|homogenisiert|blanchiert|type|glutenfrei|laktosefrei|konzentriert|dreifach|zweifach|gehackt|frisch|getrocknet|gemahlen|zart|edelsüß|kaltgepresst|gepökelt|geräuchert|geschält|stückig|gelb|weiß|braun|grün|rot|blau|schwarz|hell|dunkel|mild|scharf|nativ|extra|vergine|bio|vegan|naturell|natur|doppelrahmstufe|zartbitter|halbbitter|naturtrüb|gefriergetrocknet|luftgetrocknet|sonnengetrocknet|vakuumverpackt|kaltgepresst|raffiniert|unfiltriert|geschwefelt|ungeschwefelt|säuerungsmittel|säurungsmittel)$/i.test(p.trim())) return '';
         p = p.replace(/\b(?:d\.?o\.?p\.?|g\.?u\.?|a\.?o\.?p\.?)\b\.?/gi, '').trim();  // D.O.P./g.U. Herkunftssiegel
         p = p.replace(/\bparmigiano\s+reggiano\b/gi, 'parmesan');  // früh normalisieren
+        p = p.replace(/\blecithine?\s+(?:sonnenblume|soja|raps|sonnenblumen)\b/gi, 'e322');
         p = p.replace(/\bpolyoxyethylen(?:-?20)?-?sorbitan-?monostearat\b|\bpolyoxyethylensorbitanmonostearat\b/gi, 'e435');
         p = p.replace(/\bpolyoxyethylensorbitanmonooleat\b/gi, 'e433');
         p = p.replace(/\bpecorino(?:\s+romano|\s+sardo|\s+toscano)?\b/gi, 'pecorino');
@@ -7766,7 +7794,7 @@ function parseIngredients(inputText) {
         // Farbsuffixe: 'bienenwachs weiß und gelb' → kein Rest
         line = line.replace(/\s+(?:weiß|gelb|rot|blau|grün)(?:\s+und\s+\w+)?$/gi, '').trim();
         // Einzelne Allergen-Suffixe: 'lecithin soja' → 'lecithin'
-        line = line.replace(/\s+(soja|milch|weizen|gluten|nuss|ei|sellerie|sesam|senf)$/gi, '').trim();
+        line = line.replace(/\s+(soja|milch|gluten|nuss|ei|sellerie|sesam|senf)$/gi, '').trim();  // weizen raus — ist eigenständige Zutat
 
         // Klammern mit Zubereitungshinweisen: "(Brühwürfel für 2,5 ltr. auflösen)" etc.
         line = line.replace(/\([^)]{5,}\)/g, (m) => {
@@ -7854,6 +7882,7 @@ function parseIngredients(inputText) {
         parts.push(...splits);
     }
 
+    if (parts.some(p => p === 'weizen') || inputText.toLowerCase() === 'weizen') console.log('[WEIZEN] parts:', JSON.stringify(parts.filter(p => p.includes('weizen') || p === '')));
     const result = [...new Set(parts)].map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
 
     // ── Sicherheitsnetz: S3-Signalwörter dürfen nicht spurlos verschwinden ──────
@@ -8375,8 +8404,8 @@ const SIGHI_DB = {
         // ── SIGHI 1: Mässig verträglich (SIGHI 2024-08-29) ──────────────
         'diphosphat','e450','natriumdiphosphat','dinatriumdiphosphat','eisenpyrophosphat',  // S1 — Phosphat-Liberator-Verdacht (MCAS), siehe Tooltip
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe',  // S1 — Backhefe; Hefeextrakt → S3!
-        'aroma','aromen','aromastoffe','natürliches aroma',  // S1 — Quelle unbekannt
         'pfeffer','pfeffer schwarz','schwarzer pfeffer','weißer pfeffer','pfefferkörner',  // S1
+        'liebstöckel','liebstöckelwurzel','lovage','maggikraut',
         'koriander','coriander','koriandersamen',
         'anis','anissamen',
         'sternanis','star anise',
@@ -9135,7 +9164,9 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
         if (n.match(/pistazie|pistachio/)) return 'Pistazien: laut 2025-Tabelle safe — früher als Liberator, aktueller Stand spricht für gute Verträglichkeit';
         if (n.match(/sesam|tahini/))   return 'Sesam ungeröstet: laut 2025-Tabelle safe — gerösteter Sesam kann problematisch sein';
         if (n.match(/walnuss|walnut/)) return 'Walnüsse: starker Histaminliberator — mehrfach bestätigt';
-        if (n.match(/eiweiß|eiklar|egg white|albumen/))
+        if (n.match(/erbsenprotein|erbsenisolat|erbseneiweiß|pea.protein/))
+            return '⚠️ SIGHI 2 — Erbsenprotein/-isolat: Konzentriertes Pflanzenprotein, problematischer als frische Erbsen. Kann als Histaminliberator wirken. Individuell testen.';
+        if (n.match(/eiweiß|eiklar|egg white|albumen/) && !n.match(/erbsen|pflanzen|weizen|soja/))
             return 'Rohes Eiklar ist ein starker Liberator — gekochtes Eiweiß ist laut NMI-Portal (2025) meist gut verträglich';
         if (n.match(/schwarzer\s+knoblauch|fermentierter\s+knoblauch/))
             return '⚠️ SIGHI S3 — Schwarzer Knoblauch ist fermentiert → viel Histamin. Bei HIT meiden!';
@@ -9376,7 +9407,7 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
         return '⚠️ SIGHI 1 — Sumach: Säurehaltig (ähnlich wie Essig). In kleinen Mengen meist toleriert, aber individuell prüfen.';
     // weinessig/apfelessig tooltips now handled in high[] section above
     if (n === 'aroma' || n === 'aromen' || n === 'aromastoffe' || n === 'natürliches aroma')
-        return '⚠️ SIGHI 1 — Aromen (unspezifiziert): Quelle nicht deklariert. Kann aus fermentierten Rohstoffen stammen (Hefeextrakt, Essig, Fischextrakt). Natürliche Aromen aus Zitrus/Beeren = Liberator. Im Zweifel meiden oder Hersteller anfragen.';
+        return '⚠️ SIGHI 1 — Aromen (unspezifiziert): Herstellungsquelle unbekannt. Mögliche Quellen: fermentierte Rohstoffe (Hefeextrakt, Essig), Zitrus- oder Beerenextrakte (Liberatoren), oder synthetische Aromen (meist neutral). Im Zweifel beim Hersteller nachfragen.';
     if (n.match(/proteinhydrolysat|hydrolysiert.*protein|hydrolysierte.*pflanzen/))
         return '❌ SIGHI 3 — Hydrolysierte Pflanzenproteine: Industrielle Säure-/Enzymhydrolyse setzt massiv freie Glutamate und biogene Amine frei. Wirkung vergleichbar mit Hefeextrakt. Strikt meiden!';
     if (n.match(/\bhefe\b|backhefe|trockenhefe|frischhefe|bäckerhefe/) && !n.match(/hefeextrakt|hefeautolysat/))
@@ -9817,6 +9848,7 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
 
 function updateCacheStats() {
     const el = document.getElementById('cache-stats');
+    const listEl = document.getElementById('cache-list');
     if (!el) return;
     try {
         const cache = JSON.parse(localStorage.getItem('hs_learned_ingredients') || '{}');
@@ -9826,6 +9858,23 @@ function updateCacheStats() {
         el.innerHTML = count === 0
             ? '<em>Noch keine Zutaten gelernt</em>'
             : `<strong>${count} Zutaten</strong> gespeichert — `
+
+        // Render list
+        if (listEl) {
+            if (count === 0) { listEl.innerHTML = ''; return; }
+            const catLabel = {high:'❌ S3', liberator:'⚠️ S1-2', dao_blocker:'🔶 DAO', safe:'✅ S0', unknown:'❓'};
+            const catColor = {high:'var(--red)', liberator:'#ff9500', dao_blocker:'#ff9500', safe:'var(--green)', unknown:'var(--muted)'};
+            const entries = Object.entries(cache).sort((a,b) => {
+                const order = {high:0,liberator:1,dao_blocker:2,safe:3,unknown:4};
+                return (order[a[1].cat]||4) - (order[b[1].cat]||4);
+            });
+            listEl.innerHTML = entries.map(([name, data]) => `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:0.3rem 0.4rem;border-bottom:1px solid var(--border);gap:0.5rem;">
+                    <span style="font-size:0.8rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${name}">${name}</span>
+                    <span style="font-size:0.7rem;color:${catColor[data.cat]||'var(--muted)'};white-space:nowrap;font-weight:600;">${catLabel[data.cat]||'?'}${data.sighi!=null?' S'+data.sighi:''}</span>
+                    <button onclick="deleteCacheEntry('${name.replace(/'/g,"\'")}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:0.9rem;padding:0 0.2rem;flex-shrink:0;" title="Löschen">✕</button>
+                </div>`).join('');
+        }
               + `🔴 ${cats.high} histaminreich · 🟠 ${cats.liberator} Liberatoren · `
               + `⚠️ ${cats.dao_blocker} DAO-hemmend · ✅ ${cats.safe} sicher`;
     } catch { el.textContent = 'Fehler beim Laden'; }
@@ -9835,6 +9884,16 @@ function clearLearnedCache() {
     localStorage.removeItem('hs_learned_ingredients');
     updateCacheStats();
     toast('Lern-Cache geleert');
+}
+
+function deleteCacheEntry(name) {
+    try {
+        const cache = JSON.parse(localStorage.getItem('hs_learned_ingredients') || '{}');
+        delete cache[name];
+        localStorage.setItem('hs_learned_ingredients', JSON.stringify(cache));
+        updateCacheStats();
+        toast(`"${name}" aus Cache entfernt`);
+    } catch(e) { toast('Fehler beim Löschen'); }
 }
 
 function cap(s) {
