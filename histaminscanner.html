@@ -1024,7 +1024,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v7.24<br>
+                Histaminscanner v7.33<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2163,6 +2163,7 @@ const DB = {
         // ── Paniertes / Semmelbrösel ──
         'semmelbrösel','paniermehl','breadcrumbs','panko',
         'butterschmalz','ghee','clarified butter',
+        'eigelb','eidotter','egg yolk',  // S0 SIGHI
         'schweineschmalz','schmalz','lard',
 
 
@@ -3991,7 +3992,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
         // Triviale Zutaten brauchen keinen Original-Label
-        const TRIVIAL = /^(wasser|salz|zucker|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300)$/i;
+        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose)$/i;  // zucker+mehl raus für bessere Labels
         if (TRIVIAL.test(normToken)) continue;
         let bestOriginal = null;
         let bestScore = 0;
@@ -4205,15 +4206,27 @@ function parseIngredients(inputText) {
 
     // ── Allergen-Disclaimer VOR allem entfernen ──────────────────────────────
     inputText = inputText
-        .replace(/[.,]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[^.]*?(?:enthalten|beinhalten)[^.]*\.?/gi, '')
+        .replace(/[.,]?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[^.\n]*?(?:enthalten|beinhalten)[^.\n]*\.?/gi, '')
+        .replace(/\s+[Kk]ann\s+[Ss]puren[\s\S]*$/gi, '')  // trailing disclaimer
         .replace(/[.,]?\s*[Mm]ay\s+contain[^.]*\.?/gi, '')
-        .replace(/\s*:\s*(?:Eier?|Fisch|Soja|Sellerie|Senf|Lupine|Erdnuss|Sesam|Nüsse|Milch|Gluten|Weizen|Dinkel|Gerste|Roggen|Hafer|Kamut)[^.]*\.?/gi, '')  // Restliste nach Kann enthalten:
+        // Allergen-nach-Doppelpunkt-Regel entfernt — zu fehleranfällig (matcht Zutaten mit Soja/Gluten)
 
     // ── Stereochemie-Marker entfernen (vor Klammer-Auflösung!) ───────────────
     inputText = inputText.replace(/\s*\(\s*[LDld][+\-]?\s*\)/g, '');
 
     // ── Prozent-Klammern entfernen "(47%)" vor Auflösung, damit "(47%) (Spinat...)" korrekt geht ──
     inputText = inputText.replace(/\s*\(\s*\d+[,.]?\d*\s*%\s*\)/g, '');
+    // Nach Prozent-Entfernung: Komponenten-Header 'Nudeln:' / 'Flüssige Soße:' → ','
+    // (entstanden durch: 'Nudeln (77,4%):' → Prozent-Strip → 'Nudeln:' → Header)
+    // Erkennung: Wort(e) direkt gefolgt von ':' + Leerzeichen + Grossbuchstabe/Wort
+    inputText = inputText.replace(/([A-ZÄÖÜa-zäöüß][\wäöüßÄÖÜ\s-]{1,40}):\s+(?=[A-ZÄÖÜa-zäöüß])/g, (m, name) => {
+        // Nicht ersetzen wenn es ein bekannter Funktions-Präfix ist (Emulgator: E322)
+        if (/^(?:emulgatoren?|stabilisatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|verdickungsmittel|farbstoffe?|geschmacksverstärker|süßungsmittel|säureregulator|backtriebmittel|mehlbehandlungsmittel|trennmittel)$/i.test(name.trim())) return m;
+        // Nicht ersetzen wenn nur ein einzelnes kurzes Wort (könnte Zutat: Menge sein)
+        // Ersetzen wenn mehrere Wörter oder bekannte Komponenten-Muster
+        if (name.trim().includes(' ') || /^(nudeln?|soße|sauce|suppe|belag|füllung|brühe|pulver|paste|basis|teig|topping|dressing|panade)$/i.test(name.trim().split(' ').pop())) return ', ';
+        return m;  // Standard: behalten
+    });
     // ── Bare Prozentangaben entfernen "6,5%" (ohne Klammern), VOR Komma-Split ──
     // Verhindert dass '6,5%' am Komma zerrissen wird und '6' als Artefakt übrigbleibt
     inputText = inputText.replace(/\s+\d+[,.]\d*\s*%/g, '');  // '6,5%' mit Dezimalkomma
@@ -4263,6 +4276,11 @@ function parseIngredients(inputText) {
     // Fixpunkt-Iteration (max. 6 Durchläufe als Sicherheitsgrenze gegen Endlosschleifen)
     for (let i = 0; i < 6; i++) {
         const before = inputText;
+        // Multi-Komponenten-Produkte: 'Nudeln (77,4%): Zutaten, ...' → ', Zutaten, ...'
+        // Normalisiere Komponenten-Präfixe BEVOR Bracket-Expansion
+        inputText = inputText.replace(/[\wäöüßÄÖÜ\s-]{3,30}\s*\([\d,./\s%]+\)\s*:/g, ',');
+        // Auch: 'Flüssige Soße (12,9%):' → ','
+        inputText = inputText.replace(/[\wäöüßÄÖÜ\s-]{3,40}\s*\([\d,./\s%]+\)\s*:/g, ',');
         inputText = liberateBrackets(inputText);
         inputText = liberateSingleBrackets(inputText);
         if (inputText === before) break;
@@ -4743,7 +4761,8 @@ function parseIngredients(inputText) {
         // ── Onion / Zwiebel-Compound ──
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
-        [/\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'ei'],
+                [/\beigel[bp]\b|\beidotter\b|\begg\s*yolk\b/gi, 'eigelb'],  // S0!
+[/\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'ei'],
         [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis{1,2}\b|\bhühnerei-eiweis{1,2}\b|\bhühnerei-eiweiß(?![a-zäöü])|\bhühnerei(?:ei)?wei[sß]{1,2}(?![a-zäöü])/gi, 'ei'],  // VOR hühnerei-Regel!
         [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
         [/\belwei[sß]\b|\bel-?wei[sß]\b/gi, 'ei'],      // OCR-Fehler: Elweiß → ei (Liberator S1)
@@ -5013,7 +5032,7 @@ function parseIngredients(inputText) {
         [/\binvertzuckersirup\b|\binvertsirup\b|\binvertzucker\b/gi, 'zucker'],
         [/\bfruktosesirup\b|\bfructosesirup\b/gi, 'fructose'],  // S1 — eigener Token
         [/\btraubenzucker\b|\bdextrose\b|\bglukose\b/gi, 'traubenzucker'],  // S0 eigener Token
-        [/\bgerstenmalzextrakt\b|\bgerstenmalzsirup\b/gi, 'malz'],  // S2 Liberator — VOR gerste→hafer!
+        // [/\bgerstenmalzextrakt\b|\bgerstenmalzsirup\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
         [/\bgerstenmalz\b(?!extrakt|sirup)/gi, 'malz'],              // Gerstenmalz standalone → S2
         [/\bgerste(?:flocken|mehl)?\b/gi, 'hafer'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
@@ -5674,7 +5693,7 @@ function parseIngredients(inputText) {
         [/natriumstearoyl-?2-lactylat\b/gi,  ''],
 
         // [/malzmehl\b/gi, ''],  // DEAKTIVIERT — malzmehl bleibt als eigener Token
-        [/gerstenmalzextrakt\b/gi,             'malz'],  // S2!
+        // [/gerstenmalzextrakt\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
 
         [/malzextrakt\b/gi,                    'malz'],
         [/weizenkeime?\b/gi,                   'weizenkeime'],  // S2! biogene Amine: Putrescin, Spermin...
@@ -7719,6 +7738,12 @@ function parseIngredients(inputText) {
             // Strip "Zutaten:" Prefix
             let clean = line.replace(/^(?:zutaten|inhaltsstoffe)\s*:\s*/i, '');
 
+            // Multi-Komponenten: 'Nudeln (77,4%): Zutaten' / 'Flüssige Soße (12,9%): Zutaten'
+            // Ersetze Komponenten-Header durch Komma um alle Zutaten zu mergen
+            clean = clean.replace(/(?:^|(?<=[,;])\s*)[\wäöüßÄÖÜ][\wäöüßÄÖÜ\s-]{2,35}\s*\([\d,./\s%]+\)\s*:/g, ',');
+            // Auch ohne Lookbehind-Support: einfachere Version
+            clean = clean.replace(/([,;]\s*|^)[\wäöüßÄÖÜ][\wäöüßÄÖÜ\s-]{1,35}\s*\([\d,.\s%]+\)\s*:/g, ',');
+
             // Strip Komponenten-Präfixe nach Semikolon: "Teig: Mehl; Belag: Tomate" → "Mehl; Tomate"
             // NUR bekannte Strukturwörter (Whitelist), NICHT generisch — sonst werden legitime
             // Zutatennamen wie "Magnesium: 200mg" fälschlich als Kategorie-Präfix entfernt
@@ -8581,9 +8606,8 @@ const SIGHI_DB = {
         'chinin',
         'habanero','jalapeño','jalapeno','extrascharfe chilis',
         // Propionate E280-283: SIGHI 2024 sagt "?" (unklar) — bleiben bis neue Daten
-        // Verdickungsmittel S2 lt. SIGHI
-        'e415','xanthan',
-        'guarkernmehl','e412',
+        // E415 Xanthan → S0 (SIGHI: 0!), removed from S2
+        // guarkernmehl/e412 → SIGHI S1 L (not S2)
         'e413','traganth','e416','karaya','e417','tarakernmehl','e418','gellan',
         'carrageen','e407','e407a','verarbeitete eucheuma-algen',
         'e432','e433','e434','e435','e436','polysorbat',
@@ -8678,7 +8702,7 @@ const SIGHI_DB = {
         // Getreide S1
         'gerste','gerstenkörner',
         'roggen',
-        'weizen','weizenmehl',
+        // weizen/weizenmehl → S0 für HIT (SIGHI S1 bezieht sich auf Gluten, nicht Histamin)
         // ── Gewürze S1 (SIGHI 2024) ──
         'dill','dillkraut',
         'bärlauch',
@@ -8716,7 +8740,7 @@ const SIGHI_DB = {
         // calciumphosphate/e341/kaliumphosphate/e340 → dao_blocker (histaminta: unverträglich!)
         'alginsäure','e400','natriumalginat','e401','kaliumalginat','e402',
         'ammoniumalginat','e403','calciumalginat','e404','e405',
-        'guarkernmehl','e412',
+        // guarkernmehl/e412 → SIGHI S1 L (not S2)
         'gummi arabicum','e414',
         'e416','karaya',
         'agar','agar-agar','e406',
@@ -8856,6 +8880,8 @@ const SIGHI_DB = {
         'birkenzucker','xylit','xylitol','e967',
         'isomalt','e953',
         'sorbit','sorbitol','e420',
+        'e150','e150a','e150b','e150c','e150d','zuckercouleur','karamell','karamellfarbe',  // S0 SIGHI
+        'e415','xanthan','xantangummi',  // S0 SIGHI
         'mannit','mannitol','e421',
         'agavendicksaft','agavensirup','agaven',
         'reissirup','reisgoldsirup',
@@ -9477,6 +9503,12 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return '⚠️ SIGHI 1 — Johannisbeere: Enthält stoffwechseleigene Liberator-Komponenten.';
         if (n.match(/sauerkirsche/))
             return '⚠️ SIGHI 1 — Sauerkirsche: Im Gegensatz zu Süßkirsche (S0) als milder Liberator eingestuft.';
+        if (n.match(/\bkaffee\b|espresso|arabica|robusta/))
+            return '⚠️ SIGHI 1 DAO — Kaffee/Espresso: Koffein hemmt temporär die DAO. Espresso etwas besser verträglich.';
+        if (n.match(/schwarztee|black tea/))
+            return '❌ SIGHI 2 H DAO — Schwarztee: Fermentation + DAO-Hemmer. Grüntee als mildere Alternative.';
+        if (n.match(/grüntee|green tea|matcha/))
+            return '⚠️ SIGHI 1 DAO — Grüntee/Matcha: DAO-hemmende Catechine. Milder als Schwarztee.';
         if (n.match(/\bwalnuss\b|\bwalnüsse\b|\bwalnut\b/))
             return '❌ SIGHI 3 — Walnuss: Baumnuss. Sehr schlecht verträglich durch biogene Amine (A) und Liberatorwirkung (L). Unbedingt meiden!';
         if (n.match(/\berdnuss\b|\berdnüsse\b|\bpeanut\b|erdnussbutter|peanut butter|erdnussriegel/))
@@ -9542,7 +9574,7 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
         if (n.match(/gebrannte mandel|karamellnüsse/))
             return '⚠️ SIGHI 1 — Gebrannte Mandel: Kombiniert Mandel-Liberatoren mit erhitzten, karamellisierten Zuckermatrizen.';
         if (n.match(/\bsenf\b|mustard|dijonsenf|estragonsenf|honigsenf/))
-            return '⚠️ SIGHI 1 — Senf/Senfsaat: Enthält scharfe Isothiocyanate (Senföle), die als Liberator wirken und Mastzellen reizen können. Zudem meist mit Essig versetzt.';
+            return '❌ SIGHI 2 H L — Senf/Senfsaat: Enthält scharfe Isothiocyanate (Senföle), die als Liberator wirken und Mastzellen reizen können. Zudem meist mit Essig versetzt.';
         if (n.match(/meerrettich|\bkren\b|horseradish|meerrettichcreme/))
             return '⚠️ SIGHI 1 — Meerrettich/Kren: Reich an Senfölen. Wirkt stark schleimhautreizend und triggert bei sensiblen Anwendern die Histaminausschüttung.';
         if (n.match(/\be22[0-8]\b|schwefeldioxid|schweflige säure|sulfite|sulphit|sulfit|sulphite|natriumsulfit|kaliumsulfit|natriumdisulfit|kaliumdisulfit|natriummetabisulfit|kaliummetabisulfit|calciumsulfit|calciumhydrogensulfit|kaliumhydrogensulfit/))
