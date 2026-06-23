@@ -1024,7 +1024,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v7.15<br>
+                Histaminscanner v7.24<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1145,6 +1145,8 @@ const DB = {
         'rote bete (eingelegt)','rote-bete-konserve',
         'bambussprossen (konserve)','bamboo shoots canned',
         'parmesan','parmigiano','cheddar','camembert','brie','gorgonzola',
+        'harzer roller','handkäse','mainzer käse','sauermilchkäse',
+        'gorgonzola','roquefort','stilton',
         'roquefort','stilton','blauschimmelkäse','harzer','limburger',
         'emmentaler','gruyère','greyerzer','manchego','pecorino',
         'münster','appenzeller','bergkäse','tilsiter','gouda (alt)',
@@ -1153,7 +1155,10 @@ const DB = {
         'kraftkäse','schmelzkäse','processed cheese','velveeta',
         'himbeere','himbeer','raspberry','himbeeren',  // ❌ S2 (SIGHI 2024!)
         'borretsch',
-        'sauerteig','sauerteigkulturen',  // S2 fermentiert
+        'sauerteig','sauerteigkulturen',
+        // paranuss → safe_hints S0 (SIGHI: 0)
+        'erdnuss','peanut','erdnussbutter',
+        // cashew → dao_blocker S2 (DAO-hemmend + Liberator)
         'piment','allspice','neugewürz',  // S2 — eugenolreich
         'amchur','mangopulver',  // S2 — Säure + Liberator
         'selleriesamen',  // S2 — Allergen + Liberator
@@ -1383,7 +1388,9 @@ const DB = {
         'linsen','lentil','rote linsen','grüne linsen',
         'bohnen','bean','kidney','kidneybohnen','cannellini',
         'weiße bohnen','black beans','schwarze bohnen','fave','dicke bohnen',
-        'erbsen','pea','grüne erbsen','chickpea','kichererbsen','kichererbse',  // S1-2 Hülsenfrüchte
+        'erbsen','pea','grüne erbsen','chickpea','kichererbsen','kichererbse',  // S1-2
+        'erbsenstärke','pea starch',
+        'mungobohnenstärke','mung bean starch',
         'rosenkohl','kohlsprossen','brussels sprouts',  // ⚠️ S1 L (SIGHI 2024)
         'erbsenprotein','pea protein','erbsenisolat','erbseneiweiß',  // S2 — konzentriertes Isolat problematischer als frische Erbse!
         'sojabohnen','soja','soy','soybeans','edamame',
@@ -1401,6 +1408,9 @@ const DB = {
         'amchur','mangopulver','mango pulver',  // S2 — Säure + Liberator (unreife Mango)
         'tonkabohne','tonkabohnen','tonka',  // S2 — Cumarin, Histaminliberator
         'sellerie','celery','knollensellerie','staudensellerie','selleriewurzel','selleriesalz',
+        'sesam','sesamkörner','sesamsamen','sesame','tahini','sesampaste','tahin','tahina',  // S1
+        'sojaöl','soybean oil',  // S1 SIGHI (nicht S2)
+        'sonnenblumenkerne','sunflower seeds','sonnenblumenkern',  // S2 L SIGHI!
         'selleriesamen','sellerie samen','celery seeds','celery seed',
         'paprikapulver (scharf)','cayennepfeffer','chilli powder',
         // kreuzkümmel/cumin → safe S0 (SIGHI: gut verträgliches Gewürz)
@@ -1462,11 +1472,11 @@ const DB = {
         'chiliflocken','pul biber','jalapeñopaste',  // ⚠️ S1-2 — Capsaicin = Liberator, erhöht Darmpermeabilität
         'liebstöckel','liebstöckelwurzel','lovage',
         'liebstöckel','liebstöckelwurzel','lovage','maggikraut',  // S1 — in Extrakten konzentriert
-        'koriander','coriander','koriandersamen',  // S1
+        // koriander → safe_hints S0 (SIGHI: 0, kleine Mengen)
         'anis','anissamen',  // S1 — ätherische Öle
         'sternanis','star anise',  // S1
-        'lorbeer','lorbeerblatt','bay leaf',  // S1
-        'wacholder','wacholderbeeren','juniper',  // S1
+        // lorbeer → safe_hints S0 (SIGHI: 0)
+        // wacholder → safe_hints S0 (SIGHI: 0)
         'vanille','vanilla','vanilleschote','vanillinzucker','vanillezucker','vanilleextrakt',  // ⚠️ S1
         'pfeffer','pepper','schwarzer pfeffer','weißer pfeffer','pfefferkörner',  // ⚠️ S1 L — Darmirritant, erhöht Histaminaufnahme
         'senf','mustard','dijonsenf','estragonsenf','honigsenf',  // ⚠️ S1 — Senföle = Mastzell-Liberator
@@ -1487,7 +1497,14 @@ const DB = {
         'kreuzkümmel','cumin','kummin',  // ❌ S2 L — SIGHI! Nicht mit Kümmel (Carum carvi, S0) verwechseln!
         // muskat/muskatnuss → erste Definition oben
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe','instanthefe','dry yeast',  // ⚠️ S1 — Ausnahmen: lange Teigführung, Hefeextrakt → HIGH!
-        'buchweizen','buckwheat',  // ❌ S2 (SIGHI: evtl. unverträglich, nur ungeschält?)
+        'buchweizen','buckwheat','buchweizenmehl',  // S2
+        'pfeffer','pfefferkörner','schwarzer pfeffer','weißer pfeffer',
+        'senf','senfsaat','senfkörner',
+        'sonnenblumenkerne','sunflower seeds',
+        'kichererbsenmehl','chickpea flour','besan','grammehl',  // S2
+        'sojamehl','soy flour',  // S2
+        'lupinenmehl','lupine flour',  // S2
+        'linsenmehl','lentil flour',  // S2
         'weiße schokolade','white chocolate','weißschokolade',  // ⚠️ S1 (SIGHI: meistens gut verträglich)
         'reismilch','reis-drink','rice milk',  // ⚠️ S1 (SIGHI: enzymatisch fermentiert)
         'hafermilch','hafer-drink','oat milk',  // ⚠️ S1 (SIGHI: enzymatisch fermentiert)
@@ -1667,7 +1684,25 @@ const DB = {
         // taurin → safe_hints[] S0 (Aminosäure, kein DAO-Hemmer!)
         'theobromin',
 
-        'sesamöl',
+        'sesamöl','sesame oil',
+        'erdnussöl','peanut oil','groundnut oil',
+        'walnussöl','walnut oil',
+        'avocadoöl','avocado oil',
+        'arganöl','argan oil',
+        // schwarzkümmelöl → safe_hints S0 (SIGHI: antiallergisch!)
+        'hanföl','hemp oil',
+        'fructose','fruchtzucker','fruktose',
+        'aspartam','aspartame','e951',
+        'sucralose','e955',
+        'maltit','maltitol','e965',
+        'sorbit','sorbitol','e420',
+        'kokosblütenzucker','coconut sugar','coconut blossom sugar',
+        'yakonsirup','yacon syrup',
+        'reisessig','rice vinegar',
+        'kokosessig','coconut vinegar',
+        'feta','schafskäse','hirtenkäse','fetakäse',
+        'halloumi','grillkäse',
+        // gouda jung → safe_hints S0 (SIGHI: 0)
         // walnussöl → high[] S3 (Walnuss-Derivat)
         'erdnussöl',
 
@@ -1689,7 +1724,10 @@ const DB = {
         // ── Transcript-Produkte: DAO-Blocker ──
         'kaliumsorbat','e202','natriumbenzoat',
         'ammoniumchlorid',
+        'cashew','cashewnuss','cashewkerne','cashewmus','cashewbutter',  // S2 DAO+Liberator
         'acesulfam','acesulfam-k','e950',
+        // sorbit/maltit → safe_hints S0 (SIGHI: 0, nur abführend nicht Histamin)
+        'schmelzkäse','processed cheese','schmelzkäsezubereitung','schmelzkäsescheiben',
         'phosphorsäure','e338',  // DAO-hemmend
         'zitronensäure','e330',  // S1 — laut SIGHI Vorsicht
         'cola','cola zero','pepsi',  // ⚠️ Phosphorsäure (E338) + Koffein = doppelter DAO-Hemmer
@@ -1712,19 +1750,64 @@ const DB = {
         'mehl','flour','weizenmehl','dinkelmehl','roggenmehl',
         'gluten','getreidegluten','weizengluten','wheat gluten',  // S0
         'weizenprotein','weizeneiweiss','weizeneiweißpulver',  // S0 — Backzutat — Klebereiweiß-Zusatz, normaler Mehlbestandteil
-        'vollkornmehl','reismehl','buchweizenmehl','hirsemehl',
+        'vollkornmehl','reismehl','hirsemehl','teffmehl',
         'teffmehl','teff','kokosmehl','coconut flour','süßkartoffelmehl',
 
-        'stärke','starch','maisstärke','kartoffelstärke','weizenstärke',
+        'stärke','starch',
+        'maisstärke','corn starch',
+        'kartoffelstärke','potato starch',
+        'weizenstärke','wheat starch',
+        'tapiokastärke','tapioca starch',
+        'pfeilwurzelstärke','arrowroot starch','pfeilwurzel',
+        'sago','sagostärke','sago starch',
         'tapiokastärke','tapioca starch',
         'maltodextrin','dextrin',
-        'malzmehl',  // S0
+        'malzmehl',
+        'honig','bienenhonig','honey',  // S0 SIGHI (umstritten)
+        'agavendicksaft','agavensirup','agave syrup',  // S0 SIGHI
+        'fructose','fruchtzucker','fruktose',  // S0 SIGHI
+        'sorbit','sorbitol','e420',  // S0 SIGHI
+        'maltit','maltitol','e965',  // S0 SIGHI (nicht in Liste, aber ähnlich)
+        'maniokmehl','cassavamehl','tapiokamehl',
+        'bananenmehl','kochbananenmehl',
+        'konjakmehl','glucomannan','konjak',
+        'kokosmehl',
+        'erdmandelmehl','chufa','tigernut flour',
+        'teffmehl','teff',
+        'hirsemehl',
+        'reissirup','rice syrup','reismalzsirup',
+        'allulose',
+        'reiskeimöl','rice bran oil',
+        'disteloel','safloroel','disteloel','disteloel','distilöl','safloröl','distelöl',
+        'kokosoel','kokosfett','coconut oil','kokosöl',
+        'essigessenz','essigsaeure rein',
+        'branntweinessig','alkoholessig','destillierter essig','tischessig',
+        'paneer','queso blanco','indischer frischkaese',
+        'ricotta','mascarpone',
+        'hüttenkäse','cottage cheese',
+        'erythrit','erythritol','e968',
+        'xylit','birkenzucker','xylitol','e967',
+        'stevia','steviosid','steviolglycoside','e960',
+        'traubenzucker','glucose','glukose','dextrose',
+        'ahornsirup','maple syrup',
         'backpulver','baking powder','natron','baking soda',
         'weinsteinbackpulver','cream of tartar',
         // hefe/backhefe/trockenhefe → liberator[] S1 (SIGHI: kann verträglich sein, aber Ausnahmen!)
         'gewürze','gewürzmischung','kräuter','kräutermischung',
         // kardamom/nelken → liberator, NICHT safe_hints!
-        'fenchelsamen','fennel seeds',  // S0
+        'fenchelsamen','fennel seeds',
+        'minze','pfefferminze','spearmint','peppermint',  // S0
+        'salbei','sage','echte salbei',  // S0
+        'estragon','tarragon',  // S0
+        'oregano','echter dost','origanum',  // S0 (already there?)
+        'thymian','echter thymian','thymus vulgaris',  // S0
+        'lorbeer','lorbeerblatt','lorbeerblätter','bay leaf',
+        'koriander','coriander','koriandersamen',
+        'quinoa','quinoamehl',
+        'amaranth','amaranthmehl',  // S0 SIGHI
+        'wacholder','wacholderbeeren','juniper berries',
+        'pistazie','pistachio','pistazienkerne',  // S0 SIGHI
+        'kokosnuss','coconut','kokosraspeln','kokosflakes',  // S0-1 SIGHI
         // vanilleschote → liberator[] S1 (Fermentation)
         'tocopherol','tocopherole','e306','e307','e308','e309',
         'rosmarinextrakt','e392','rosmarin',
@@ -1781,7 +1864,16 @@ const DB = {
         // weiße schokolade → liberator[] S1 (SIGHI: meistens gut verträglich, aber S1)
 
         'olivenöl','olive oil','natives olivenöl','extra virgin',
-        'sonnenblumenöl','sunflower oil','rapsöl','canola oil','rapesöl',
+        'sonnenblumenöl','sunflower oil',
+        'rapsöl','canola oil','rapesöl',
+        'sesamöl','sesame oil',
+        'sojaöl','soybean oil',
+        'avocadoöl','avocado oil',
+        'leinöl','flaxseed oil',
+        'kürbiskernöl','pumpkin seed oil',
+        'walnussöl','walnut oil',
+        'mctöl','mct oil','sheabutter',
+        'schwarzkümmelöl','black seed oil','nigella oil',  // S0 SIGHI antiallergisch
         'kokosöl','coconut oil','kokosfett',
         'maiskeimöl','corn oil','palmöl','palm oil','sesamöl (hell)',
         'leinöl','flaxseed oil',  // S0; walnussöl → high[] S3; haselnussöl → liberator S1
@@ -1790,6 +1882,11 @@ const DB = {
         'frischmilch','pasteurisierte milch','uht-milch','h-milch',
         'sahne','cream','schlagsahne','whipping cream','kaffeesahne',
         'frischkäse','cream cheese','hüttenkäse','cottage cheese',
+        'mozzarella','büffelmozzarella','fresh mozzarella',  // S0
+        'ricotta','mascarpone',  // S0
+        'hüttenkäse','cottage cheese',  // S0
+        'paneer','queso blanco',
+        'gouda jung','butterkäse','edamer','tilsiter jung',  // S0 SIGHI
         'quark','magerquark','topfen','fromage blanc',
         'mozzarella','ricotta','mascarpone',
         // ── Eier ──
@@ -1810,8 +1907,15 @@ const DB = {
         'basmati','jasminreis','wild rice','wildreis','milchreis',
 
         'haferflocken','oats','porridge','rolled oats','hafer',
-        'hirse','millet','amaranth',  // buchweizen → liberator[] S2 (SIGHI: evtl. unverträglich)
-        'quinoa','dinkel','spelt','kamut','gerste','barley',
+        'hirse','millet',  // S0
+        // amaranth → liberator S1
+        // quinoa → safe_hints S0 (SIGHI: 0)
+        // amaranth → safe_hints S0 (SIGHI: 0)
+        'kastanienmehl','maroniemehl','chestnut flour',  // S1
+        'mandelmehl','almond flour',  // S1
+        'leinsamenmehl','leinmehl',  // S1
+        'hanfmehl','hemp flour',  // S1-2
+        'dinkel','spelt','kamut','gerste','barley',
         'mais','corn','maize','maiskolben',
         'nudeln','pasta','spaghetti','penne','fusilli','tagliatelle',
         'spätzle','gnocchi','couscous',
@@ -1969,10 +2073,15 @@ const DB = {
         'nüsse','nussmischung','gemischte nüsse',   // generisch S1 (defensiv)
         'pistazie','pistachio','pistazienkern',  // S0 (SIGHI 2024)
         'macadamia','macadamianuss',  // S0 (SIGHI 2024)
+        'paranuss','brazil nut','paranusskerne',  // S0 SIGHI (max 1-2 tägl.)
+        'pecannuss','pekannuss','pecan',  // S0 SIGHI
         'pekan','pekannuss','pecan',
-        'paranuss','brazil nut',
+        // paranuss → safe_hints S0 (SIGHI: 0)
         'sesamkörner','sesam','sesame','tahini','sesampaste','sesamsamen',
-        'kürbiskerne','pumpkin seeds',
+        'kürbiskerne','pumpkin seeds',  // S0 SIGHI
+        'leinsamen','flaxseed','leinsamenschrot',  // S0 SIGHI
+        'chiasamen','chia','chia seeds',  // S0 SIGHI
+        'hanfsamen','hemp seeds',  // S0 SIGHI
         'chiasamen','chia seeds',
         'leinsamen','flaxseed','leinöl',
         'kürbiskernmehl','pumpkin seed protein','kürbiskernprotein',
@@ -2114,7 +2223,7 @@ const DB = {
         'stärke','maisstärke','kartoffelstärke','tapiokastärke', // S0
         // mandel/mandeln/mandelmehl → liberator[] S1 (SIGHI 2024)
         'kokos','kokosraspel','kokosmilch','kokosöl',        // S0
-        'quinoa',                                            // S0
+        // quinoa → liberator S1
         'dattel','datteln','dattelsirup','dattelzucker',     // S0
         // milchpulver → liberator[] S1 (SIGHI: uneinheitlich, kann verträglich sein)
         'meersalz','steinsalz',                              // S0
@@ -2129,7 +2238,18 @@ const DB = {
     
         'xanthan','e415','xanthangum',              // S0 SIGHI
         'guargummi','guar gum',                     // S0
-        'weizen','wheat','dinkel','roggen','gerste','hirse','buchweizen','hafer','reis',  // S0 — Getreide roh
+        'weizen','wheat',  // S0 — Weizen roh
+        'weizenmehl','wheat flour','weizenvollkornmehl',  // S0
+        'dinkel','spelt','dinkelmehl','dinkelvollkornmehl',  // S0 — oft besser verträglich als Weizen
+        'roggen','roggenmehl','roggenvollkornmehl',  // S0
+        'gerste','barley','gerstenmehl',  // S0
+        // buchweizen/buchweizenmehl → liberator S2
+        'hafer','hafermehl','haferflocken',  // S0
+        'reis','reismehl','reisflocken',  // S0
+        'mais','maismehl','maisgrieß','polenta',  // S0
+        'hirse','hirseflocksen','hirsemehl',  // S0
+        'bulgur',  // S0 — vorgekochter Hartweizen
+        'kichererbsenmehl',  // S0 — glutenfrei
         'griess','hartweizengriess','grieß',        // S0
         'invertzuckersirup','invertzucker',         // S0
         'modifizierte stärke','modifizierte stärken', // S0
@@ -2877,7 +2997,7 @@ const DB = {
         // Samen
         'chiasamen','chia',                 // S0
         'mohnsamen','mohn',                 // S0
-        'sesam','sesamkörner',              // S0
+        // sesam → liberator S1 (SIGHI: 1)
         // Mehl-Typen
         'dinkelmehl','buchweizenmehl','kichererbsenmehl','kokosmehl',  // S0 (mandelmehl → liberator S1)
         // E-Nummern Konservierung/Gase
@@ -4111,6 +4231,10 @@ function parseIngredients(inputText) {
             const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei|laktosefrei|vegan|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w+)\b/i;
             const parts = inner.split(',').map(p => p.trim());
             if (parts.every(p => DESCRIPTOR_WORDS.test(p))) return pre.trim();
+            // Bekannte Compound-Produkte: Namen behalten + Sub-Zutaten expandieren
+            const preTrimmed = pre.trim().replace(/^\d+[\s%]*|[\s%\d]+$/g, '').trim();
+            const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir)\b/i;
+            if (KEEP_NAME.test(preTrimmed)) return preTrimmed + ', ' + inner;
             return inner;  // Compound-Produktname verwerfen, Zutaten behalten
         }
     );
@@ -4120,6 +4244,10 @@ function parseIngredients(inputText) {
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]{3,})\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s-]{2,60})\)/gi,
         (m, pre, inner) => {
             const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelb|weiß|braun|grün|rot|blau|schwarz|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|sehr\s+\w+)$/i;
+            // Lecithin-Quelle: 'Lecithine (Sonnenblume)' → e322
+            if (/lecithin/i.test(pre.trim()) && /^(?:sonnenblume|soja|raps|sonnenblumen|sunflower)$/i.test(inner.trim())) return 'e322';
+            // Emulgator mit Lecithin-Quelle: 'Emulgator (Lecithine' + '(Sonnenblume)' 
+            if (/^(?:sonnenblume|soja|raps|sunflower)$/i.test(inner.trim()) && /lecithin/i.test(pre)) return 'e322';
             // Einzelne Zutatenherkunft als Qualifier: 'Molkenpulver (Milch)' → keep pre
             // Wenn inner ein einzelnes bekanntes Lebensmittel ist (keine echte Sub-Zutat)
             if (/^(?:milch|sahne|wasser|soja|erbse|mandel|kokos|quinoa)$/i.test(inner.trim())) return pre.trim();  // nur echte Herkunfts-Qualifier
@@ -4225,7 +4353,7 @@ function parseIngredients(inputText) {
         // ── Getreide / Malz ──
         [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
         [/\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token S0
-        [/\bweizenkörner?\b|\bweizenbeeren?\b/gi, 'mehl'],
+        [/\bweizenkörner?\b|\bweizenbeeren?\b/gi, 'weizen'],
         // ── Kulturen (Fermentierung) ──
         [/\bkefirknollen?\b|\bkefirkristalle?\b|\bscoby\b|\bkombucha-?kulturen?\b/gi, 'kulturen'],
         // ── Kakaoprodukte ──
@@ -4240,11 +4368,13 @@ function parseIngredients(inputText) {
         [/\bgerstengras\b|\bweizengras\b/gi, 'hafer'],  // Graspulver S0
         [/\bmatcha\b(?!\s*latte)/gi, 'grüntee'],
         // ── Kokos-Varianten ──
-        [/\bkokosblütensaft\b|\bkokosblütenzucker\b|\bkokosblütensirup\b/gi, 'zucker'],
+        [/\bkokosblütensaft\b/gi, 'zucker'],  // reiner Saft = Zucker
+        // kokosblütenzucker/sirup → eigener Token (nicht zucker!)
         [/\bkokosbutter\b|\bkokoscreme\b(?!\s+\w)/gi, 'kokos'],
-        [/\bmct-?öl\b|\bmct\s+öl\b|\bmittelketttige?\s+triglyceride?\b/gi, 'pflanzenöl'],
-        [/\bhanföl\b|\bhanfsamen?\b|\bhemp\s*(?:oil|seed)?\b/gi, 'pflanzenöl'],
-        [/\bavocadoöl\b|\bavocado\s*öl\b/gi, 'pflanzenöl'],
+        [/\bmct-?öl\b|\bmct\s+öl\b|\bmittelkettige?\s+triglyceride?\b/gi, 'mctöl'],  // S0
+        [/\bhanföl\b|\bhemp\s*oil\b/gi, 'hanföl'],  // S1
+        [/\bhanfsamen?\b|\bhemp\s*seeds?\b/gi, 'hanfsamen'],
+        [/\bavocadoöl\b|\bavocado\s*öl\b/gi, 'avocadoöl'],  // S1 eigener Token
         [/\btrüffelaroma\b|\btrüffelextrakt\b/gi, 'aroma'],
         // ── Aroma-Differenzierung nach HIT-Relevanz ─────────────────────
         // Aromaextrakt = konzentrierter Lösungsmittel-Auszug → dao_blocker-Verdacht
@@ -4264,9 +4394,9 @@ function parseIngredients(inputText) {
         [/\b(?:käse|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
         [/\bnelken?aroma\b/gi, 'nelkenaroma'],  // Nelke = S2 Liberator, aber als Aroma stark verdünnt → eigenes Token S1
         // ── Käse-Spezifisch ──
-        [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'kräuter'],
+        [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'minze'],  // S0
         [/\blabneh\b/gi, 'joghurt'],
-        [/\bhallumi\b|\bhalloumi\b/gi, 'käse'],
+        [/\bhallumi\b|\bhalloumi\b/gi, 'halloumi'],  // S1 eigener Token
         // ── Malz / Brauzutaten ──
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
@@ -4326,15 +4456,17 @@ function parseIngredients(inputText) {
         [/\bmilcheiweiß\b|\bmilcheiweis\b|\bmilcheiweib\b|\bmilchprotein\b(?!\s+\w)/gi, 'milchprotein'],
         [/\be452\b|\bpolyphosphat\b|\bnatriumpolyphosphat\b/gi, 'e452'],
         // ── Bärlauch ──
-        [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'kräuter'],
+        [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'bärlauch'],  // S1 L
         // schnittlauch → eigener Token (nicht kräuter!)
         [/\bfrühlingszwiebeln?\b|\blauchzwiebeln?\b/gi, 'lauch'],
         // ── Süß-Saure Chili ──
         [/\be1422\b|\bacetylierte\s+distärkeadipate?\b/gi, 'e1422'],
         // ── Fischsauce → HIGH ──
         [/\bauternextrakt\b/gi, 'garnele'],
-        [/\breismilch(?:pulver)?\b|\breisdrink(?:pulver)?\b/gi, 'milch'],
-        [/\bziegenmilch\b|\bziegenjoghurt\b|\bziegenkäse\b(?!\s+\w)/gi, 'milch'],
+        [/\breismilch\b|\breisdrink\b/gi, 'reismilch'],  // S1 fermentiert
+        [/\bziegenmilch\b/gi, 'milch'],  // S0
+        [/\bziegenjoghurt\b/gi, 'joghurt'],  // S1
+        [/\bziegenkäse\b(?!\s+\w)/gi, 'käse'],
         [/\blaktase\b/gi, 'kulturen'],  // Enzym für laktosefreie Milch
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
         // ── Sportlernahrung ──
@@ -4352,15 +4484,15 @@ function parseIngredients(inputText) {
         // ── Gewürze Spezifisch ──
         [/\bwasabipulver\b|\bwasabi(?:paste|pulver|extrakt)?\b/gi, 'wasabi'],  // S1-2 Liberator — NICHT gewürze!
         [/\bpiment\b|\bpimentkörner?\b|\bneugewürz\b/gi, 'piment'],  // S0
-        // rosmarin → eigener Token rosmarin (nicht kräuter)
-        [/\bsalbei\b|\bsage\b/gi, 'kräuter'],
-        [/\bestragon\b|\btarragon\b/gi, 'kräuter'],
+        [/\brosmarin(?:extrakt|öl|zweige?)?\b/gi, 'rosmarin'],  // S0
+        [/\bsalbei\b|\bsage\b/gi, 'salbei'],  // S0
+        [/\bestragon\b|\btarragon\b/gi, 'estragon'],  // S0
         [/\bkerbel\b/gi, 'kräuter'],
         [/\bbohnenkraut\b|\bsavory\b/gi, 'kräuter'],
         [/\bliebstöckel\b|\bmaggi(?:kraut)?\b/gi, 'kräuter'],  // Liebstöckel ≠ Maggi Würze!
         // ── Couscous / Bulgur / Polenta ──
         [/\bcouscous\b/gi, 'couscous'],
-        [/\bbulgur\b/gi, 'mehl'],
+        [/\bbulgur\b/gi, 'bulgur'],  // Bulgur = vorgekochter Hartweizen, eigener Token
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
         [/\bascorbinsäure\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
@@ -4370,7 +4502,8 @@ function parseIngredients(inputText) {
         [/\ballspice\b/gi, 'piment'],  // allspice = piment
         [/\bdukkah\b/gi, 'gewürze'],
         [/\bbaharat\b/gi, 'gewürze'],
-        [/\bbüffel(?:milch|mozzarella)?\b/gi, 'milch'],
+        [/\bbüffelmozzarella\b/gi, 'mozzarella'],  // → mozzarella S0
+        [/\bbüffelmilch\b/gi, 'milch'],
         [/\brohmilch\b|\bunpasteurisierte?\s+milch\b/gi, 'rohmilch'],  // → liberator S1 H! (sehr verderblich)
         // ── Meeresfrüchte fehlend ──
         [/\bkrabben(?:fleisch|schwänze?|extrakt)?\b|\bcrab\b/gi, 'garnele'],
@@ -4464,9 +4597,56 @@ function parseIngredients(inputText) {
         [/\bmohn(?:samen?|körner?|pulver)?\b/gi, 'leinsamen'],
         [/\bsesamkörner?\b|\bsesamöl\b|\bsesam\b/gi, 'sesam'],
         // ── Mehl-Typen ──
-        [/\bdinkelmehl\b|\bdinkel(?:vollkorn)?mehl\b/gi, 'mehl'],
-        [/\bbuchweizenmehl\b|\bbuchweizen(?:grieß|flocken)?\b/gi, 'mehl'],
-        [/\bkichererbsenmehl\b|\bgram(?:mehl)?\b|\bbesan\b/gi, 'mehl'],
+        [/\bdinkelmehl\b|\bdinkel(?:vollkorn)?mehl\b/gi, 'dinkelmehl'],
+        [/\bbuchweizenmehl\b|\bbuchweizen(?:grieß|flocken|körner)?\b/gi, 'buchweizenmehl'],
+        [/\bkokosmehl\b|\bcoconut\s*flour\b/gi, 'kokosmehl'],
+        [/\bmaniokmehl\b|\bcassavamehl\b|\bkassavamehl\b/gi, 'maniokmehl'],
+        [/\bbananenmehl\b|\bkochbananenmehl\b/gi, 'bananenmehl'],
+        [/\bkonjakmehl\b|\bglucomann?an\b|\bkonjak(?:wurzel)?\b/gi, 'konjakmehl'],
+        [/\berdmandelmehl\b|\bchufa\b|\btigernut\b/gi, 'erdmandelmehl'],
+        [/\bteffmehl\b|\bteff\b/gi, 'teffmehl'],
+        [/\bhirsemehl\b|\bhirse(?:flocken)?\b/gi, 'hirsemehl'],
+        [/\bsojamehl\b|\bsoya?\s*flour\b/gi, 'sojamehl'],
+        [/\bkichererbsenmehl\b|\bbesan\b|\bgram(?:mehl)?\b/gi, 'kichererbsenmehl'],
+        [/\blinsenmehl\b|\blentil\s*flour\b/gi, 'linsenmehl'],
+        [/\blupinenmehl\b|\blupine?\s*flour\b/gi, 'lupinenmehl'],
+        [/\bmandelmehl\b|\balmond\s*flour\b/gi, 'mandelmehl'],
+        [/\bleinsamenmehl\b|\bleinmehl\b/gi, 'leinsamenmehl'],
+        [/\bhanfmehl\b|\bhemp\s*flour\b/gi, 'hanfmehl'],
+        [/\breissirup\b|\brice\s*(?:malt\s*)?syrup\b/gi, 'reissirup'],
+        [/\ballulose\b|\bd-allulose\b/gi, 'allulose'],
+        [/\berythrit(?:ol)?\b|\be968\b/gi, 'erythrit'],
+        [/\bxylit(?:ol)?\b|\bbirkenzucker\b|\be967\b/gi, 'xylit'],
+        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\be960\b/gi, 'stevia'],
+        [/\baspartam(?:e)?\b|\be951\b/gi, 'aspartam'],
+        [/\bsucralose\b|\be955\b/gi, 'sucralose'],
+        [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltit'],
+        [/\bsorbit(?:ol)?\b|\be420\b/gi, 'sorbit'],
+        [/\byacon(?:sirup)?\b|\byakon(?:sirup)?\b/gi, 'yakonsirup'],
+        [/\bkokosblütensirup\b|\bkokosblütenzucker\b|\bcoconut\s*(?:blossom\s*)?sugar\b/gi, 'kokosblütenzucker'],
+        [/\bdattelsirup\b|\bdattelzucker\b|\bdate\s*(?:syrup|sugar)\b/gi, 'dattelsirup'],
+        [/\bagavendicksaft\b|\bagavensirup\b|\bagave\s*(?:syrup|nectar|sirup)?\b/gi, 'agavendicksaft'],
+        [/\bahornsirup\b|\bmaple\s*syrup\b/gi, 'ahornsirup'],
+        [/\bessigessenz\b|\breine\s*essigsäure\b/gi, 'essigessenz'],
+        [/\bbranntweinessig\b|\balkoholessig\b|\bdestillierter\s*essig\b/gi, 'branntweinessig'],
+        [/\breisessig\b|\brice\s*vinegar\b|\bsushi\s*essig\b/gi, 'reisessig'],
+        [/\bkokosessig\b|\bcoconut\s*vinegar\b/gi, 'kokosessig'],
+        [/\bsherryessig\b|\bsherry\s*vinegar\b|\bjerez\s*essig\b/gi, 'sherryessig'],
+        [/\bumeessig\b|\bumeboshi\s*(?:würze|essig)?\b/gi, 'umeessig'],
+        [/\bkombuchaessig\b|\bkombucha\s*essig\b/gi, 'kombuchaessig'],
+        [/\bgranatapfelessig\b|\bpomegranate\s*vinegar\b/gi, 'granatapfelessig'],
+        [/\bpaneer\b|\bqueso\s*blanco\b/gi, 'paneer'],
+        [/\bhalloumi\b|\bgrillkäse\b/gi, 'halloumi'],
+        [/\bharzer\s*(?:roller|käse)?\b|\bhandkäse\b|\bmainzer\s*käse\b/gi, 'harzer roller'],
+        [/\bgerstenmalzextrakt\b|\bmalzextrakt\b|\bmalt\s*extract\b/gi, 'gerstenmalzextrakt'],
+        [/\breiskeimoel\b|\breiskeimöl\b|\brice\s*bran\s*oil\b/gi, 'reiskeimöl'],
+        [/\bdisteloel\b|\bdistelöl\b|\bsafloröl\b|\bsafloroel\b|\bsafflower\s*oil\b/gi, 'distelöl'],
+        [/\barganoel\b|\barganöl\b|\bargan\s*oil\b/gi, 'arganöl'],
+        [/\bschwarzkuemmeloel\b|\bschwarzkümmelöl\b|\bnigella\s*oil\b|\bblack\s*seed\s*oil\b/gi, 'schwarzkümmelöl'],
+        [/\bweizenkeimoel\b|\bweizenkeimöl\b|\bwheat\s*germ\s*oil\b/gi, 'weizenkeimöl'],
+        [/\bfischoel\b|\bfischöl\b|\blachsoel\b|\blachsöl\b|\bfish\s*oil\b|\bomega-?3\s*öl\b/gi, 'fischöl'],
+
+        [/\bkichererbsenmehl\b|\bgram(?:mehl)?\b|\bbesan\b/gi, 'kichererbsenmehl'],
         [/\bmandelmehl\b|\bmandelgrieß\b/gi, 'mandel'],
         [/\bkokosmehl\b|\bkokosgrieß\b/gi, 'kokos'],
         // ── Schwefel / Konservierung getrocknete Früchte ──
@@ -4518,7 +4698,7 @@ function parseIngredients(inputText) {
         [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
         [/\binulin\b|\bchicorée-inulin\b|\bfrukto(?:oligosaccharide|se)?\b/gi, 'inulin'],
         // ── Brot ──
-        [/\broggenschrot\b|\bschrot\b(?!\s*\w{5})/gi, 'mehl'],
+        [/\broggenschrot\b/gi, 'roggenmehl'],  // Schrot = grob gemahlenes Getreide
         [/\bgrobsalz\b|\bmeersalz(?:flocken)?\b|\bfleur\s+de\s+sel\b/gi, 'salz'],
         [/\brübensirup\b|\bzuckerrübensirup\b|\brübenkraut\b|\bzuckerrübensaft\b/gi, 'zucker'],
         [/\bblanchierte?\s+(\w+)\b/gi, '$1'],   // "blanchierte Mandeln" → "Mandeln"
@@ -4532,7 +4712,7 @@ function parseIngredients(inputText) {
         [/\bcarboxymethylcellulose\b|\bcmc\b|\bcellulosegummi\b|e466\b/gi, 'e466'],
         [/\bhydroxypropylcellulose\b|e463\b/gi, 'e463'],
         // ── Agavendicksaft ──
-        [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'zucker'],
+        [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'agavendicksaft'],  // S2 — eigener Token
         [/\bgummibase\b|\bkaumasse\b/gi, 'stärke'],         // S0 technische Basis
         [/\bfüllstoff\s*(?:\([^)]+\))?\b/gi, ''],           // Kategorienwort → strip
         [/\bgummi\s*arabicum\b|\barabisc?hes?\s*gummi\b|e414\b/gi, 'e414'],
@@ -4631,10 +4811,12 @@ function parseIngredients(inputText) {
         [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b|\bedelsüß\b/gi, 'paprika'],  // S0
         [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'rauchextrakt'],  // S1-2 Liberator
         // ── Öle (spezifisch) ──
-        [/\bleinöl\b|\blein(?:samen)?öl\b|\bflachsöl\b/gi, 'pflanzenöl'],
-        [/\bwalnussöl\b|\bnussöl\b/gi, 'pflanzenöl'],
-        [/\bsesamöl\b(?:\s+geröstet)?\b/gi, 'pflanzenöl'],
-        [/\bhasselnussöl\b|\bmandelöl\b|\bkürbiskernöl\b/gi, 'pflanzenöl'],
+        [/\bleinöl\b|\blein(?:samen)?öl\b|\bflachsöl\b/gi, 'leinöl'],  // S0-1 eigener Token
+        [/\bwalnussöl\b|\bnussöl\b/gi, 'walnussöl'],  // S1 eigener Token
+        [/\bsesamöl\b(?:\s+geröstet)?\b/gi, 'sesamöl'],  // S1 eigener Token
+        [/\bkürbiskernöl\b/gi, 'kürbiskernöl'],  // S0
+        [/\bhaselnussöl\b/gi, 'haselnussöl'],  // S2
+        [/\bmandelöl\b/gi, 'mandelöl'],  // S1
         // ── Weitere E-Nummern Dessert ──
         [/\bgelatine\b|\btiergelatine\b|\bgelatine\s+(?:rind|schwein|fisch)\b/gi, 'gelatine'],
         [/\be407\b|\bcarrageen(?:an)?\b|\baraghan\b/gi, 'e407'],
@@ -4679,8 +4861,9 @@ function parseIngredients(inputText) {
         [/\brind(?:fleisch)?(?:pulver|extrakt|fond)\b/gi, 'brühe'],
         [/\bgemüse(?:pulver|extrakt|brühe|fond|bouillon)\b/gi, 'brühe'],
         // ── Nudeln-Spezifika ──
-        [/\bweizengrieß\b|\bweizenvollkorngrieß\b|\bsemolina\b/gi, 'mehl'],
-        [/\bmungobohnenstärke\b|\bbohnenstärke\b|\btapiokastärke\b|\bkassavastärke\b/gi, 'stärke'],
+        [/\bweizengrieß\b|\bweizenvollkorngrieß\b|\bsemolina\b/gi, 'weizenmehl'],
+        [/\bmungobohnenstärke\b|\bbohnenstärke\b/gi, 'mungobohnenstärke'],
+        [/\btapiokastärke\b|\bkassavastärke\b/gi, 'tapiokastärke'],
         [/\breis(?:nudeln?|mehl|stärke)\b/gi, 'reis'],
         // ── Weitere E-Nummern ──
         [/\be461\b|\bmethylzellulose\b/gi, 'e461'],
@@ -4690,12 +4873,13 @@ function parseIngredients(inputText) {
         [/\be170\b/gi, 'e170'],   // Calciumcarbonat
         [/\be340\b/gi, 'e340'],   // Kaliumphosphate
         // ── Lorbeer ──
-        // lorbeer → eigener Token lorbeer (nicht kräuter)
+        [/\blorbeer(?:blatt|blätter)?\b|\bbay\s*leaf\b/gi, 'lorbeer'],  // S0 SIGHI
         // ── Milchsäure ──
         [/\bmilchsäure\b|e270\b/gi, 'e270'],  // S0 (Säuerungsmittel)
         [/\bzwiebelextrakt\b|\bzwiebelkonzentrat\b|\bzwiebelpulver\b/gi, 'zwiebel'],
-        [/\broggen(?:vollkorn)?mehl\b|\broggenmehl\b/gi, 'mehl'],
-        [/\bdinkel(?:vollkorn|kleie|mehl|flocken)?\b|\bdinkelvollkornmehl\b/gi, 'mehl'],
+        [/\broggen(?:vollkorn)?mehl\b/gi, 'roggenmehl'],
+        [/\bdinkelvollkornmehl\b|\bdinkelvollkorn\b/gi, 'dinkelmehl'],
+        [/\bdinkelflocken\b|\bdinkelkleie\b/gi, 'dinkelflocken'],
         [/\bdinkelkleie\b|\bweizenkleie\b|\bhaferkleie\b/gi, 'hafer'],
         [/\bhafergrütze\b|\bhaferbrüh?\b|\bhafer(?:schrot|korn)\b/gi, 'hafer'],   // Hafergrütze → hafer → safe
         [/\bmilchserum\b|\bwhey\s*serum\b/gi, 'molke'],                            // Milchserum = Molke → safe
@@ -4751,7 +4935,7 @@ function parseIngredients(inputText) {
         [/\bdill(?:spitzen?|blätter|kraut)?\b/gi, 'kräuter'],
         [/\bkuhmilch\b|\bschafsmilch\b|\bziegenmilch\b|\bstutenmilch\b/gi, 'milch'],
         [/\bpasteurisierte\s+(?:voll|mager|but|kuh|schaf|ziegen)?milch\b/gi, 'milch'],
-        [/\bvollmilch(?:pulver)?\b/gi, 'milch'],
+        [/\bvollmilch\b(?!pulver)/gi, 'milch'],  // nur Flüssigmilch, nicht Pulver
         // ── Kulturen / Reifungsmittel ──
         [/\bmilchsäurebakterien(?:kulturen?)?\b|\blactobacillus\s+\w+\b|\bstreptococcus\s+\w+\b/gi, 'kulturen'],
         [/\bjoghurtkulturen?\b|\bkefirkulturen?\b|\bstarterkulturen?\b|\bbifterkulturen?\b/gi, 'kulturen'],
@@ -4827,8 +5011,8 @@ function parseIngredients(inputText) {
         [/\bätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],
         [/\bschokoladenpulver\b|\bschokogeschmack\b|\bschokoladengeschmack\b/gi, 'kakao'], // → kakao → Liberator
         [/\binvertzuckersirup\b|\binvertsirup\b|\binvertzucker\b/gi, 'zucker'],
-        [/\bfruktosesirup\b|\bfructosesirup\b|\bfruchtosesirup\b/gi, 'zucker'],
-        [/\btraubenzucker\b/gi, 'zucker'],                // = Dextrose S0
+        [/\bfruktosesirup\b|\bfructosesirup\b/gi, 'fructose'],  // S1 — eigener Token
+        [/\btraubenzucker\b|\bdextrose\b|\bglukose\b/gi, 'traubenzucker'],  // S0 eigener Token
         [/\bgerstenmalzextrakt\b|\bgerstenmalzsirup\b/gi, 'malz'],  // S2 Liberator — VOR gerste→hafer!
         [/\bgerstenmalz\b(?!extrakt|sirup)/gi, 'malz'],              // Gerstenmalz standalone → S2
         [/\bgerste(?:flocken|mehl)?\b/gi, 'hafer'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
@@ -4863,11 +5047,12 @@ function parseIngredients(inputText) {
         [/\bweizenprotein\b/gi, 'gluten'],  // S0
         [/\bweizenfasern?\b|\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
         [/\bvollkornreis\b|\bvollkornreismehl\b/gi, 'reis'],
-        [/\bvollkornweizenmehl\b|\bvollkorndinkelmehl\b/gi, 'mehl'],
+        [/\bvollkornweizenmehl\b/gi, 'weizenmehl'],
+        [/\bvollkorndinkelmehl\b/gi, 'dinkelmehl'],
         // ── Würzmittel ──
         [/\bkaramellisierter\s+zucker\b|\bkaramellsirup\b/gi, 'karamell'],  // karamellzucker → eigener Token
         // [/\bkaramellzucker\b/gi, 'zucker'],  // DEAKTIVIERT — würde mit zucker dedupen
-        [/\breissirup\b|\breis(?:saft)?sirup\b/gi, 'zucker'],
+        [/\breissirup\b|\breis(?:saft)?sirup\b|\breismalzsirup\b/gi, 'reissirup'],  // S0 eigener Token
         [/\bhefeextrakt\b|\bhefe-?extrakt\b/gi, 'hefeextrakt'],  // DAO-Hemmer!
         [/\bmuskat(?:nuss)?\b|\bmace\b/gi, 'muskatnuss'],  // S1-2 Liberator — NICHT gewürze!
         // schwarzer/weißer Pfeffer → pfeffer S1 Liberator (NICHT gewürze!)
@@ -4915,8 +5100,9 @@ function parseIngredients(inputText) {
         [/\bgouda\s+alt\b|\baltgouda\b/gi, 'käse gereift'],
         [/\bmilchfett\b|\bbutterfett\b/gi, 'butter'],
         // ── Hartweizengrieß / Semola ──
-        [/\bhartweizengrieß\b|\bsemola\b|\bdurum\b|\bhartweizenmehl\b/gi, 'mehl'],
-        [/\bweizengrieß?\w*|\bdinkelgrieß?\w*|\bweizengrie[sß]\w*/gi, 'mehl'],      // Weizengrieß (ß-Grenzproblem)
+        [/\bhartweizengrieß\b|\bsemola\b|\bdurum\b|\bhartweizenmehl\b/gi, 'weizenmehl'],
+        [/\bweizengrieß?\w*|\bweizengrie[sß]\w*/gi, 'weizenmehl'],
+        [/\bdinkelgrieß?\w*/gi, 'dinkelmehl'],
         [/\bbackteig\b|\bfrittierteig\b|\bpanierteig\b/gi, 'mehl'],                   // Backteig = Mehlbasis → safe
         [/\bhafervollkorn(?:flocken?|mehl|grütze)?\b/gi, 'hafer'],                    // Hafervollkorn-Komposita
         [/\b(\w+)püree\b/gi, '$1'],                                                    // Bananenpüree → Banane, Heidelbeerpüree → Heidelbeere
@@ -4931,8 +5117,9 @@ function parseIngredients(inputText) {
         [/\bchampignons?\b|\bweiße\s+champignons?\b/gi, 'champignon'],
         [/\bporree\b|\blauchzwiebeln?\b|\bfrühlingszwiebeln?\b/gi, 'lauch'],
         // ── Stärkevarianten ──
-        [/\bweizenstärke\b|\bmaizena\b/gi, 'stärke'],
-        [/\bkartoffelstärke\b|\bpfeilwurzelstärke\b/gi, 'stärke'],
+        [/\bweizenstärke\b|\bmaizena\b/gi, 'weizenstärke'],  // eigener Token
+        [/\bkartoffelstärke\b/gi, 'kartoffelstärke'],
+        [/\bpfeilwurzelstärke\b|\barrowroot\b/gi, 'pfeilwurzelstärke'],
         [/^s(?:äure)?regulator(?:en?)?\s*$/gi, ''],       // isoliertes Kategoriewort
         [/^backtrieb\s*mittel\s*$/gi, ''],
         [/^emulgator(?:en?)?\s*$/gi, ''],                  // isoliert → leer (kein Inhaltsstoff)
@@ -4991,8 +5178,8 @@ function parseIngredients(inputText) {
         [/\bnatives?\s+olivenöl\s+extra\b|\bextra\s+vergine\b|\bnativ\s+extra\b/gi, 'olivenöl'],
         [/\bpflanzliche[sr]?\s+öl(?:e)?\b|\bpflanzliches?\s+fett\b/gi, 'pflanzenöl'],
         [/\bpflanzenöl\s*\([^)]+\)\b/gi, 'pflanzenöl'],   // "Pflanzenöl (Raps, Sonnenblume)"
-        [/\bsonnenblumenöl\b|\bsonnenblumenfett\b/gi, 'pflanzenöl'],
-        [/\brapsöl\b|\brapsfett\b/gi, 'pflanzenöl'],
+        // sonnenblumenöl → eigener Token S0 (nicht pflanzenöl)
+        // rapsöl → eigener Token S0 (nicht pflanzenöl)
         [/\bhärtetes?\s+fett\b|\bgehärtetes?\s+pflanzenöl\b/gi, 'pflanzenöl'],
         [/\bbackhefe\b|\binstanthefe\b|\btrockenhefe\b/gi, 'hefe'],   // nur reguläre Hefe → safe
         [/\bwürze\b(?!\s*[a-zäöü])/gi, 'gewürze'],  // "Würze" allein
@@ -5088,10 +5275,11 @@ function parseIngredients(inputText) {
         [/\bcalciumkaseinat\b|\bnatriumkaseinat\b|\bkaseinat\b/gi, 'milchprotein'],
         [/\bcasein(?:at)?\b(?!\s*protein|\s*pulver)/gi, 'milchprotein'],
         [/\bcasein\s*(?:protein|pulver|isolat|konzentrat)\b/gi, 'milchprotein'],
-        [/\bfruktose\b|\bfrukto(?:oligosaccharide?|se)\b|\bfructose\b/gi, 'zucker'],
+        [/\bfruktose\b|\bfructose\b/gi, 'fructose'],  // S1 — eigener Token
+        [/\bfrukto(?:oligosaccharide?)\b|\bfos\b/gi, 'fructose'],  // FOS S1
         [/\baspartam\b|\baspartam-acesulfam\b/gi, 'süßungsmittel'],
         [/\bcyclamat\b|\bnatrium(?:cyclamat|saccharin)\b/gi, 'süßungsmittel'],
-        [/\bkokosblüten(?:zucker|nektar)?\b/gi, 'zucker'],  // echter Zucker, nur aus Kokos
+        [/\bkokosblüten(?:zucker|nektar|sirup)?\b/gi, 'kokosblütenzucker'],  // S1 eigener Token
         [/\bzitronensäure\b/gi, 'citronensäure'],   // → E330 (citronensäure = korrekt)
         [/\bgrüntee-?extrakt\b|\bgrüner?\s+tee\s*-?extrakt\b/gi, 'grüntee'],
         [/\bschwarz?tee-?extrakt\b|\bschwarz?er?\s+tee\s*-?extrakt\b/gi, 'schwarztee'],
@@ -5639,11 +5827,11 @@ function parseIngredients(inputText) {
         [/konzentrate?:\s*/gi,            ''],
         [/hibiskus\b/gi,                  'hibiskustee'],
         [/brennessel[n]?\b/gi,            'brennessel'],
-        [/weizenvollkornmehl\b/gi,        'mehl'],
-        [/vollkornweizenmehl\b/gi,        'mehl'],
-        [/weizenstärke\b/gi,              'stärke'],
-        [/reisstärke\b/gi,               'stärke'],
-        [/maniokstärke\b/gi,             'stärke'],
+        [/weizenvollkornmehl\b/gi,        'weizenmehl'],
+        [/vollkornweizenmehl\b/gi,        'weizenmehl'],
+        [/weizenstärke\b/gi,              'weizenstärke'],
+        [/reisstärke\b/gi,               'reisstärke'],
+        [/maniokstärke\b/gi,             'tapiokastärke'],
 
         [/melasse\b/gi,                   'melasse'],  // bleibt als eigene Zutat (biogene Amine)
 
@@ -5730,8 +5918,8 @@ function parseIngredients(inputText) {
         [/pflanzliches?\s*fett/gi,       'pflanzenöl'],
         [/pflanzliche?\s*öle?/gi,        'pflanzenöl'],
         // Stärke-Varianten (alle safe)
-        [/modifizierte?\s*stärke/gi,     'stärke'],
-        [/kartoffelstärke/gi,            'stärke'],
+        [/modifizierte?\s*stärke/gi,     'stärke'],  // generic ok
+        [/kartoffelstärke\b/gi,          'kartoffelstärke'],
         [/maisstärke/gi,                 'stärke'],
         [/weizenstärke/gi,               'weizenstärke'],
         [/tapiokastärke/gi,              'stärke'],
@@ -5806,12 +5994,14 @@ function parseIngredients(inputText) {
         [/schlagsahne|rahm\b/gi,         'sahne'],
         [/pflanzliche\s*öle?|pflanzliches?\s*fett/gi, 'pflanzenöl'],
         [/kokosfett/gi,                  'kokosöl'],
-        [/modifizierte?\s*stärke|kartoffelstärke|maisstärke|tapiokastärke/gi, 'stärke'],
+        // modifizierte stärke/kartoffelstärke/maisstärke → eigene Tokens (nicht generisch)
         [/mehlschwitze/gi,               'mehl'],
-        [/weizenvollkornmehl|weizenvollkorn\b/gi, 'mehl'],
+        [/weizenvollkornmehl|weizenvollkorn\b/gi, 'weizenmehl'],
         [/vollkorn-haferflocken/gi,       'haferflocken'],
         [/hartweizengriess|hartweizengrieß/gi, 'griess'],
-        [/reismehl|maismehl|dinkelmehl|hafermehl/gi, 'mehl'],
+        [/reismehl/gi, 'reismehl'],
+        [/maismehl/gi, 'maismehl'],
+        [/hafermehl/gi, 'hafermehl'],
         [/\breisgrieß\b|\breisgries\b/gi, 'reis'],                                  // Reisgrieß → reis → safe
         [/\btraubenkernextrakt\b|\btraubenkerneextrakt\b|\bgrape\s*seed\s*extract\b/gi, 'trauben'], // → Liberator S1
         [/\bsojasaucenpulver\b|\bsojasoßenpulver\b/gi, 'sojasoße'],                // → high S3
@@ -5887,7 +6077,7 @@ function parseIngredients(inputText) {
         // ── Grieß-Varianten ──
         [/\bhartweizen(?:griess|grieß)\b/gi, 'griess'],
         [/\bgriess\b|\bgrieß\b/gi, 'griess'],
-        [/\b(?:weiß|voll)?weizenmehl\b/gi, 'mehl'],
+        [/\b(?:weiß|voll)?weizenmehl\b/gi, 'weizenmehl'],
         // ── Zusammengesetzte Produktbezeichnungen (Kategorie + Produktname) ──
         [/\bmodifizierte?\s+stärke\b/gi, 'stärke'],
         [/\binvertzucker(?:sirup)?\b/gi, 'zucker'],
@@ -5896,7 +6086,8 @@ function parseIngredients(inputText) {
         [/pflanzliche?\s+öle?\s+(palm|raps|sonnenblume|kokos)\b/gi, '$1öl'], // "pflanzliche Öle Palm" → "palmöl"
         [/\bpalmkernöl\b/gi, 'palmöl'],  // palmkernöl → palmöl
         [/\braps\b(?!\w)/gi, 'rapsöl'],              // isolated "Raps" → "rapsöl"
-        [/\blecithine?\s+sonnenblume\b/gi, 'e322'],  // Lecithin-Sonnenblume VOR sonnenblume→öl!
+        [/\bsonnenblumenkerne?\b/gi, 'sonnenblumenkerne'],  // VOR sonnenblumenöl!
+        [/\blecithine?\s+sonnenblume\b/gi, 'e322'],
         [/\bsonnenblume\b(?!\w)/gi, 'sonnenblumenöl'],
         // ── Post-merge: "pflanzenöl palm" → "palmöl" (after generic oil rule fires) ──
         [/pflanzen[öo]l\s+palm\b/gi, 'palmöl'],
@@ -5924,7 +6115,7 @@ function parseIngredients(inputText) {
         [/\bhühnereieiwei[sß]+\b|\bhühnereieiweib\b/gi, 'ei'],                // Tippfehler Ei-Eiweiß
         [/\bmaltodextin\b/gi, 'maltodextrin'],                                   // Tippfehler maltodextrin
         [/\bsenfsaaten?\b/gi, 'senf'],                                           // Plural senfsaaten
-        [/\bgetreide\b/gi, 'mehl'],                                              // generisches Getreide → safe
+        // [/\bgetreide\b/gi, 'mehl'],  // DEAKTIVIERT — zu generisch                                              // generisches Getreide → safe
         [/\bzuckersirup\b|\bbrown\s+sugar\s+syrup\b/gi, 'zucker'],              // Zuckersirup → safe
         [/\bmolkepulver\b|\bwheypulver\b|\bwhey\s*powder\b/gi, 'molke'],       // Molkepulver → safe
         [/\btraubenmost\b|\bgekochter\s+traubenmost\b/gi, 'wein'],              // Traubenmost → wein → high
@@ -6313,7 +6504,7 @@ function parseIngredients(inputText) {
         [/\bjunger?\s+gouda\b|\bgouda\s+jung\b|\bjunger?\s+\w{4,}käse\b/gi, 'junger gouda'],  // S1-2 Liberator
         [/\bcheddar\b|\bgauda\b/gi, 'cheddar'],
         [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomate'],
-        [/\bschmelzkäse\w*\b/gi, 'käse'],
+        [/\bschmelzkäse\w*\b/gi, 'schmelzkäse'],  // DAO-hemmend S3
         [/\bpanko\s*paniermehl\b|\bpaniermehl\b|\bsemmelbrös[e]?l\b/gi, 'mehl'],
         // ── Fleisch-Varianten ──
         [/\bhühnerbrustfleisch\b|\bhühnerfleisch\b|\bhühnerbrust\b/gi, 'hähnchen'],
@@ -6358,7 +6549,7 @@ function parseIngredients(inputText) {
         [/\bgerstenmalzessig\b|\bmalzessig\b/gi, 'weinessig'],  // Malzessig: fermentiert
         [/(?<!apfel|obst|branntwein|tisch|weißwein|rotwein|wein|balsamico|sherry|reis|bier|malz|gerstenmalz)\bessig\b(?!\s*(?:essenz|säure))/gi, 'weinessig'],  // bare 'Essig' → weinessig S3
         // weißweinessig/apfelessig/reisessig/branntweinessig → bereits durch spezifische Normen oben behandelt
-        [/\bdinkels?\w*schrot\b|\bdinkelvollkorn\w*\b|\bdinkelmehl\b/gi, 'mehl'],
+        // dinkelmehl → eigener Token (bereits oben)
         [/\bbockshornklee(?:samen|extrakt)?\b/gi, 'bockshornklee'],
         [/\bfenchelsamen?\b/gi, 'fenchel'],
         [/\bkreuzkümmel\b|\bkumin\b/gi, 'kümmel'],
@@ -6398,7 +6589,9 @@ function parseIngredients(inputText) {
         [/\bpecorino-?käse\b|\bpecorino\s+romano\b/gi, 'parmesan'],
         // ── Käse-Compound-Artefakte bereinigen ──
         [/\b(gouda|cheddar|parmesan|emmentaler|mozzarella|camembert|brie)[-–](gouda|cheddar|parmesan|emmentaler|mozzarella|camembert|brie|milch)\b/gi, '$1'],
-        [/\b(gouda|cheddar|parmesan|emmentaler|mozzarella|provolone|camembert|brie)-?(milch|käse)\b/gi, '$1'],
+        [/\b(gouda|cheddar|parmesan|emmentaler|mozzarella|provolone|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|scamorza)-?(milch|käse)\b/gi, '$1'],
+        [/\bmozzarella\s+(?:schnittfest|gerieben|geraspelt|frisch)?\b/gi, 'mozzarella'],
+        [/\bprovolone(?:-käse)?\b/gi, 'provolone'],
         [/\bpecorino\s+romano[-–]parmesan\b/gi, 'parmesan'],
         // ── "gouda-milch" usw. → gouda ──
         [/\bgouda[-–]\w+/gi, 'gouda'],
@@ -6621,7 +6814,15 @@ function parseIngredients(inputText) {
         [/\bkichererbseneiweiß\b|\bkichererbsenprotein\b|\bchickpea\s*protein\b/gi, 'kichererbsen'], // S0-1
         [/\bkaliumiodat\b/gi, 'kaliumjodat'],   // Schreibvariante (i statt j)
         [/\btapioka(?:mehl|stärke)?\b|\bmaniok(?:mehl|stärke)?\b/gi, 'stärke'],
-        [/\bpfeilwurzel(?:stärke|mehl)?\b|\barrowroot\b/gi, 'stärke'],
+        [/\bsago(?:stärke)?\b/gi, 'sago'],
+        [/\bparanuss(?:kerne?)?\b|\bbrazil\s*nut\b/gi, 'paranuss'],
+        [/\bpecannuss\b|\bpekannuss\b|\bpekan\b|\bpecan\b/gi, 'pecannuss'],
+        [/\btahini\b|\btahina\b|\bsesammus\b|\bsesampaste\b/gi, 'sesam'],
+        [/\bchiasamen\b|\bchia\s*seeds?\b/gi, 'chiasamen'],
+        [/\bleinsamen(?:schrot)?\b|\bflaxseed\b/gi, 'leinsamen'],
+
+        [/\berbsenstärke\b|\bpea\s*starch\b/gi, 'erbsenstärke'],
+        [/\bmungobohnenstärke\b|\bmung\s*bean\s*starch\b/gi, 'mungobohnenstärke'],
         // ── Mahlprodukte ──
         [/\bmaisgries\b|\bpolenta\b|\bmaisgrieß\b/gi, 'mais'],
         [/\binstant-?haferflocken\b|\bschnell(?:koch)?haferflocken\b/gi, 'hafer'],
@@ -6731,9 +6932,10 @@ function parseIngredients(inputText) {
         [/\bbonito(?:flocken)?\b|\bkatsuobushi\b/gi, 'thunfisch'], // geräuchert+fermentiert S3
         [/\bdashi\b/gi, 'brühe'],                        // Fischbrühe S2-3
         // ── Essig-Varianten ──
-        [/\bsherryessig\b|\bchampagner[-\s]?essig\b|\bchampagnessig\b/gi, 'essig'],
+        [/\bsherryessig\b/gi, 'sherryessig'],  // S3 eigener Token
+        [/\bchampagner[-\s]?essig\b|\bchampagnessig\b/gi, 'weinessig'],
         [/\bchinkiang\s+essig\b|\bschwarzer\s+reisessig\b/gi, 'essig'],  // S3
-        [/\breisessig\s+(?:weiß|schwarz|hell|dunkel)?\b/gi, 'essig'],
+        [/\breisessig\s+(?:weiß|schwarz|hell|dunkel)?\b/gi, 'reisessig'],
         // ── Europäische Kräutermischungen → alle zu 'kräuter' ──
         [/\bprovençalische\s+kräuter\b|\bherbes?\s+de\s+provence\b|\bkräuter\s+der\s+provence\b/gi, 'kräuter'],
         [/\bitalienische\s+kräuter\b|\bitalian\s+herbs?\b/gi, 'kräuter'],
@@ -7882,7 +8084,6 @@ function parseIngredients(inputText) {
         parts.push(...splits);
     }
 
-    if (parts.some(p => p === 'weizen') || inputText.toLowerCase() === 'weizen') console.log('[WEIZEN] parts:', JSON.stringify(parts.filter(p => p.includes('weizen') || p === '')));
     const result = [...new Set(parts)].map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
 
     // ── Sicherheitsnetz: S3-Signalwörter dürfen nicht spurlos verschwinden ──────
@@ -8218,7 +8419,12 @@ const SIGHI_DB = {
         'sauerkraut','kimchi','miso','natto','tempeh','fermentiert',
         'rotwein','champagner','sekt','weißwein','bier','weizenbier',
         'schnaps','likör','alkohol','spirituosen','rum','whisky','gin','wodka','e1510','ethylalkohol','ethanol',
-        'weinessig','rotweinessig','balsamico','aceto balsamico','tafelessig',
+        'weinessig','rotweinessig','weissweinessig','balsamico','aceto balsamico','tafelessig',
+        'umeessig','umeboshi','kombuchaessig',
+        'sherryessig',
+        'gerstenmalzextrakt','malzextrakt',
+        'harzer roller','handkäse','sauermilchkäse',
+        'granatapfelessig',
         'hefeextrakt','marmite','vegemite','hefeautolysat',
         'proteinhydrolysat','pflanzenproteinhydrolysat','hydrolysiertes pflanzenprotein',  // ❌ S3 — freie Glutamate + biogene Amine
         'sojasauce','worcestersauce','fischsauce','oystersauce',
@@ -8404,7 +8610,8 @@ const SIGHI_DB = {
         // ── SIGHI 1: Mässig verträglich (SIGHI 2024-08-29) ──────────────
         'diphosphat','e450','natriumdiphosphat','dinatriumdiphosphat','eisenpyrophosphat',  // S1 — Phosphat-Liberator-Verdacht (MCAS), siehe Tooltip
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe',  // S1 — Backhefe; Hefeextrakt → S3!
-        'pfeffer','pfeffer schwarz','schwarzer pfeffer','weißer pfeffer','pfefferkörner',  // S1
+        'pfeffer','pfeffer schwarz','schwarzer pfeffer','weißer pfeffer','pfefferkörner',  // S2 SIGHI!
+        'bärlauch','bärlauch blätter','wild garlic','ramsons',  // S1 L SIGHI
         'liebstöckel','liebstöckelwurzel','lovage','maggikraut',
         'koriander','coriander','koriandersamen',
         'anis','anissamen',
