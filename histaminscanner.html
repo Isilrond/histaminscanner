@@ -733,6 +733,16 @@
     <!-- "DEIN-CODE" durch deinen GoatCounter-Sitecode ersetzen -->
     <script data-goatcounter="https://isilrond.goatcounter.com/count"
             async src="//gc.zgo.at/count.js"></script>
+  <script>
+window._histDebug = localStorage.getItem('hitDebug') === '1';
+window._hitLog = [];
+window._hlog = function(...a) {
+    if (!window._histDebug) return;
+    const msg = '[HIT] ' + a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ');
+    console.log(msg);
+    window._hitLog.push(msg);
+};
+</script>
 </head>
 <body>
 
@@ -903,6 +913,8 @@
         <div class="product-brand" id="prod-brand"></div>
     </div>
 
+    <div id="debug-panel-slot"></div>
+
     <p class="sec-label" id="sec-label">Zutaten</p>
     <div class="ing-list" id="ing-list"></div>
 
@@ -1024,7 +1036,7 @@
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v7.33<br>
+                Histaminscanner v7.68<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1036,6 +1048,13 @@
     <div id="provider-indicator" style="text-align:center;font-size:0.8rem;padding:0.5rem 1rem;opacity:0.9"></div>
 
     <button class="btn-save" onclick="saveSettings()">Einstellungen speichern</button>
+
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #333;">
+      <div style="font-size:11px;color:#888;margin-bottom:6px;">Entwickler</div>
+      <button id="debugToggleBtn" onclick="window._histDebug=!window._histDebug;localStorage.setItem('hitDebug',window._histDebug?'1':'0');document.getElementById('debugToggleBtn').textContent='🐛 Debug: '+(window._histDebug?'AN ✓':'AUS');" style="padding:6px 14px;font-size:12px;background:#1a1a2e;color:#aaa;border:1px solid #444;border-radius:6px;cursor:pointer;">🐛 Debug: AUS</button>
+      <script>if(localStorage.getItem("hitDebug")==="1"){var _b=document.getElementById("debugToggleBtn");if(_b)_b.textContent="🐛 Debug: AN ✓";}</script>
+      <div style="font-size:10px;color:#666;margin-top:4px;">Logs in der Browser-Konsole (F12)</div>
+    </div>
 </div>
 
 <!-- ═══════════ MANUAL ═══════════ -->
@@ -2758,7 +2777,7 @@ const DB = {
         'kokoscreme','mangocreme',            // S0-1
     
         // Pizza / Backwaren E-Nummern
-        'e341','calciumphosphate',   // S0 Backtriebmittel
+        // 'e341' → dao_blocker (nicht safe_hints)
         'e333','calciumcitrate',     // S0 Säureregulator
         // e450/diphosphate → liberator[] S1 (siehe SIGHI-Diskussion, kein S0!)
         'e500','natriumhydrogencarbonat','natriumcarbonat',  // S0 Backtriebmittel
@@ -3977,6 +3996,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
             const GENERIC = /^(wasser|salz|speisesalz|zucker|öl|rapsöl|pflanzenöl|gewürze?|aroma|stärke|wein|essig|branntweinessig|weizenmehl|mehl|essigsäure|e260|senfsaat|senf|eier?|ei\b)$/i;
             if (childClean.length > 1 && !GENERIC.test(childClean)) {
                 parentMap[childClean] = parentRaw;
+                if (window._histDebug) console.log('[HIT] PARENT:', JSON.stringify(childClean.slice(0,20)), '←', JSON.stringify(parentRaw.slice(0,20)));
             }
         });
     }
@@ -3992,7 +4012,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
         // Triviale Zutaten brauchen keinen Original-Label
-        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose)$/i;  // zucker+mehl raus für bessere Labels
+        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose|glutamat|glutaminsäure|e621|e620|petersilie|kräuter|gewürzkräuter|chiliöl|chilisamenöl|chiliesamenöl)$/i;  // zucker+mehl raus für bessere Labels
         if (TRIVIAL.test(normToken)) continue;
         let bestOriginal = null;
         let bestScore = 0;
@@ -4065,6 +4085,7 @@ async function runAnalysis(product, ingredientsText) {
     // Distanz 2 → nur Hinweis anzeigen, KI bestätigt
     for (const item of analyzed) {
         if (item.cat === 'unknown') {
+            if (window._histDebug) window._hlog('UNKNOWN:', JSON.stringify(item.name.slice(0,25)), '→ fuzzy/KI');
             const fuzzy = findFuzzyMatch(item.name);
             if (fuzzy) {
                 if (fuzzy.dist === 1) {
@@ -4188,8 +4209,11 @@ async function runAnalysis(product, ingredientsText) {
 // ═══════════════════════════════════════════════════════════
 function parseIngredients(inputText) {
     if (!inputText) return [];
+    const DBG = window._histDebug || false;
+    const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
+    dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
@@ -4216,6 +4240,7 @@ function parseIngredients(inputText) {
 
     // ── Prozent-Klammern entfernen "(47%)" vor Auflösung, damit "(47%) (Spinat...)" korrekt geht ──
     inputText = inputText.replace(/\s*\(\s*\d+[,.]?\d*\s*%\s*\)/g, '');
+    dbg('1_AFTER_NORMALIZE_START:', JSON.stringify(inputText.slice(0,120)));
     // Nach Prozent-Entfernung: Komponenten-Header 'Nudeln:' / 'Flüssige Soße:' → ','
     // (entstanden durch: 'Nudeln (77,4%):' → Prozent-Strip → 'Nudeln:' → Header)
     // Erkennung: Wort(e) direkt gefolgt von ':' + Leerzeichen + Grossbuchstabe/Wort
@@ -4224,7 +4249,9 @@ function parseIngredients(inputText) {
         if (/^(?:emulgatoren?|stabilisatoren?|konservierungsstoffe?|säuerungsmittel|antioxidationsmittel|verdickungsmittel|farbstoffe?|geschmacksverstärker|süßungsmittel|säureregulator|backtriebmittel|mehlbehandlungsmittel|trennmittel)$/i.test(name.trim())) return m;
         // Nicht ersetzen wenn nur ein einzelnes kurzes Wort (könnte Zutat: Menge sein)
         // Ersetzen wenn mehrere Wörter oder bekannte Komponenten-Muster
-        if (name.trim().includes(' ') || /^(nudeln?|soße|sauce|suppe|belag|füllung|brühe|pulver|paste|basis|teig|topping|dressing|panade)$/i.test(name.trim().split(' ').pop())) return ', ';
+        // Wenn name mit E-Nummer beginnt, diese retten: 'E270 Pulverbrühe' → ', E270,'
+        const _enr = name.trim().match(/^(e\d{3,4})\s+/i);
+        if (name.trim().includes(' ') || /^(nudeln?|soße|sauce|suppe|belag|füllung|brühe|pulver|paste|basis|teig|topping|dressing|panade)$/i.test(name.trim().split(' ').pop())) return _enr ? ', ' + _enr[1] + ', ' : ', ';
         return m;  // Standard: behalten
     });
     // ── Bare Prozentangaben entfernen "6,5%" (ohne Klammern), VOR Komma-Split ──
@@ -4240,13 +4267,14 @@ function parseIngredients(inputText) {
     const liberateBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%]*)\s*\((?!\s*(?:enthält|kann|spuren|allergen))([^()]{3,},[^()]*)\)/gi,
         (m, pre, inner) => {
+            if ((pre+inner).toLowerCase().includes("curry") || (pre+inner).toLowerCase().includes("pfeffer") || (pre+inner).toLowerCase().includes("habanero")) { if(window._histDebug) { const _m = "[HIT] LIB_BRACKET: "+JSON.stringify(pre.slice(0,50))+" INNER: "+JSON.stringify(inner.slice(0,50)); console.log(_m); window._hlog(_m); } }
             // Wenn alle Komma-Teile reine Deskriptoren sind → pre behalten, inner verwerfen
             const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei|laktosefrei|vegan|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w+)\b/i;
             const parts = inner.split(',').map(p => p.trim());
             if (parts.every(p => DESCRIPTOR_WORDS.test(p))) return pre.trim();
             // Bekannte Compound-Produkte: Namen behalten + Sub-Zutaten expandieren
             const preTrimmed = pre.trim().replace(/^\d+[\s%]*|[\s%\d]+$/g, '').trim();
-            const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir)\b/i;
+            const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir|curry|pfeffer|chili|habanero|paprika|gewürz|gewürzmischung|senf|soße|sauce|marinade|paste|würze)\b/i;
             if (KEEP_NAME.test(preTrimmed)) return preTrimmed + ', ' + inner;
             return inner;  // Compound-Produktname verwerfen, Zutaten behalten
         }
@@ -4270,6 +4298,11 @@ function parseIngredients(inputText) {
             // Herkunftsangabe: 'aus X', 'von X' → pre behalten, inner verwerfen
             if (/^(?:aus|von|with|from)\s+/i.test(inner.trim())) return pre.trim();
             if (DESCRIPTOR_ONLY.test(inner.trim())) return pre.trim() + ' ' + inner.trim();
+            // Bekannte Compound-Namen aus pre retten (vor der Verwerfung prüfen)
+            if ((pre+inner).toLowerCase().includes("curry") || (pre+inner).toLowerCase().includes("pfeffer") || (pre+inner).toLowerCase().includes("habanero")) { if(window._histDebug) { const _m = "[HIT] SINGLE_BRACKET: "+JSON.stringify(pre.slice(0,50))+" INNER: "+JSON.stringify(inner.slice(0,30)); console.log(_m); window._hlog(_m); } }
+            const KEEP_PRE = /(?:^|[\s-])(?:curry|pfeffer|chili|habanero|paprika|gewürz|senf|soße|sauce|marinade|paste|würze|mozzarella|käse|chorizo|salami|speck|schinken|tofu|joghurt)\b/i;
+            const preClean = pre.trim().replace(/[\s(]+enthält\s+.*$/i, '').replace(/[\s(]+$/,'').trim();
+            if (KEEP_PRE.test(preClean)) return preClean + (inner.trim() ? ', ' + inner.trim() : '');
             return inner.trim();  // Compound-Produktname verwerfen
         }
     );
@@ -4283,6 +4316,10 @@ function parseIngredients(inputText) {
         inputText = inputText.replace(/[\wäöüßÄÖÜ\s-]{3,40}\s*\([\d,./\s%]+\)\s*:/g, ',');
         inputText = liberateBrackets(inputText);
         inputText = liberateSingleBrackets(inputText);
+        dbg('3_AFTER_SINGLE:', JSON.stringify(inputText.slice(0,300)));
+        dbg('3_AFTER_SINGLE_curry:', inputText.toLowerCase().indexOf('curry'), inputText.toLowerCase().indexOf('pfeffer'), inputText.toLowerCase().indexOf('habanero'));
+        const _curryIdx = inputText.toLowerCase().indexOf('curry'); dbg('CURRY_AT:', _curryIdx, _curryIdx>=0 ? JSON.stringify(inputText.slice(Math.max(0,_curryIdx-10),_curryIdx+40)) : 'NOT FOUND');
+        const _pfIdx = inputText.toLowerCase().indexOf('pfeffer'); dbg('PFEFFER_AT:', _pfIdx>=0 ? JSON.stringify(inputText.slice(Math.max(0,_pfIdx-10),_pfIdx+40)) : 'NOT FOUND');
         if (inputText === before) break;
     }
 
@@ -4303,6 +4340,11 @@ function parseIngredients(inputText) {
         [/\bemulgator(?:en)?\s*\(\s*polyoxyethylensorbitanmonostearat\s*\)/gi, 'e435'],
         [/\bemulgator(?:en)?\s*\(\s*polyoxyethylensorbitanmonooleat\s*\)/gi, 'e433'],
         [/[()[\]]/g, ''],  // verwaiste Klammern entfernen
+        [/\s*=\s*[a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s-]{2,40}/g, ''],  // 'E551 = Siliciumdioxid' → 'E551'
+        [/\b(e\d+)\s+(e\d+)\b/gi, '$1'],  // 'chili e551 e631' → remove trailing E-nums
+        [/\b([a-zäöüß]+)\s+(e\d{3,4})\b/gi, '$1'],  // 'chili e551' → 'chili'
+        [/\b(e\d{3,4})\s+([a-zäöüß]{3,})\b/gi, '$2'],  // 'e270 aromen' → 'aromen'
+        [/\s+enthält\s+.*$/gi, ''],  // 'Curry-Gewürz enthält E631' → 'Curry-Gewürz'
         [/\bjoghurt\s+(?:mild|natur|griechisch|cremig|fettarm|mager|vollfett)?(?:\s+(?:aus\s+)?(?:entrahmter?|fettarmer?|ganzer?)?\s*milch)?\b/gi, 'joghurt'],  // alle Joghurt-Varianten → joghurt
         [/\bjoghurt\s+mild\s+entrahmter?\b/gi, 'joghurt'],  // explizit für diesen Fall
         [/\bkatenspeck\b|\bkatenrauchspeck\b/gi, 'speck'],  // reiner Speck, NICHT katenschinken
@@ -4949,7 +4991,15 @@ function parseIngredients(inputText) {
         [/\bglasnudeln?\b|\bcellophannudeln?\b|\breisvermicelli\b/gi, 'nudeln'],
         [/\bedamame\b/gi, 'edamame'],                                // Edamame (geschält/grün) → S1
         [/\bsojabohnen?\s*(?:in hülsen)?\b/gi, 'soja'],             // rohe Sojabohnen → Tofu-Basis → soja S0-1
-        [/\bjalapeño\b|\bchili(?:schoten?|ringe?|pulver|paste|öl)?\b/gi, 'chili'],
+        // Compound-Gewürznamen MIT Bindestrich-Suffix: VOR generischen
+        [/\bhabanero(?:-chili)?(?:-gewürze?|-pulver|-schote)\b/gi, 'chili'],  // nur mit Suffix!
+        [/\bcurry-(?:gewürz|würzmischung|mischung|pulver)\b/gi, 'curry'],
+        [/\bcurry-$/gi, 'curry'],  // 'Curry-' trailing hyphen artefact
+        [/\bpfeffer-$/gi, 'pfeffer'],  // 'Pfeffer-' trailing hyphen
+        [/\bpfeffer-(?:gewürz|mischung|pulver)\b/gi, 'pfeffer'],
+        [/\bchili-(?:pulver|flocken|gewürz|extrakt|faden)\b/gi, 'chili'],
+        [/\bchilie?samen(?:öl)?\b|\brotes?\s*chili(?:e?samen)?-?öl\b/gi, 'chiliöl'],
+        [/\bjalapeño\b|\bchili(?:schoten?|ringe?|pulver|paste)?\b/gi, 'chili'],  // öl entfernt - chiliöl ist eigener Token!
         [/\bcumin\b|\bkreuzkümmel\b|\bkümmelkreuz\b/gi, 'kreuzkümmel'],  // S2 SIGHI!
         [/\bdill(?:spitzen?|blätter|kraut)?\b/gi, 'kräuter'],
         [/\bkuhmilch\b|\bschafsmilch\b|\bziegenmilch\b|\bstutenmilch\b/gi, 'milch'],
@@ -5300,13 +5350,13 @@ function parseIngredients(inputText) {
         [/\bcyclamat\b|\bnatrium(?:cyclamat|saccharin)\b/gi, 'süßungsmittel'],
         [/\bkokosblüten(?:zucker|nektar|sirup)?\b/gi, 'kokosblütenzucker'],  // S1 eigener Token
         [/\bzitronensäure\b/gi, 'citronensäure'],   // → E330 (citronensäure = korrekt)
-        [/\bgrüntee-?extrakt\b|\bgrüner?\s+tee\s*-?extrakt\b/gi, 'grüntee'],
+        [/\bgrüntee(?:-aroma|-extrakt|-pulver)?\b|\bgrüner?\s+tee\s*-?extrakt\b/gi, 'grüntee'],
         [/\bschwarz?tee-?extrakt\b|\bschwarz?er?\s+tee\s*-?extrakt\b/gi, 'schwarztee'],
         [/\bhibiskus(?:tee)?-?extrakt\b/gi, 'hibiskustee'],
         [/\btee-?extrakt\b/gi, 'tee'],  // generisch
         [/\bstevioglyceride?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],  // Stevia-Extrakt = Süßungsmittel S0
         [/\btrinatrium(?:citrat)?(?:dihydrat)?\b/gi, 'e331'],
-        [/\bgrüntee-?extrakt\b|\bschwarz?tee-?extrakt\b|\bhibiskustee-?extrakt\b|\btee-?extrakt\b/gi, 'tee'],
+        [/\bschwarz?tee-?extrakt\b|\bhibiskustee-?extrakt\b|\btee-?extrakt\b/gi, 'tee'],  // grüntee raus!
         [/\bstevioglyceride?\b|\bstevioglycoside?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],
         [/\btrinatrium(?:citrat)?(?:dihydrat)?\b|\bnatriumcitrat\b|e331\b/gi, 'e331'],
         [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
@@ -5381,7 +5431,8 @@ function parseIngredients(inputText) {
         [/\bgebrannte?\s+mandeln?\b/gi, 'mandel'],    // karamellisiert S1
         [/\bkaramell(?:nüsse?|mandeln?|cashews?)\b/gi, 'haselnuss'],  // Karamell+Nuss S1
         [/\bwasabi\s+erdnüsse?\b|\bwasabi\s+peas\b/gi, 'erdnuss'],
-        [/\bchili\s+erdnüsse?\b|\bchili\s+nuts?\b/gi, 'erdnuss'],
+                [/\bchilisamen(?:öl)?\b|\brotes?\s+chili(?:samen)?öl\b/gi, 'chiliöl'],  // S1-2
+[/\bchili\s+erdnüsse?\b|\bchili\s+nuts?\b/gi, 'erdnuss'],
         [/\bhonig\s+(?:erdnüsse?|mandeln?|cashews?)\b/gi, 'erdnuss'],
         [/\bkokos\s+erdnüsse?\b/gi, 'erdnuss'],
         // ── Müsliriegel-Marken → Kategorien ──
@@ -5455,7 +5506,7 @@ function parseIngredients(inputText) {
         [/\blow\s+carb\s+müsli\b|\bvegan(?:es)?\s+müsli\b/gi, 'müsli'],
         [/\bbirchermüsli\b|\bovernight\s+oats?\b|\bporridge\s+\w+\b/gi, 'müsli'],
         [/\baromengemisch\b|\bgeschmacksmischung\b/gi, 'aroma'],
-        [/\bgrüntee(?:extrakt)?\b/gi, 'tee'],
+        // [/\bgrüntee(?:extrakt)?\b/gi, 'tee'],  // DEAKTIVIERT — grüntee ist eigener Token S1!
         [/\bschwarz(?:er?)?\s*tee(?:extrakt)?\b|\bschwarztee(?:extrakt)?\b/gi, 'schwarztee'],  // nur mit 'tee'!
         [/\bhibiskus(?:tee)?(?:extrakt)?\b/gi, 'hibiskustee'],
         [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\brote\s*bee?te\s*extrakt\b/gi, 'rote bete'],
@@ -5531,7 +5582,8 @@ function parseIngredients(inputText) {
         [/knoblauchknolle[n]?/gi,        'knoblauch'],
         [/lauchstange[n]?/gi,            'lauch'],
         [/zwiebelring[e]?/gi,            'zwiebel'],
-        [/petersilieoder\s*\w*/gi,       'petersilie'],
+                [/\b(?:krause|glatte|fein|grob)\s+petersilie\b/gi, 'petersilie'],
+[/petersilieoder\s*\w*/gi,       'petersilie'],
         [/petersilienstiel[e]?/gi,       'petersilie'],
         [/\bpetersilienw(?:urzel)?(?:pulver|extrakt|trocken)?\b/gi, 'petersilie'],  // Petersilienwurzelpulver
         [/\bpetersilje?\b/gi, 'petersilie'],  // Schreibvariante
@@ -6178,6 +6230,10 @@ function parseIngredients(inputText) {
         [/koffein\b|coffein\b|kofein\b/gi, 'koffein'],
         // ── "Säuerungsmittel X und Y" → "X, Y" ──
         [/\b(?:säuerungs|säurungs)mittel\s+(\w+)\s+und\s+(\w+)/gi, '$1, $2'],
+        [/^(?:pulverbrühe|soße|brühe|\w*brühe)$/gi, ''],
+        [/^(?:pulverbrühe|\w*brühe)\s*:?\s*/gi, ''],  // 'Pulverbrühe: ' prefix
+        [/\bpulverbrühe\s*:\s*/gi, ''],  // non-anchored version
+        [/^flüssige?\s*soße\s*:\s*/gi, ''],  // 'Flüssige Soße: ' → strip
         [/^(?:säuerungs|säurungs)mittel$/gi, ''],  // standalone → leer (KI verhindert)
         // ── "Xsaft aus Ykonzentrat" → "X" ──
         [/(orangensaft|zitronensaft|apfelsaft|traubensaft|johannisbeersaft|birnensaft|tomatensaft|mangosaft|ananassaft|maracujasaft|cranberrysaft|blaubeersaft)\s+aus\s+[\w]+konzentrat/gi, (m, saft) => saft.replace(/saft$/, '')],
@@ -7005,7 +7061,7 @@ function parseIngredients(inputText) {
         [/\bbärlauch(?:öl|pesto|butter)?\b/gi, 'bärlauch'],
         [/\bbasilikum(?:öl|pesto)?\b/gi, 'basilikum'],
         [/\brosmarin(?:öl|extrakt)?\b/gi, 'rosmarin'],
-        [/\bchili(?:öl|extrakt|sauce)?\b(?!pulver)/gi, 'chili'],
+        [/\bchili(?:extrakt|sauce)\b/gi, 'chili'],  // chiliöl ist eigener Token!
         [/\bzitronenöl\b/gi, 'zitronenschale'],
         [/\borangenöl\b/gi, 'orange'],
         // ── Gewürze in ganzer Form (Körner/Samen/Stangen/Kapseln) → Grundform ──
@@ -7021,6 +7077,7 @@ function parseIngredients(inputText) {
         [/\bmacis(?:pulver|blüte)?\b/gi, 'muskat'],
         [/\brosmarinblätter?\b|\bgetrockneter?\s+rosmarin\b/gi, 'rosmarin'],
         [/\bsalbeiblätter?\b|\bgetrockneter?\s+salbei\b/gi, 'salbei'],
+        [/\bpfeffer-gewürz\b|\bpfeffergewürz\b/gi, 'pfeffer'],  // compound
         [/\bpfeffer(?:körner?|ganz|grob|schwarz|weiß|grün|gemahlen)?\b/gi, 'pfeffer'],
         [/\blavendel(?:blüten?)?\b/gi, 'lavendel'],
         [/\bbockshornklee(?:blätter?|samen?|pulver)?\b/gi, 'bockshornklee'],
@@ -7381,7 +7438,7 @@ function parseIngredients(inputText) {
         [/\bbcaa\b|\bbranched\s+chain\b/gi, 'supplement'],
         [/\bkreatin\s*(?:monohydrat|hcl|ethyl)?\b/gi, 'supplement'],
         [/\bmagnesium(?:citrat|glycinat|oxid|sulfat)?\s*(?:pulver|kapseln?)?\b/gi, 'supplement'],
-        [/\bvitamin\s*[cde](?!\w)\s*(?:pulver|kapseln?|tabletten?|tropfen)?\b/gi, 'supplement'],  // NICHT 'vitamine'!
+        [/\bvitamin\s+[cde](?!\w)\s*(?:pulver|kapseln?|tabletten?|tropfen)?\b/gi, 'supplement'],  // \s+ verhindert 'vitamine'
         [/\bomega.?3\s*(?:kapseln?|öl|fettsäuren)?\b/gi, 'fischöl'],
         [/\bkollagen\s*(?:pulver|peptide|hydrolysat)?\b/gi, 'supplement'],
         [/\bhyaluron\s*(?:kapseln?|pulver)?\b/gi, 'supplement'],
@@ -7728,8 +7785,10 @@ function parseIngredients(inputText) {
     }
 
     function preProcessLines(rawText) {
+        const _dbg = (...a) => { if (window._histDebug) console.log('[HIT]', ...a); };
         // [CR] in Text = Zeilenumbruch im Quelltext → als Leerzeichen behandeln
         rawText = rawText.replace(/\[CR\]/g, ' ');
+        _dbg('PPL_RAW:', JSON.stringify(rawText.slice(0,120)));
         const lines = rawText.replace(/\r\n|\r/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
         const result = [];
         for (const line of lines) {
@@ -7749,6 +7808,8 @@ function parseIngredients(inputText) {
             // Zutatennamen wie "Magnesium: 200mg" fälschlich als Kategorie-Präfix entfernt
             clean = clean.replace(/(^|;\s*)(teig|belag|guss|füllung|garnitur|topping|sauce|soße|dressing|marinade|glasur|dekoration|basis|kern|hülle|ummantelung|panade|creme|crème)\s*:\s*/gi, '$1');
 
+            // Komponenten-Header ohne Leerzeichen: 'Pulverbrühe:' 'Flüssige Soße:'
+            clean = clean.replace(/(?:^|,\s*)(e\d{3,4}\s+)?(?:pulverbrühe|flüssige?\s*soße|\w*brühe|\w*soße|\w*sauce)\s*:/gi, (m,e) => e ? ', '+e.trim()+',' : ',');
             // Zusammengesetzte Komponenten-Überschrift vor Doppelpunkt: "Wildpreiselbeer-Dip:", "Vanille-Sauce:" etc.
             // (Wort-Dip/-Sauce/-Soße/-Creme/-Topping/-Dressing/-Glasur am Satzanfang oder nach Punkt, gefolgt von Doppelpunkt)
             clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+-(?:dip|sauce|soße|creme|crème|topping|dressing|glasur|marinade)\s*:\s*/gi, '$1');
@@ -8109,7 +8170,12 @@ function parseIngredients(inputText) {
         parts.push(...splits);
     }
 
-    const result = [...new Set(parts)].map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
+    const _uniqueParts = [...new Set(parts)];
+    if (DBG) {
+        parts.forEach(p => { if (parts.indexOf(p) !== parts.lastIndexOf(p)) dbg('DEDUP:', JSON.stringify(p.slice(0,25)), 'appears', parts.filter(x=>x===p).length, 'times'); });
+        dbg('TOTAL_TOKENS:', parts.length, '→ after dedup:', _uniqueParts.length);
+    }
+    const result = _uniqueParts.map(p => p.trim().replace(/-+$/, '')).filter(p => p.length > 1);
 
     // ── Sicherheitsnetz: S3-Signalwörter dürfen nicht spurlos verschwinden ──────
     // Prüft den ORIGINAL-Input gegen das finale Ergebnis. Falls ein hochkritisches
@@ -8142,6 +8208,7 @@ function parseIngredients(inputText) {
         result.push('⚠️_normierungswarnung_möglicherweise_verlorene_zutat: ' + [...new Set(lostSignals)].join(', '));
     }
 
+    if (DBG) dbg('FINAL_RESULT:', result.length, 'tokens:', JSON.stringify(result.slice(0,10)));
     return result;
 }
 
@@ -8149,6 +8216,10 @@ function parseIngredients(inputText) {
 // CLASSIFICATION (lokal)
 // ═══════════════════════════════════════════════════════════
 function classifyIngredient(name) {
+    const _D = window._histDebug || false;
+    // Früherkennung: Tokens die durch NORMALIZE-Bugs korrumpiert werden könnten
+    if (/^chiliöl$|^chili.?öl$|^chilisamen.?öl$/i.test(name.trim())) return "liberator";
+
     if (name && (name.toLowerCase().includes('polyoxy') || name.toLowerCase().includes('sorbitan') || name === 'e435')) console.log('[CI] classifyIngredient called with:', JSON.stringify(name));
     let n = name.normalize('NFC').toLowerCase().trim();
     // Defensive Randzeichen-Bereinigung: verwaiste Punkte/Klammern/Satzzeichen an den Token-Grenzen
@@ -8218,26 +8289,23 @@ function classifyIngredient(name) {
     // Längster Match gewinnt: wenn ein high/liberator/dao_blocker-Keyword LÄNGER
     // (spezifischer) ist als jeder safe_hints-Treffer, hat es Vorrang.
     // Beispiel: "gegrillte zwiebel" (liberator) vs. "zwiebel" (safe_hints) → liberator gewinnt
+    const _dbgHit = (arr, kw, src) => { if (_D) window._hlog('DB_HIT:', JSON.stringify(n.slice(0,25)), '→', arr, 'via', JSON.stringify(kw), src); };
     let bestSafeLen = -1;
     for (const kw of DB.safe_hints) {
         if (kwMatch(n, kw) && kw.length > bestSafeLen) bestSafeLen = kw.length;
     }
     if (bestSafeLen >= 0) {
-        for (const kw of DB.high)        { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'high'; }
-        for (const kw of DB.liberator)   { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'liberator'; }
-        for (const kw of DB.dao_blocker) { if (kwMatch(n, kw) && kw.length > bestSafeLen) return 'dao_blocker'; }
+        for (const kw of DB.high)        { if (kwMatch(n, kw) && kw.length > bestSafeLen) { _dbgHit('high', kw, 'override'); return 'high'; } }
+        for (const kw of DB.liberator)   { if (kwMatch(n, kw) && kw.length > bestSafeLen) { _dbgHit('liberator', kw, 'override'); return 'liberator'; } }
+        for (const kw of DB.dao_blocker) { if (kwMatch(n, kw) && kw.length > bestSafeLen) { _dbgHit('dao_blocker', kw, 'override'); return 'dao_blocker'; } }
     }
-
-    // Safe-Schnellcheck (häufige unbedenkliche Zutaten)
     for (const kw of DB.safe_hints) {
-        if (kwMatch(n, kw)) return 'safe';
+        if (kwMatch(n, kw)) { _dbgHit('safe', kw, 'direct'); return 'safe'; }
     }
-
-    // Haupt-Datenbank
-    for (const kw of DB.high)        { if (kwMatch(n, kw)) return 'high'; }
-    for (const kw of DB.liberator)   { if (kwMatch(n, kw)) return 'liberator'; }
-    for (const kw of DB.dao_blocker) { if (kwMatch(n, kw)) return 'dao_blocker'; }
-
+    for (const kw of DB.high)        { if (kwMatch(n, kw)) { _dbgHit('high', kw, 'main'); return 'high'; } }
+    for (const kw of DB.liberator)   { if (kwMatch(n, kw)) { _dbgHit('liberator', kw, 'main'); return 'liberator'; } }
+    for (const kw of DB.dao_blocker) { if (kwMatch(n, kw)) { _dbgHit('dao_blocker', kw, 'main'); return 'dao_blocker'; } }
+    if (_D) window._hlog('DB_MISS:', JSON.stringify(n.slice(0,25)), '→ unknown/KI');
     return 'unknown';
 }
 
@@ -8688,6 +8756,7 @@ const SIGHI_DB = {
         'mangold',
         'okra',
         'chili','chilischote','peperoni',
+        'chiliöl','chilisamenöl',  // S1-2
         'cayennepfeffer','paprikapulver scharf',
         'rote paprika',
         // Pilze
@@ -9503,6 +9572,8 @@ function getIngredientInfo(name, cat, aiAttemptedNoResult) {
             return '⚠️ SIGHI 1 — Johannisbeere: Enthält stoffwechseleigene Liberator-Komponenten.';
         if (n.match(/sauerkirsche/))
             return '⚠️ SIGHI 1 — Sauerkirsche: Im Gegensatz zu Süßkirsche (S0) als milder Liberator eingestuft.';
+        if (n.match(/chiliöl|chilisamenöl|chiliesamenöl/))
+            return '⚠️ SIGHI 1-2 L — Chiliöl/Chilisamenöl: Konzentrierte Capsaicinoide aus Chilikernen. Stärker mastzellaktivierend als frische Chili. Bei Empfindlichkeit meiden.';
         if (n.match(/\bkaffee\b|espresso|arabica|robusta/))
             return '⚠️ SIGHI 1 DAO — Kaffee/Espresso: Koffein hemmt temporär die DAO. Espresso etwas besser verträglich.';
         if (n.match(/schwarztee|black tea/))
@@ -9750,7 +9821,7 @@ const E_NAMES = {
     'e570':'Fettsäuren','e574':'Gluconsäure','e575':'Glucono-delta-Lacton',
     'e576':'Natriumgluconat','e577':'Kaliumgluconat','e578':'Calciumgluconat',
     'e579':'Eisen(II)-gluconat','e585':'Eisen(II)-lactat','e586':'4-Hexylresorcin',
-    'e385':'Calciumdinatrium-EDTA (Stabilisator)',
+    'e385':'Calciumdinatrium-EDTA (Stabilisator)','e1404':'Oxidierte Stärke','e1410':'Monostärkephosphat','e1412':'Distärkephosphat','e1413':'Phosphatiertes Distärkephosphat','e1414':'Acetyliertes Distärkephosphat','e1420':'Acetylierte Stärke','e1422':'Acetyliertes Distärkeadipat','e1450':'Stärke-Natriumoctenylsuccinat',
     'e951':'Aspartam','e952':'Cyclamat','e954':'Saccharin',
     'e941':'Stickstoff (Schutzgas)','e942':'Distickstoffmonoxid','e943a':'Propan','e944':'Propan/Butan','e948':'Sauerstoff',
     'e955':'Sucralose','e960':'Steviosid (Stevia)','e961':'Neotam',
@@ -10008,9 +10079,7 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
     list.innerHTML = '';
     document.getElementById('sec-label').textContent = `Zutaten (${analyzed.length})`;
 
-    // Sicherheitsnetz-Warnung: Signalwort im Originaltext, aber in keiner finalen Zutat mehr enthalten
-    if (normWarning) {
-        const lostTerms = normWarning.replace('⚠️_normierungswarnung_möglicherweise_verlorene_zutat: ', '');
+    if (normWarning) {ms = normWarning.replace('⚠️_normierungswarnung_möglicherweise_verlorene_zutat: ', '');
         const warnBox = document.createElement('div');
         warnBox.style.cssText = 'margin-bottom:0.75rem;padding:0.75rem 1rem;border-radius:10px;'
             + 'background:var(--yellow-bg);border:1px solid var(--yellow-bd);font-size:0.85rem;line-height:1.4';
@@ -10069,6 +10138,28 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
     }
 
     // MCAS-Hinweis: einblenden wenn keine gefährlichen Zutaten aber trotzdem mögliche Reaktionen
+    // Sicherheitsnetz-Warnung: Signalwort im Originaltext, aber in keiner finalen Zutat mehr enthalten
+    // Debug UI output
+    if (window._histDebug && window._hitLog && window._hitLog.length > 0) {
+        const existingDbg = document.getElementById('hit-debug-output');
+        if (existingDbg) existingDbg.remove();
+        const dbgDiv = document.createElement('div');
+        dbgDiv.id = 'hit-debug-output';
+        dbgDiv.style.cssText = 'margin:12px 0;border:1px solid #333;border-radius:8px;overflow:hidden;';
+        const dbgHeader = document.createElement('div');
+        dbgHeader.style.cssText = 'background:#1a1a2e;padding:8px 12px;cursor:pointer;font-size:12px;color:#888;display:flex;justify-content:space-between;';
+        dbgHeader.innerHTML = '<span>🐛 Debug Log (' + window._hitLog.length + ' Einträge)</span><span>▼ aufklappen</span>';
+        const dbgBody = document.createElement('pre');
+        dbgBody.style.cssText = 'display:none;background:#0d0d1a;padding:10px;font-size:10px;color:#666;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;margin:0;';
+        dbgBody.textContent = window._hitLog.join('\n');
+        dbgHeader.onclick = () => { const open = dbgBody.style.display !== 'none'; dbgBody.style.display = open ? 'none' : 'block'; dbgHeader.querySelector('span:last-child').textContent = open ? '▼ aufklappen' : '▲ zuklappen'; };
+        dbgDiv.appendChild(dbgHeader);
+        dbgDiv.appendChild(dbgBody);
+        const slot = document.getElementById('debug-panel-slot');
+        if (slot) { slot.innerHTML = ''; slot.appendChild(dbgDiv); }
+        window._hitLog = [];  // reset for next scan
+    }
+
     const mcasEl = document.getElementById('result-mcas-note');
     if (mcasEl) {
         const dangerCount = analyzed.filter(i => ['high','liberator','dao_blocker'].includes(i.cat)).length;
