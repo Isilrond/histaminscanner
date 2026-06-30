@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v9.52<br>
+                Histaminscanner v9.55<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2080,6 +2080,7 @@ const DB = {
         // paranuss → safe_hints S0 (SIGHI: 0)
         // tahini → remove_from_safe: 'tahini',
         'kürbiskerne','pumpkin seeds',  // S0 SIGHI
+        'maronen','esskastanien','maroni',  // S0
         'leinsamen','flaxseed','leinsamenschrot',  // S0 SIGHI
         'chiasamen','chia','chia seeds',  // S0 SIGHI
         'hanfsamen','hemp seeds',  // S0 SIGHI
@@ -4063,7 +4064,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v9.52');
+    dbg('VERSION: v9.55');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
@@ -9393,6 +9394,14 @@ if (cat === 'high') {
     }
 
     if (cat === 'liberator') {
+        if (n.match(/\bpapaya\b|pawpaw/i))
+            return 'SIGHI 2 — Papaya: Wirkt als Histaminliberator. Das Enzym Papain kann zudem die Darmwand kurzzeitig durchlässiger machen.';
+        if (n.match(/weiße schokolade|white chocolate/i))
+            return 'SIGHI 0 — Weiße Schokolade: Besteht primär aus Kakaobutter ohne Kakaopulver — fehlen die kritischen biogenen Amine. Meist gut verträglich.';
+        if (n.match(/weizenkeime|wheat germ/i))
+            return 'SIGHI 2 — Weizenkeime: Hohe Dichte an biogenen Aminen (Spermin, Spermidin), die DAO kompetitiv hemmen können.';
+        if (n.match(/eiklar|eiweiß(?!stoff)|egg white|albumen/i))
+            return 'SIGHI 2 — Hühnereiweiß (Eiklar): Wirkt als Histaminliberator und kann Mastzellen zur Mediatorenfreisetzung anregen. In der Karenzphase meiden.';
         if (n.match(/\berbsen\b|\berbse\b|\bgreen peas?\b/i))
             return 'SIGHI 1 — Erbsen: Gelten als Histaminliberator. Auch als Fleischersatz vorab vorsichtig testen.';
         if (n.match(/erbsenprotein|erbsenisolat|erbseneiweiß|pea.?protein/i))
@@ -9746,6 +9755,20 @@ if (cat === 'high') {
         return '⚠️ SIGHI 3 — Wild wird traditionell abgehangen (Reifung): dabei entsteht massiv Histamin. Frisch = S1, gereift = S3';
 
     if (cat === 'safe') {
+        if (n.match(/maronen|esskastanien|maroni|chestnut/i))
+            return 'SIGHI 0 — Maronen: Botanisch keine echten Nüsse, keine Akkumulation biogener Amine — hervorragend verträglich.';
+        if (n.match(/ziegenfrischkäse/i))
+            return 'SIGHI 0 — Ziegenfrischkäse: Keine Reifung, marginaler Histamingehalt — gutes Substitut für gereifte Käsesorten.';
+        if (n.match(/weizengras|wheatgrass/i))
+            return 'SIGHI 0 — Weizengras: Im unfermentierten Zustand histaminfrei.';
+        if (n.match(/\bgalgant\b|galangal/i))
+            return 'SIGHI 0 — Galgant: Keine bekannten histaminergen Effekte, wirkt entzündungshemmend.';
+        if (n.match(/heilbutt(?=.*räuch)|geräucherter? heilbutt|smoked halibut/i))
+            return 'SIGHI 3 — Geräucherter Heilbutt: Räucherprozess führt durch zeitliche Verzögerung zu fortschreitender Histaminbildung. Meiden!';
+        if (n.match(/essigessenz|essigsäure(?!.*natürlich)/i))
+            return 'SIGHI 0 — Essigessenz: Synthetisch hergestellte, gereinigte Essigsäure ohne Fermentation — kein Histaminrisiko.';
+        if (n.match(/eigelb|egg yolk/i))
+            return 'SIGHI 0 — Hühnereigelb: Im Gegensatz zum Eiklar keine liberierenden Eigenschaften — gilt als sicher und nährstoffreich.';
         if (n.match(/\bagar\b(?:-agar)?/i))
             return 'SIGHI 0 — Agar-Agar: Pflanzliches Geliermittel, chemisch inert gegenüber dem Histaminstoffwechsel. Sicheres Substitut für Gelatine.';
         if (n.match(/\bagar\b(?:-agar)?/i))
