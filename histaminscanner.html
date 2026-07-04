@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v11.7<br>
+                Histaminscanner v12.0<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1476,7 +1476,7 @@ const DB = {
         'sellerie','celery','knollensellerie','staudensellerie','selleriewurzel','selleriesalz',
         'sesam','sesamkörner','sesamsamen','sesame','tahini','sesampaste','tahin','tahina',  // S1
         'sesamöl','sesame oil',  // S1-2 L
-        'erdnussöl','peanut oil',  // S1-2
+        'erdnussöl',  // S1-2
         'sojaöl','soybean oil',  // S1 SIGHI (nicht S2)
         'sonnenblumenkerne','sunflower seeds','sonnenblumenkern',
         'sonnenblumenkernmus',  // S2 (Liberator, wie Kerne)
@@ -1693,7 +1693,7 @@ const DB = {
         'triphosphate','e451','natriumtriphosphat',
                 'e450i','e450ii','e450iii',
         'e451i','e451ii',
-        'e452i','e452ii','e452iii',
+        'e452i','e452ii','e452iii','e452','polyphosphate','natriumpolyphosphat',
         'bha','e320','butylhydroxyanisol',
         'bht','butylhydroxytoluol','e321',
         // Sulfite (E220-228 + Synonyme) → liberator[] S2, NICHT dao_blocker!
@@ -1869,7 +1869,7 @@ const DB = {
         'kaliumchlorid','e508',
         'calciumcarbonat','e170',
         'natriumcarbonat','natriumhydrogencarbonat','e500','e501',
-        'e452','polyphosphate','natriumpolyphosphat',  // S0 Stabilisator
+        // e452/polyphosphate siehe dao_blocker (konsistent mit e452i/ii/iii)
         'curcumin','e100','kurkumaextrakt',
         // karamell/e150a-d → dao_blocker[] (SIGHI B!)
         'chlorophyll','e140','e141',
@@ -4141,11 +4141,53 @@ async function runAnalysis(product, ingredientsText) {
 // ═══════════════════════════════════════════════════════════|selbst(?:gemacht|gekocht|zubereitet|gefangen)e?r?s?|hausgemacht|in\\s+wasser|in\\s+öl|in\\s+eigenem\\s+saft|in\\s+lake|in\\s+salzlake|mit\\s+hefeextrakt|mit\\s+kräutern|mit\\s+gewürzen|unverarbeitet|hefefrei|alt\\b|jung\\b|gereift|tierisch|jodiert|untergärig|obergärig|zwerghirse|direktsaft|klärbutter|urkorn
 function parseIngredients(inputText) {
     if (!inputText) return [];
+    // ── Nicht-Zutaten-Sperrliste ──
+    // Diese Begriffe sind keine echten Zutaten im Sinne einer Verpackungsangabe:
+    // Medikamente, komplette Gerichte, Zustands-/Verarbeitungsadjektive, Wortfragmente,
+    // generische Zusatzstoff-Sammelbegriffe, reine Gattungsbegriffe ohne Spezifizierung.
+    // Sie werden NUR geblockt, wenn sie als eigenständiges, komplettes Segment auftreten —
+    // spezifische Zutaten, die intern auf dieselben Tokens normalisieren (z.B. "Rapsöl" -> "pflanzenöl"),
+    // bleiben davon unberührt, da nur der ROHE, unveränderte Eingabetext geprüft wird.
+    const NICHT_ZUTAT_BLOCKLIST = new Set([
+        // Medikamente (außer SIGHI-Referenzliste, die bleibt für Nachschlagezwecke bestehen)
+        'diclofenac','furosemid','metamizol','ciprofloxacin',
+        // Komplette Gerichte/Rezepte
+        'ratatouille','nicoise','niçoise','käsespätzle','gulasch','okonomiyaki','frikadelle','köttbullar',
+        'obatzda','obazda','pesto','rösti','reibekuchen','kartoffelknödel','nudelsalat','kirschgrütze',
+        'kartoffelsuppe','kürbissuppe','gemüsesuppe','eintopf','eintopf mit fleisch','fischsalat',
+        'heringssalat','krautsalat','griechischer salat','gefüllte pasta','mozzarella sticks',
+        'frühlingsrolle','hasenpfeffer','rouladen','tiramisu','tom yum','tzatziki','waldorf salat',
+        'waldorf salad','solyanka',
+        // Zustands-/Verarbeitungsadjektive ohne eigene Substanz
+        'jung','klassisch','natur','naturbelassen','rein','grün','grüne','ganze','ganzes','gemahlen',
+        'entölt','gereift','lang gelagert','overripe','direkt','traditionell','un','ungesalzen',
+        'ungesüßt','unreif','schwach','schwarz','schwarze',
+        // Wortfragmente
+        'ge','ges','korn','stäbchen',
+        // Generische Zusatzstoff-Sammelbegriffe ohne Klammerzusatz
+        'emulgator','emulgatoren','festigungsmittel','feuchthaltemittel','konsistenzmittel',
+        'modifizierungsmittel','rieselhilfe','mehlbehandlungsmittel','schmelzsalz','schmelzsalze',
+        'schaummittel','schaumverhüter','salzlake','trennmittel','triebmittel','trägerstoff',
+        'zuckeralkohol','überzugsmittel','wurstwaren generisch',
+        // Reine Gattungsbegriffe ohne Spezifizierung
+        'öl','pflanzenöl','neutrales öl','fett','mehl','stärke','zucker','süßungsmittel','essig',
+        'gewürze','gewürzmischung','kräuter','kräutermischung','milch','nuss','nüsse','nussmischung',
+        'nussmix','obst','gemüse','fisch','fleisch','wurst','brühe','suppe','salat','aroma','extrakt',
+        'kulturen','frucht',
+    ]);
+    const _segments = inputText.split(/[,\n]/);
+    let _blocked = false;
+    const _keptSegments = _segments.filter(seg => {
+        const _trimmed = seg.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (NICHT_ZUTAT_BLOCKLIST.has(_trimmed)) { _blocked = true; return false; }
+        return true;
+    });
+    if (_blocked) inputText = _keptSegments.join(', ');
     const DBG = window._histDebug || false;
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v11.7');
+    dbg('VERSION: v12.0');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
@@ -4226,7 +4268,7 @@ function parseIngredients(inputText) {
     const liberateSingleBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%*]{3,})\s*[*]?\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s-]{2,60})\)/gi,
         (m, pre, inner) => {
-            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
+            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|fresh|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
             // Lecithin-Quelle: 'Lecithine (Sonnenblume)' → e322
             if (/lecithin/i.test(pre.trim()) && /^(?:sonnenblume|soja|raps|sonnenblumen|sunflower)$/i.test(inner.trim())) return 'e322';
             // Emulgator mit Lecithin-Quelle: 'Emulgator (Lecithine' + '(Sonnenblume)' 
@@ -4277,6 +4319,10 @@ function parseIngredients(inputText) {
     let text = inputText;
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
+        [/\brote-bete\b/gi, 'rote bete'],
+        [/\bpeanut\s*oil\b/gi, 'erdnussöl'],
+        [/\bgelbe\s+rübe[n]?\b/gi, 'karotte'],
+        [/\be161g\b/gi, 'canthaxanthin'],
         [/\bhanfsamen\s*\([^)]*\)/gi, 'hanfsamen'],  // Hanfsamen (ungeschält) → hanfsamen
         [/\birnendicksaft\b/gi, 'birnendicksaft'],  // Direktmatch
         [/\bhanfprotein\s+pulver\b/gi, 'hanfprotein'],
@@ -4470,14 +4516,15 @@ function parseIngredients(inputText) {
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
         [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
-        [/\bmono-\s*und\s+di|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
+        [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
+        [/\bmono-?\s*und\s+diacetylweinsäureester\b|\bdiacetylweinsäureester\b/gi, 'e472e'],
         [/^mono-?$|^di-?$|^tri-?$|^und$|^von$|^speisefettsäuren?$/gi, ''],  // Splitting-Artefakte
         [/\bdi-\s+(?=und|oder|\w)/gi, ''],                           // "Di- und" → strip "di-"
         [/\bpolyphosphate?\b|\be452\b/gi, 'e452'],  // E452 → safe S0
         [/\btriphosphate?\b/gi, 'e451'],
         // e452/polyphosphate → safe_hints (S0)
         [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
-        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'e300'],  // B12 → safe (kein supplement)
+        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitamine'],  // B12 → safe (kein supplement)
         [/\bvitamin\s*[ab]\d?\b/gi, 'vitamine'],                      // Vitamin A, B (NICHT C, B12!)
         [/\bvitamin\s*c\b|e300\b/gi, 'e300'],                         // Vitamin C = E300 S0 (NICHT vitamine!)
         // ── Multi-Wort Ausdrücke VOR dem \s+aus\s+-Strip! ───────────────
@@ -4534,7 +4581,7 @@ function parseIngredients(inputText) {
         [/\bziegenmilch\b/gi, 'milch'],  // S0
         [/\bziegenjoghurt\b/gi, 'joghurt'],  // S1
         [/\bziegenkäse\b(?!\s+\w)/gi, 'käse'],
-        [/\blaktase\b/gi, 'kulturen'],  // Enzym für laktosefreie Milch
+        [/\blaktase\b/gi, 'lactase'],  // Enzym für laktosefreie Milch
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
         // ── Sportlernahrung ──
         [/\bcreatin(?:-monohydrat)?\b|\bkreatin\b/gi, 'kreatin'],
@@ -4596,6 +4643,7 @@ function parseIngredients(inputText) {
         [/\benten(?:brust|keule|filet)?\b|\bente\b(?!\s*r)/gi, 'geflügel'],
         [/\bgänse(?:brust|keule|filet|schmalz)?\b|\bgans\b/gi, 'geflügel'],
         [/\bputen(?:brust|filet|keule|schnitzel)?\b/gi, 'pute'],
+        [/\btrüffelöl\b/gi, 'trüffelöl'],
         [/\btrüffel\b|\bsommertrüffel\b|\bschwarztrüffel\b/gi, 'pilze'],
         // ── Getreide-Varianten ──
         [/\bdinkelkorn\b|\bdinkel(?:körner|graupen|grieß)?\b/gi, 'dinkel'],
@@ -4623,7 +4671,7 @@ function parseIngredients(inputText) {
         [/\bmolybdän(?:\w+)?\b/gi, 'mineralstoffe'],                            // Molybdän → safe
         [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'mineralstoffe'],       // Zink → safe
         [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'mineralstoffe'],                  // Kupfer → safe
-        [/\bjod(?:id)?\b(?!salz)/gi, 'mineralstoffe'],                          // Jod → safe
+        // 'Jod' bleibt eigenständig — SIGHI stuft Jod als Liberator ein (siehe DB-Registrierung, wie Iod/Iodine)
         [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'sauerkirsche'],
         [/\beisen\s*\(?ii\)?\s*-?gluconat\b|\beisen\s*ii\s*gluconat\b|e579\b/gi, 'e579'],
         [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'mineralstoffe'],  // andere Eisenverbindungen
@@ -4640,7 +4688,7 @@ function parseIngredients(inputText) {
         // ── Gase / Treibmittel ──
         [/\bstickstoffmonoxid\b|\bdistickstoffmonoxid\b|\blachgas\b|e942\b/gi, 'e942'],
         [/\bstickstoff\b|e941\b/gi, 'e941'],
-        [/\bkohlendioxid\b|\bco2\b|e290\b/gi, 'e941'],
+        [/\bkohlendioxid\b|\bco2\b|e290\b/gi, 'e290'],
         // ── Fermentiertes Spezifisch ──
         [/\bkoji(?:-schimmel)?\b|\baspergillus\s+\w+\b/gi, 'kulturen'],
         // ── E435 ──
@@ -4813,14 +4861,15 @@ function parseIngredients(inputText) {
         [/\be141\b|\bkupferchlorophyll(?:in)?\b/gi, 'e141'],
         [/\be163\b|\banthoc?[yz][ya]?[a]?n(?:e|in)?\b/gi, 'e163'],
         [/\be171\b|\btitandioxid\b/gi, 'e171'],
-        [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'e160'],
+        [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'paprikaextrakt'],
         // ── Süßwarenzutaten ──
-        [/\bfruchtgummi\b|\bfruchtsaft\s+\w+\b/gi, 'frucht'],
+        [/\bfruchtgummi\b|\bfruchtsaft\s+[\wäöüßÄÖÜ]+\b/gi, 'frucht'],
         [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'kräuter'],
         // ── Onion / Zwiebel-Compound ──
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
                 [/\beigel[bp]\b|\beidotter\b|\begg\s*yolk\b/gi, 'eigelb'],  // S0!
+[/\beiweißgewürze?\b|\beiweißwürze\b/gi, 'hefeextrakt'],
 [/hühneiweiß|\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'eiklar'],
         [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis{1,2}\b|\bhühnerei-eiweis{1,2}\b|\bhühnerei-eiweiß(?![a-zäöü])|\bhühnerei(?:ei)?wei[sß]{1,2}(?![a-zäöü])/gi, 'ei'],  // VOR hühnerei-Regel!
         [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
@@ -4836,7 +4885,7 @@ function parseIngredients(inputText) {
         [/\bamaranth\b(?!\s*(?:farbstoff|e123))/gi, 'amarant'],  // Amaranth-Getreide S0 (nicht verwechseln mit Amaranth-Farbstoff E123!)
         [/\bpuffweizen\b/gi, 'weizen'],
         [/\bpuffreis\b/gi, 'reis'],
-        [/\bpuffkorn\b|\bgepuffter\s+\w+\b/gi, 'hafer'],
+        [/\bpuffkorn\b|\bgepuffter\s+(?!amaranth?\b|dinkel\b|weizen\b|reis\b)\w+\b/gi, 'hafer'],
         [/\b\w+\s+gepufft\b|\bgepufftes?\s+\w+\b/gi, 'getreide'],             // generisch gepufftes Getreide → safe
         [/\bdinkel\s+gepufft\b|\bgepuffter?\s+dinkel\b/gi, 'dinkel'],          // Dinkel gepufft → dinkel (nicht hafer!)
         [/\bweizen\s+gepufft\b|\bgepuffter?\s+weizen\b/gi, 'puffweizen'],      // Weizen gepufft → puffweizen
@@ -4862,7 +4911,7 @@ function parseIngredients(inputText) {
         [/\btocopherol(?:e|ol)?\b|\balpha-tocopherol\b|\bgamma-tocopherol\b|\bdelta-tocopherol\b/gi, 'e306'],  // Vitamin E → E306 (S0, kein supplement!)
         [/\bvitamin\s+e\b(?!\w)|\be306\b|\be307\b/gi, 'e306'],  // Vitamin E Schreibweisen (Leerzeichen nötig — sonst Kollision mit "Vitamine")
         [/\bnatriumbicarbonat\b|\bnatriumhydrogencarbonat\b|e500\b/gi, 'e500'],
-        [/\bmagnesiumcarbonat\b|e504\b/gi, 'e500'],
+        // Magnesiumcarbonat siehe eigene E504-Regel weiter unten (nicht E500!)
         [/\bkaliumchlorid\b|e508\b/gi, 'e508'],
         [/\bnatriumchlorid\b/gi, 'salz'],
         // ── Keks-/Backwaren-spezifisch ──
@@ -4969,7 +5018,7 @@ function parseIngredients(inputText) {
         [/\bhaferspelzfaser\b|\bhaferspelz(?:flocken|mehl)?\b|\bspelzfaser\b/gi, 'hafer'],   // Ballaststoff S0
         [/\beisendiphosphat\b|\biron\s*diphosphat\b/gi, 'e450'],                              // Eisenverbindung Mineral → safe
         [/\bweizenmalzmehl\b|\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token
-        [/\bmehlbehandlungsmittel\b(?:\s*\([^)]+\))?/gi, ''],  // Kategorienwort → strip
+        [/\bmehlbehandlungsmittel\b(?:\s*\([^)]+\))?/gi, 'mehlbehandlungsmittel'],
         // ── Backmittel ──
         [/\bascorbinsäure\b|\bascorbin\b|e300\b/gi, 'e300'],
         [/\bnatronlauge\b|\blauge\b(?!\s*\w{4})/gi, 'salz'],  // Natronlauge in Brezeln = nur Oberfläche
@@ -5004,7 +5053,7 @@ function parseIngredients(inputText) {
         [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
         [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
-        [/\bmagnesium(?:oxid|carbonat|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         // ── Glasnudeln / Asiatische Zutaten ──
         [/\bglasnudeln?\b|\bcellophannudeln?\b|\breisvermicelli\b/gi, 'nudeln'],
         [/\bedamame\b/gi, 'edamame'],                                // Edamame (geschält/grün) → S1
@@ -5151,7 +5200,7 @@ function parseIngredients(inputText) {
         [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kräuter'],  // standalone → kräuter, aber nicht chamomile tea!
         [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
-        [/\bholunder(?:blüten?|beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter!
+        [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
         // ── Getreidezutaten ──
         [/\bweizenquellmehl\b|\bquellmehl\b/gi, 'mehl'],  // Quellmehl S0
         [/\bweizenprotein\b/gi, 'gluten'],  // S0
@@ -5231,10 +5280,10 @@ function parseIngredients(inputText) {
         [/\bpfeilwurzelstärke\b|\barrowroot\b/gi, 'pfeilwurzelstärke'],
         [/^s(?:äure)?regulator(?:en?)?\s*$/gi, ''],       // isoliertes Kategoriewort
         [/^backtrieb\s*mittel\s*$/gi, ''],
-        [/^emulgator(?:en?)?\s*$/gi, ''],                  // isoliert → leer (kein Inhaltsstoff)
+        // 'Emulgator' isoliert bleibt erhalten (S0-Kategorie-Label mit Vorsichtshinweis, siehe DB-Registrierung)
         [/^stabilisator(?:en?)?\s*$/gi, ''],
         [/^verdickungsmittel\s*$/gi, ''],
-        [/^feuchthaltemittel\s*$/gi, ''],
+        // 'Feuchthaltemittel' isoliert bleibt erhalten (S0-Kategorie-Label, siehe DB-Registrierung)
         [/^konservierungsstoff\s*(?:en?)?\s*$/gi, ''],
         [/^farbstoff\s*$/gi, ''],
         [/^antioxidationsmittel\s*$/gi, ''],
@@ -5300,7 +5349,7 @@ function parseIngredients(inputText) {
         [/\bgewürzextrakt\b|\bgewürzauszug\b/gi, 'gewürze'],
         [/\bgarnelen?\s*roh\b/gi, 'garnele'],
         [/\bbremerhavener?\s+\w+\b/gi, 'fischfilet'],  // Bremerhavener = Backfisch
-        [/\bstäbchen\b(?!\s*\w{4})/gi, 'fischfilet'],  // "Stäbchen" allein = Fischstäbchen
+        [/\bstäbchen\b(?!\s*\w{4})/gi, 'fischstäbchen'],  // "Stäbchen" allein = vermutlich Fischstäbchen (mehrdeutig, siehe Bereinigungsliste)
         [/\bfischfilet\s+in\s+\w+\b|\bfischfilet\s+\w+teig\b/gi, 'fischfilet'],
         [/\bfischgratin\b/gi, 'fischfilet'],
         // ── TK Geflügel / Fleisch ──
@@ -5570,7 +5619,8 @@ function parseIngredients(inputText) {
         [/\bclassic\s+green\s+tea\b/gi, 'grüntee'],
         [/\bclassic\s+hibiscus\b/gi, 'hibiskustee'],
         [/\biced\s+tea\b/gi, 'schwarztee'],  // Eistee = meist Schwarztee-Basis
-        [/\b\w+teeextrakt\b|\b\w+tea\s+extrakt\b/gi, 'tee'],
+        [/\bgrün[\wäöüßÄÖÜ]*teeextrakt\b|\bgreen\s*tea\s+extrakt\b/gi, 'grüntee'],
+        [/\b[\wäöüßÄÖÜ]+teeextrakt\b|\b[\wäöüßÄÖÜ]+tea\s+extrakt\b/gi, 'tee'],
         [/\bhopfenextrakt\b|\bhopfen(?:blüten)?extrakt\b/gi, 'hopfen'],
         [/\bhonigmelone\b|\bhoneydew\b/gi, 'melone'],
         [/\bwassermelone\b|\bwatermelon\b/gi, 'melone'],
@@ -5797,7 +5847,7 @@ function parseIngredients(inputText) {
         // [/gerstenmalzextrakt\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
 
         [/malzextrakt\b/gi,                    'malz'],
-        [/weizenkeime?\b/gi,                   'weizenkeime'],  // S2! biogene Amine: Putrescin, Spermin...
+        [/weizenkeim(?:mehl|öl|extrakt)?\b/gi,                   'weizenkeime'],  // S2! biogene Amine: Putrescin, Spermin...
         [/weizenkleie\b/gi,                    'weizen'],
         [/maisgrieß\b/gi,                      'mais'],
         [/hafermehl\b/gi,                      'haferflocken'],
@@ -5807,7 +5857,7 @@ function parseIngredients(inputText) {
         [/fettglasur\b/gi,                     'schokolade'],
         [/palmkernöl\b/gi,                     'palmöl'],
         [/diacetylweinsäureglycerid\b/gi, 'e472e'],
-        [/diacetyl\w*tartrat\w*/gi, 'e472e'],
+        [/\bglycerin\w*diacetyl\w*tartrat\w*\b|\bdiacetyl\w*tartrat\w*\b/gi, 'e472e'],
         [/calciumstearoyl.{0,5}lactylat\b/gi, 'e482'],
         [/calciumpropionat\b/gi, 'e282'],
         // natriumpropionat → e281 (siehe Zeile weiter oben)
@@ -5885,7 +5935,7 @@ function parseIngredients(inputText) {
         [/glyzerin?\w*/gi,                 ''],
         [/weißmischung\b/gi,               ''],
         [/maltit\b/gi,                     'maltitol'],
-        [/fruchtsaft(?:\s+aus\s+\w+)?(?:konzentrat)?\b\s*:?/gi,  ''],
+        [/fruchtsaft(?:\s+aus\s+\w+)?(?:konzentrat)\b\s*:?/gi,  ''],
         [/aus\s*:\s*/gi,  ''],   // Reste wie 'aus :' entfernen
 
 
@@ -6252,6 +6302,8 @@ function parseIngredients(inputText) {
         // ── Öl-Typen ──
         [/\bpalmkern(?:öl|fett)?\b/gi, 'palmöl'],
         [/\bpalmkern\b/gi, 'palmöl'],
+        [/\bpalm\s+kernel\s+oil\b/gi, 'palmöl'],
+        [/\bpalm\s+oil\b/gi, 'palmöl'],
         [/\bpalm\b(?![\wöa])/gi, 'palmöl'],
         // ── "pflanzenöl palmöl" → "palmöl" (post-normalization merge cleanup) ──
         [/pflanzen[öo]l\s+palmöl/gi, 'palmöl'],
@@ -6606,7 +6658,7 @@ function parseIngredients(inputText) {
         [/\bginseng\b/gi, 'ginseng'],
         [/\benzianextrakt\b/gi, 'kräuter'],
         [/\btannin[e]?\b|\bgerbstoff[e]?\b/gi, 'tannin'],
-        [/\blachgas\b|\bdistickstoffmonoxid\b|e942\b/gi, 'stickstoff'],
+        [/\blachgas\b|\bdistickstoffmonoxid\b|e942\b/gi, 'e942'],
         [/\bsauerstoff\b/gi, 'stickstoff'],     // inert gas → same as N2 S0
         [/\bargon\b/gi, 'stickstoff'],           // noble gas
         [/\bkieselgur\b|\bdiatomeenerde\b|\bbentonit\b/gi, 'filterhilfsmittel'],
@@ -6740,7 +6792,9 @@ function parseIngredients(inputText) {
         [/\bmolkenpermeatpulver\b/gi, 'molke'],
         // ── Glutamat-Varianten ──
         [/\bmonosodiumglutamat\b|\bmononatriumglutamat\b|\bmsg\b|e621\b/gi, 'glutamat'],
-        [/\bdinatrium-?5.?-?ribonuk(?:leotide?|leotid)\b|\bdinatrium-?5.?-?ribonuc(?:leotide?|leotid)\b|\bdinatriuminosinat\b|\bdinatriumguanylat\b|e631\b|e627\b|e635\b/gi, 'e631'],
+        [/\bdinatrium-?5.?-?ribonuk(?:leotide?|leotid)\b|\bdinatrium-?5.?-?ribonuc(?:leotide?|leotid)\b|e635\b/gi, 'e635'],
+        [/\bdinatriumguanylat\b|e627\b/gi, 'e627'],
+        [/\bdinatriuminosinat\b|e631\b/gi, 'e631'],
         // ── Säureregulatoren (Plural-Kategorie ohne Klammer) ──
         [/\bsäureregulatoren?\s+e\d+/gi, 'e270'],   // "Säureregulatoren E270" → e270
         [/\bsäureregulatoren?\b(?!\s*\()/gi, ''],    // isoliert ohne Inhalt → entfernen
@@ -6892,7 +6946,7 @@ function parseIngredients(inputText) {
         [/\brotkraut\b|\bblaukraut\b|\brot(?:kohl|kraut)\b/gi, 'kohl'],
         // ── Regionale Spezialitäten ──
         [/\blabskaus\b/gi, 'hackfleisch'],   // Corned Beef + Rote Bete S2-3
-        [/\bobatzda\b|\bobazda\b/gi, 'käse'],  // Weichkäse-Creme S2 (Camembert)
+        // obatzda/obazda siehe eigene camembert-Regel weiter unten
         // ── Backwaren/Süßes ──
         [/\blebkuchen\b|\bpfefferkuchen\b/gi, 'keks'],
         [/\bstollen\b|\bweihnachtsstollen\b/gi, 'keks'],  // Rosinen+Marzipan → S2
@@ -7069,14 +7123,14 @@ function parseIngredients(inputText) {
         [/\bgulasch(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\bgrill(?:gewürz|mix|rub|marinade)?\b|\bsteak\s+rub\b|\bbbq\s+rub\b/gi, 'gewürze'],
         [/\bpulled\s+pork\s+(?:gewürz|rub|mix)?\b|\brotisserie\s+(?:gewürz|mix)?\b/gi, 'gewürze'],
-        [/\bfisch(?:gewürz|mix|marinade)?\b/gi, 'gewürze'],
+        [/\bfisch(?:gewürz|mix|marinade)\b/gi, 'gewürze'],
         [/\bgeflügel(?:gewürz|mix|würze)\b|\bhähnchen(?:gewürz|mix|würze)\b/gi, 'gewürze'],  // Nur mit Suffix!
         [/\bgeflügel(?:fleisch|brust|keule|schnitzel|filet)\b/gi, 'hähnchen'],  // → safe S0
         [/\bsahnejoghurt\b|\bsahne-?joghurt\b/gi, 'joghurt'],                   // → safe S0
         [/\bbiotin\b|vitamin\s*h\b|e640\b/gi, 'vitamine'],                       // Biotin = Vitamin H
         [/\bnatrium-?phosphate?\b|\bnatriumphosphat\b(?!\w)/gi, 'e339'],         // Natriumphosphat → safe
         [/\blamm(?:gewürz|mix)?\b/gi, 'gewürze'],
-        [/\bwild(?:gewürz|mix|braten)?\b/gi, 'gewürze'],
+        [/\bwild(?:gewürz|mix)\b/gi, 'gewürze'],
         [/\bsauerbraten(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\beinmach(?:gewürz|mix)?\b|\bpökel(?:gewürz|mix|salz)?\b/gi, 'gewürze'],
         [/\bweißbrot\b/gi, 'brot'],  // separate
@@ -7292,6 +7346,7 @@ function parseIngredients(inputText) {
         [/\bputen(?:aufschnitt|brust\s*aufschnitt)?\b/gi, 'pute'],
         // ── Käsesorten → Reifegrad-Klassifikation ──
         [/\bmünsterkäse\b|\bmünster\b(?!\s*mai)/gi, 'camembert'],   // Weichkäse S2
+        [/\bobatzda\b|\bobazda\b/gi, 'camembert'],   // Bayerische Käsespezialität aus langgereiftem Camembert
         [/\bbutterkäse\b/gi, 'milchkäse'],  // milder Schnittkäse S1-2
         [/\bvacherin\b(?!\s*mont)/gi, 'camembert'],                  // Weichkäse S2
         [/\btaleggio\b|\bfontina\b|\bprovolone\b|\basiago\b|\bsbrinz\b/gi, 'parmesan'],  // Hartkäse S2-3
@@ -7528,11 +7583,15 @@ function parseIngredients(inputText) {
         [/\b(?:wild)?schwein(?:keule|braten|gulasch|haxe|filet)?\b|\bwildschwein\b/gi, 'schweinefleisch'],
         [/\breh(?:keule|gulasch|braten|rücken|filet)?\b|\brehwild\b/gi, 'wildfleisch'],
         [/\bhirsch(?:gulasch|braten|keule|rücken|filet|medaillon)?\b/gi, 'wildfleisch'],
-        [/\bwild(?:gulasch|braten|keule|ragout|medaillon)?\b(?!schwein)/gi, 'wildfleisch'],
+        [/\bwild\s*rice\b/gi, 'wildreis'],
+        [/\bwild\s*strawberry\b/gi, 'erdbeere'],
+        [/\bwild(?:gulasch|braten|keule|ragout|medaillon)\b(?!schwein)/gi, 'wildfleisch'],
+        [/\bwild\b(?!schwein)/gi, 'wildfleisch'],
         [/\benten?(?:brust|keule|braten|schnitzel|confit)?\b/gi, 'entenfleisch'],
         [/\bgänse?(?:brust|keule|braten|schmalz|leber)?\b/gi, 'entenfleisch'],
         [/\bkaninchen(?:fleisch|keule|rücken|ragout|pfeffer)?\b/gi, 'kaninchen'],
-        [/\bziegen(?:fleisch|keule|käse|braten|gulasch)?\b/gi, 'ziegenfleisch'],
+        [/\bziegen(?:fleisch|keule|braten|gulasch)\b/gi, 'ziegenfleisch'],
+        [/\bziegenkäse\b(?!\s*(?:jung|alt|gereift))/gi, 'ziegenfleisch'],
         [/\bpferde(?:fleisch|filet|gulasch|salami)?\b/gi, 'pferdefleisch'],
         // ── Kalb ──
         [/\bkalbs?(?:schnitzel|filet|hachse|haxe|kotelett|braten|leber|nieren?|gulasch|ragout)?\b/gi, 'kalbfleisch'],
@@ -8239,7 +8298,7 @@ function parseIngredients(inputText) {
         // Sonderzeichen
         line = line.replace(/[_*#|%]/g, '').trim();
 
-        if (line) cleaned.push(line);
+                if (line) cleaned.push(line);
         if (extractedMitWords.length > 0) cleaned.push(...extractedMitWords);
     }
 
@@ -9393,6 +9452,202 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n.match(/\bweißwein\b|white wine|riesling|chardonnay/i))
             return 'SIGHI 1-2 — Weißwein: Deutlich weniger Histamin als Rotwein, aber Alkohol blockiert dennoch den Abbau. Nur junge, histamingeräumte Sorten manchmal verträglich.';
 if (cat === 'high') {
+        if (n.match(/^wildschweinfleisch$/i))
+            return 'Wildfleisch. Nur bei sofortiger Verarbeitung gut verträglich.';
+        if (n.match(/^wurst$/i))
+            return 'Fleischware. Reifung und Verarbeitung machen sie oft histaminreich.';
+        if (n.match(/^zibeben$/i))
+            return 'Getrocknete Weintrauben. Trocknung konzentriert die Inhaltsstoffe.';
+        if (n.match(/^zungenwurst$/i))
+            return 'Wurstspezialität. Verarbeitung und Lagerung machen sie histaminreich.';
+        if (n.match(/^weißwurst$/i))
+            return 'Brühwurst. Nur extrem frisch verträglich, enthält meist bereits Histamin.';
+        if (n.match(/^velveeta$/i))
+            return 'Käsezubereitung. Schmelzsalze und Verarbeitung machen sie kritisch.';
+        if (n.match(/^vinaigre$/i))
+            return 'Französisch für Essig. Essig kann die Histaminfreisetzung triggern.';
+        if (n.match(/^vitam-r$/i))
+            return 'Hefeextrakt-Würzpaste. Hohe Konzentrationen von Hefe und Glutamat.';
+        if (n.match(/^tiramisu$/i))
+            return 'Dessert aus Mascarpone, Ei und Kaffee. Kombination von Ei und fermentiertem Käse macht es kritisch.';
+        if (n.match(/^tom yum$/i))
+            return 'Thailändische Suppe. Enthält oft Fischsauce und fermentierte Zutaten.';
+        if (n.match(/^tonkatsusoße$/i))
+            return 'Würzige japanische Sauce. Enthält oft Tomatenmark und fermentierte Zutaten.';
+        if (n.match(/^trockenpilze$/i))
+            return 'Getrocknete Pilze. Extrem hohe Konzentration an Aminen.';
+        if (n.match(/^umeboshi$/i))
+            return 'Fermentierte japanische Pflaume. Extrem histaminreich.';
+        if (n.match(/^tapenade$|^oliven$/i))
+            return 'Olivenpaste, oft mit Kapern. Fermentierte Oliven machen sie histaminreich.';
+        if (n.match(/^tartarsoße$/i))
+            return 'Mayonnaise-Basis mit Essiggurken. Essig und Gurken machen sie histaminkritisch.';
+        if (n.match(/^teewurst$/i))
+            return 'Streichwurst. Fermentation und lange Lagerung machen sie histaminreich.';
+        if (n.match(/^hoisin$/i))
+            return 'Fermentierte Weizenpaste (Tianmianjiang). Extrem histaminreich.';
+        if (n.match(/^soßenbinder$/i))
+            return 'Bindemittel, oft in Fertigsoßen. Kann Hefeextrakt oder Glutamat enthalten.';
+        if (n.match(/^spirituosen$/i))
+            return 'Alkoholische Getränke. Alkohol blockiert das Abbauenzym DAO.';
+        if (n.match(/^sprotte$|^sprotten$/i))
+            return 'Fischart. Sehr anfällig für Histaminbildung nach dem Fang.';
+        if (n.match(/^stilton$/i))
+            return 'Blauschimmelkäse. Schimmelpilz und Reifung machen ihn extrem histaminreich.';
+        if (n.match(/^schweinewurst$/i))
+            return 'Wurstware. Verarbeitung und Lagerung sind häufige Histaminquellen.';
+        if (n.match(/^seitan$/i))
+            return 'Weizeneiweiß. Glutenreiche Kost kann darmreizend wirken.';
+        if (n.match(/^solyanka$/i))
+            return 'Suppe mit Wurst, Essiggurken und Tomatenmark — mehrere Histaminquellen kombiniert.';
+        if (n.match(/^salmon$/i))
+            return 'Englisch für Lachs. Nur fangfrisch oder direkt schockgefroren sicher.';
+        if (n.match(/^saucisson$/i))
+            return 'Französische Rohwurst. Lange Reifung macht sie histaminreich.';
+        if (n.match(/^rinderbrühe$/i))
+            return 'Lange Fleischbrühe. Hohe Aminkonzentration durch die Kochzeit.';
+        if (n.match(/^rollmops$/i))
+            return 'Eingelegter Hering in Essig. Lange Lagerung und Fermentation machen ihn histaminreich.';
+        if (n.match(/^rosé$/i))
+            return 'Wein. Enthält Histamin, Alkohol blockiert zusätzlich das Abbauenzym.';
+        if (n.match(/^prunes$/i))
+            return 'Englisch für Backpflaumen. Trocknung konzentriert die Stoffe, oft zusätzlich mit Konservierungsmitteln.';
+        if (n.match(/^raspberry$/i))
+            return 'Englisch für Himbeere. Eine der stärksten natürlichen Liberatoren.';
+        if (n.match(/^pineapple juice$/i))
+            return 'Englisch für Ananassaft. Ananas ist ein starker Liberator und beeinflusst zusätzlich den Abbau im Darm.';
+        if (n.match(/^pomodoro$/i))
+            return 'Italienisch für Tomate. Tomaten sind histaminreich und wirken zusätzlich als Liberator.';
+        if (n.match(/^processed cheese$/i))
+            return 'Englisch für Schmelzkäse. Enthält Schmelzsalze und oft lang gereiften Käse als Basis.';
+        if (n.match(/^wurst$/i))
+            return 'Gepökeltes/geräuchertes Rindfleisch (z.B. Pastrami). Lange Verarbeitung macht es sehr histaminreich.';
+        if (n.match(/^nicoise$/i))
+            return 'Salat mit Thunfisch, Ei und Tomaten — jede Zutat für sich schon kritisch.';
+        if (n.match(/^nitritpökelsalz$/i))
+            return 'Salz zum Haltbarmachen von Fleisch. Sorgt bei der Lagerung für erheblichen Histaminaufbau.';
+        if (n.match(/^okonomiyaki$/i))
+            return 'Japanischer Pfannkuchen mit Ei, Weizen und fermentierten Würzsaucen.';
+        if (n.match(/^ossau-iraty$/i))
+            return 'Französischer Schafskäse. Sehr lange Reifezeit, hoher Histamingehalt.';
+        if (n.match(/^osso collo$/i))
+            return 'Luftgetrockneter Schweinenacken. Monatelange Reifung macht ihn histaminreich.';
+        if (n.match(/^ovomaltine$/i))
+            return 'Getränkepulver aus Gerstenmalz und Kakao — beide Hauptzutaten sind kritisch.';
+        if (n.match(/^oystersauce$/i))
+            return 'Austernsauce. Fermentation von Austernextrakten und Soja macht sie sehr histaminreich.';
+        if (n.match(/^natriumethyl-p-hydroxybenzoat$|^natriummethyl-p-hydroxybenzoat$/i))
+            return 'Konservierungsstoff aus der Paraben-Familie (E215/E219). Hohes Risiko für Reaktionen.';
+        if (n.match(/^natriumjodat$/i))
+            return 'Jodquelle für Speisesalz. Laut SIGHI gilt Jod als Liberator, trotz wichtiger Funktion für die Schilddrüse.';
+        if (n.match(/^misosauce$/i))
+            return 'Fermentierte Sojabohnenwürze. Monatelange Reifung macht sie extrem histaminreich.';
+        if (n.match(/^mortadella$/i))
+            return 'Brühwurstsorte. Verarbeitung, Gewürze und Lagerung lassen Histamin entstehen.';
+        if (n.match(/^mussel$/i))
+            return 'Englisch für Miesmuschel. Kritisches Lebensmittel, das schwere Reaktionen auslösen kann.';
+        if (n.match(/^malz$/i))
+            return 'Gekeimtes, getrocknetes Getreide. Beim Mälzungsprozess bildet sich viel Histamin.';
+        if (n.match(/^methyl-p-hydroxybenzoat$/i))
+            return 'Chemischer Konservierungsstoff (Paraben, E218). Kann starke allergieähnliche Reaktionen auslösen.';
+        if (n.match(/^muschel$/i))
+            return 'Muschelart (z.B. Miesmuschel). Speichert extrem viel Histamin — eines der riskantesten Lebensmittel bei HIT.';
+        if (n.match(/^krab$/i))
+            return 'Krebsfleisch-Imitat aus stark verarbeitetem Fisch-Muscheleiweiß mit vielen Zusätzen.';
+        if (n.match(/^krebse$/i))
+            return 'Krustentiere. Verderben extrem schnell und wirken im Körper als starke Histaminfreisetzer.';
+        if (n.match(/^krebsfleisch-imitat$/i))
+            return 'Surimi. Stark verarbeitetes Produkt aus Fischeiweiß, Aromen und Farbstoffen.';
+        if (n.match(/^krustentierpaste$/i))
+            return 'Gewürzpaste aus Schalentieren. Fischanteil und Verarbeitung machen sie sehr histaminreich.';
+        if (n.match(/^kasseler$|^kasselerfleisch$|^kassler$/i))
+            return 'Gepökeltes und geräuchertes Schweinefleisch. Lange Reifung und Rauchprozess machen es sehr histaminreich.';
+        if (n.match(/^katsuobushi$/i))
+            return 'Getrocknete, gehobelte Bonitoflocken. Der monatelange Fermentationsprozess macht sie extrem histaminreich.';
+        if (n.match(/^kippers$/i))
+            return 'Gesalzener und kalt geräucherter Hering. Traditionelle Haltbarmachung führt zu extremer Histaminlast.';
+        if (n.match(/^jodat$|^jodtabletten$|^kaliumjodat$|^kaliumiodid$/i))
+            return 'Jodquelle/-verbindung. Laut SIGHI gilt Jod als Liberator — kann bei Empfindlichkeit Reaktionen auslösen, trotz wichtiger Funktion für die Schilddrüse.';
+        if (n.match(/^joghurtdrink$/i))
+            return 'Fermentiertes Milchprodukt. Durch die bakterielle Reifung können geringe Mengen Histamin entstehen.';
+        if (n.match(/^ibérico$/i))
+            return 'Gereifter spanischer Schinken. Monatelange Lufttrocknung und Fermentation machen ihn sehr histaminreich.';
+        if (n.match(/^idiazábal$/i))
+            return 'Gereifter Schafskäse aus dem Baskenland. Herstellungsbedingt sehr hohe Histaminkonzentration.';
+        if (n.match(/^jagdwurst$/i))
+            return 'Verarbeitete Brühwurst. Zerkleinerung, Standzeiten und kritische Gewürze machen sie meist histaminbelastet.';
+        if (n.match(/^iod$|^iodine$|^jod$/i))
+            return 'Spurenelement. Laut SIGHI gilt Jod als Liberator — kann bei Empfindlichkeit Reaktionen auslösen, trotz der wichtigen Funktion für die Schilddrüse.';
+        if (n.match(/^hühnerbrühe$/i))
+            return 'Suppenbasis. Stundenlanges Auskochen von Fleisch und Knochen reichert freie Aminosäuren und Histamin an.';
+        if (n.match(/^hasenbraten$/i))
+            return 'Wildfleischgericht. Wildfleisch baut durch notwendige Abhängzeiten nach der Jagd schnell Histamin auf.';
+        if (n.match(/^hasenpfeffer$/i))
+            return 'Stark gewürztes Wildgericht. Fleischreifung, Rotwein und scharfe Gewürze machen es sehr histaminreich.';
+        if (n.match(/^heringsfiletsalat$/i))
+            return 'Hering zählt zu den histaminreichsten Fischsorten — in Salaten mit Mayonnaise/Essig zusätzlich belastet.';
+        if (n.match(/^herring$/i))
+            return 'Englisch für Hering. Extrem schneller Histaminaufbau nach dem Fang — nur unmittelbar fangfrisch verträglich.';
+        if (n.match(/^herz$/i))
+            return 'Innerei. Innereien verderben mikrobiell sehr schnell und reichern dadurch rasch Histamin an.';
+        if (n.match(/^gelb 5$/i))
+            return 'Tartrazin (E102), künstlicher Azofarbstoff. Bekanntes Pseudoallergen, das die Histaminfreisetzung triggern kann.';
+        if (n.match(/^gelborange$/i))
+            return 'Farbbezeichnung für Zusätze. Bei synthetischen Azofarbstoffen (z.B. E110) können diese Mastzellen aktivieren.';
+        if (n.match(/^gereiftes fleisch$/i))
+            return 'Dry-aged Fleischprodukte. Der lange mikrobielle Reifeprozess führt zu sehr hoher Histaminkonzentration.';
+        if (n.match(/^getrocknete früchte$/i))
+            return 'Trockenobst. Durch den Wasserentzug konzentrierte biogene Amine, oft zusätzlich geschwefelt.';
+        if (n.match(/^fruchtjoghurt$/i))
+            return 'Fermentierter Joghurt mit Frucht-Liberatoren — je nach Frucht (z.B. Erdbeere) besonders belastend.';
+        if (n.match(/^fruit yogurt$/i))
+            return 'Englisch für Fruchtjoghurt. Kombiniert fermentierten Joghurt mit Frucht-Liberatoren.';
+        if (n.match(/^erdnuss$/i))
+            return 'Botanisch eine Hülsenfrucht. Starker Liberator und reich an anderen biogenen Aminen — Erdnussbutter durch Verarbeitung/Lagerung oft noch stärker.';
+        if (n.match(/^ethyl-p-hydroxybenzoat$/i))
+            return 'PHB-Ester (E214), künstlicher Konservierungsstoff. Kann pseudoallergische Reaktionen begünstigen.';
+        if (n.match(/^fermentiert$/i))
+            return 'Allgemeiner Begriff für bakterielle Reifung. Enthält herstellungsbedingt fast immer viel Histamin und andere biogene Amine.';
+        if (n.match(/^fertigsauce$/i))
+            return 'Industriell hergestellte Sauce. Enthält meist histaminreiche Zutaten wie Tomaten, Essig oder Hefeextrakt.';
+        if (n.match(/^fertigsoße$/i))
+            return 'Wie Fertigsauce: durch lange Lagerung und Zusammensetzung ein häufiger Symptomauslöser.';
+        if (n.match(/^fischkonserve$/i))
+            return 'Fisch aus der Dose (Thunfisch, Sardinen). Durch die lange Lagerung extrem histaminreich.';
+        if (n.match(/^fischpaste$/i))
+            return 'Hochgradig verarbeitetes Fischprodukt. Reifung und feine Zerkleinerung machen es sehr histaminreich.';
+        if (n.match(/^fischsalat$|^fish salad$/i))
+            return 'Verarbeiteter Fisch kombiniert mit histaminreichen Zutaten wie Mayonnaise oder Essig.';
+        if (n.match(/^fischsosse$/i))
+            return 'Fermentierte Würzsauce aus Fisch — eines der histaminreichsten Lebensmittel überhaupt.';
+        if (n.match(/^eintopf\b.*fleisch|^eintopf$/i))
+            return 'Eintopf: Langes Kochen, Warmhalten und Wiederaufwärmen sowie ggf. gereiftes Fleisch machen Eintöpfe oft histaminreich.';
+        if (n.match(/^e249$|^e250$|^e251$|^e252$/i))
+            return 'Pökelsalz (Nitrit/Nitrat). Blockiert das Abbauenzym DAO deutlich und wird konservativ wie Pökelwaren eingestuft.';
+        if (n.match(/^e133$/i))
+            return 'Brillantblau FCF, synthetischer Farbstoff. Gilt als potenzielles Pseudoallergen und kann den Darm reizen.';
+        if (n.match(/^e155$/i))
+            return 'Braun HT, synthetischer Azofarbstoff. Kann die Histaminfreisetzung aktivieren.';
+        if (n.match(/^e180$/i))
+            return 'Litholrubin BK, künstlicher Azofarbstoff für Käserinden. Starkes Pseudoallergen.';
+        if (n.match(/\bdry-aged\b/i))
+            return 'Fleisch mit langer Trockenreifung. Der mikrobielle Abbauprozess macht es sehr histaminreich.';
+        if (n.match(/^dörrpflaumen$/i))
+            return 'Getrocknete Pflaumen. Die Trocknung konzentriert die Amine der bereits als Liberator geltenden Pflaume zusätzlich.';
+        if (n.match(/\bcorned beef\b/i))
+            return 'Gepökeltes, in Dosen konserviertes Rindfleisch. Lange Lagerung macht es histaminreich.';
+        if (n.match(/\bcrab\b/i))
+            return 'Englisch für Krabbe. Meeresfrüchte sind starke Liberatoren und verderben extrem schnell.';
+        if (n.match(/\bcrushed tomatoes\b/i))
+            return 'Gestückelte Tomaten aus der Dose. Wie Tomatenmark durch Verarbeitung konzentriert und zusätzlich Liberator.';
+        if (n.match(/\bcurrywurst\b/i))
+            return 'Kombination aus gewürzter, gelagerter Wurst und tomatenhaltiger Soße — beides für sich schon belastend.';
+        if (n.match(/\bdashi\b/i))
+            return 'Japanische Brühe mit Bonitoflocken (getrockneter Fisch). Fischflocken sind stark histaminhaltig.';
+        if (n.match(/\bbulgogi\b/i))
+            return 'Koreanisches, mariniertes Fleisch. Lange Marinierzeit, Sojasauce und Gewürze machen es histaminreich.';
+        if (n.match(/\bcalvados\b/i))
+            return 'Apfelbranntwein. Alkohol und lange Fassreifung sorgen für Histamin und blockieren zusätzlich die DAO.';
         if (n.match(/\bhimbeere[n]?\b|raspberry|raspberries/i))
             return 'SIGHI 2 — Himbeeren: Enthalten von Natur aus Histamin und wirken zusätzlich als Liberator. TK-Ware zügig verarbeiten, überreife Früchte meiden.';
         if (n.match(/\btomatensauce\b|\btomatensoße\b/i))
@@ -9664,6 +9919,336 @@ if (cat === 'high') {
     }
 
     if (cat === 'liberator') {
+        if (n.match(/^wurstwaren$|^wurstwaren generisch$/i))
+            return 'Übergreifende Kategorie für Wurstwaren. Lagerung und Zusatzstoffe machen sie oft kritisch.';
+        if (n.match(/^zuckermelone$/i))
+            return 'Melone. Wie manche Melonensorten ein möglicher milder Liberator.';
+        if (n.match(/^überreifes obst$/i))
+            return 'Obst mit fortgeschrittenem Reifegrad. Kann deutlich mehr Histamin enthalten als frisches Obst.';
+        if (n.match(/^wachsbohne$/i))
+            return 'Bohnenart. Hülsenfrüchte können als Liberator wirken.';
+        if (n.match(/^untergärig$/i))
+            return 'Brauverfahren (z.B. bei Lagerbier). Wie andere Biere durch Alkohol und Hefe belastend.';
+        if (n.match(/^wachsbohne$/i))
+            return 'Bohnenart. Hülsenfrüchte können als Liberator wirken.';
+        if (n.match(/^tonka$|^tonkabohne$/i))
+            return 'Enthält Cumarin. In kleinen Mengen beim Backen meist unbedenklich.';
+        if (n.match(/^sumach$/i))
+            return 'Gewürz aus den Früchten des Essigbaums. Organische Säuren können bei manchen als Reizstoff wirken.';
+        if (n.match(/^sunflower oil$/i))
+            return 'Englisch für Sonnenblumenöl. SIGHI 2 L — wie Sonnenblumenkerne ein möglicher Liberator.';
+        if (n.match(/^sunset yellow$/i))
+            return 'Englisch für Gelborange S (E110). Bekannter Liberator.';
+        if (n.match(/^szechuanpfeffer$/i))
+            return 'Kein echter Pfeffer, sondern ein Zitrusgewächs. Wirkt als Reizstoff auf die Schleimhäute.';
+        if (n.match(/^süßholz$/i))
+            return 'Süßende Wurzel. Enthält Glycyrrhizin, das in größeren Mengen den Blutdruck beeinflussen kann.';
+        if (n.match(/^tannin$/i))
+            return 'Pflanzlicher Gerbstoff, oft in Rotwein. Kann bei empfindlichen Personen die Darmflora stören.';
+        if (n.match(/^taurin$/i))
+            return 'Aminosäurederivat, oft in Energy Drinks. Wird gemeinsam mit Koffein als DAO-hemmend diskutiert.';
+        if (n.match(/^tbhq$|^tertiär-butylhydrochinon$/i))
+            return 'Antioxidationsmittel. Kann die Mastzellen irritieren.';
+        if (n.match(/^linsen$/i))
+            return 'Hülsenfrucht (z.B. Tellerlinsen). Kann die Histaminfreisetzung fördern.';
+        if (n.match(/^sonnenblumenöl$/i))
+            return 'SIGHI 2 L — Sonnenblumenöl: Wie Sonnenblumenkerne ein möglicher Liberator laut SIGHI.';
+        if (n.match(/^sorbinsäure$/i))
+            return 'Konservierungsstoff (E200). Kann bei empfindlichen Personen Reaktionen auslösen.';
+        if (n.match(/^speisewürze$/i))
+            return 'Flüssiges Würzmittel. Enthält oft Hefeextrakte oder Glutamat.';
+        if (n.match(/^stearyltartrat$/i))
+            return 'Emulgator (E483). Kann als milder Liberator wirken.';
+        if (n.match(/^stinging nettle$/i))
+            return 'Englisch für Brennnessel. Enthält andere biogene Amine, SIGHI S1.';
+        if (n.match(/^seetang$/i))
+            return 'Algen. Können Histamin enthalten oder binden.';
+        if (n.match(/^shrimps$/i))
+            return 'Garnelen. Sehr anfällig für Histaminbildung — nur fangfrisch sicher.';
+        if (n.match(/^sonnenblumen$/i))
+            return 'SIGHI 2 — Sonnenblumenkerne: Liberatorwirkung. Bei üblicher Verzehrmenge deutliche Symptome möglich.';
+        if (n.match(/^sonnenblumenfett$/i))
+            return 'Gehärtetes Sonnenblumenöl. Wie Sonnenblumenkerne/-öl ein möglicher Liberator laut SIGHI.';
+        if (n.match(/^salzgurken$/i))
+            return 'Milchsauer vergorenes Gemüse. Fermentation macht es histaminreich.';
+        if (n.match(/^satsuma$/i))
+            return 'Zitrusfrucht. Kann als Liberator wirken.';
+        if (n.match(/^sauerampfer$/i))
+            return 'SIGHI 1 — Küchenkraut. Nach der Ernte können sich biogene Amine bilden, zusätzlich zur Oxalsäure zu beachten.';
+        if (n.match(/^schalentiere$/i))
+            return 'Krustentiere. Sehr anfällig für schnelle Histaminbildung.';
+        if (n.match(/^schmelzkäsezubereitung$|^e450$/i))
+            return 'Diphosphate (E450), z.B. in Schmelzsalzen. SIGHI führt einen Liberator-Verdacht bei MCAS.';
+        if (n.match(/^ribonucleotide$|^ribonukleotid$/i))
+            return 'Geschmacksverstärker (E627/E631). Kann bei empfindlichen Personen die Histaminfreisetzung triggern.';
+        if (n.match(/^rocket$/i))
+            return 'Englisch für Rucola. Meist gut verträglich, bei hoher Empfindlichkeit vorsichtig testen.';
+        if (n.match(/^rot 2g$/i))
+            return 'Farbstoff Rot 2G (E128). Kann Pseudoallergien auslösen.';
+        if (n.match(/^rucula$/i))
+            return 'Schreibvariante von Rucola. Meist gut verträglich.';
+        if (n.match(/^propylgallat$/i))
+            return 'Künstliches Antioxidationsmittel (E310), vor allem für Fette. Kann Reaktionen der Mastzellen auslösen.';
+        if (n.match(/^ramson$/i))
+            return 'Englisch für Bärlauch. Meist gut verträglich, bei Empfindlichkeit gegen schwefelhaltige Pflanzen vorsichtig testen.';
+        if (n.match(/^raw milk$/i))
+            return 'Englisch für Rohmilch. Unpasteurisiert, mehr Bakterien können bei Lagerung Histamin bilden.';
+        if (n.match(/^red 40$/i))
+            return 'Englisch für Allurarot AC (E129). Bekannter Auslöser für Histaminfreisetzung.';
+        if (n.match(/^wildfleisch$/i))
+            return 'Wildfleisch (z.B. Reh). Tagelanges Abhängen nach dem Erlegen erhöht den Histamingehalt stark.';
+        if (n.match(/^rhum$/i))
+            return 'Französisch/Englisch für Rum. Alkohol blockiert das Abbauenzym DAO.';
+        if (n.match(/^plum$|^plum fresh$/i))
+            return 'Englisch für Pflaume. Kann die Verdauung anregen, gilt als milder Liberator.';
+        if (n.match(/^ponceau$/i))
+            return 'Künstlicher roter Azofarbstoff. Kann Mastzellen direkt aktivieren.';
+        if (n.match(/^ponzu$/i))
+            return 'Japanische Würzsauce aus Sojasauce und Zitrussäften — kombiniert zwei Liberator-Quellen.';
+        if (n.match(/^praline$|^pralinen$/i))
+            return 'Gefüllte Schokolade. Enthält meist Kakao (Liberator), Nüsse oder Alkohol.';
+        if (n.match(/^pampelmuse$/i))
+            return 'Große Zitrusfrucht. Wirkt als Liberator.';
+        if (n.match(/^paradieskörner$/i))
+            return 'Scharfes afrikanisches Gewürz. Ätherische Öle reizen den Magen.';
+        if (n.match(/^passion fruit$/i))
+            return 'Englisch für Passionsfrucht (Maracuja). Histaminarm — in der Anfangszeit vorsichtig testen.';
+        if (n.match(/^patent blue$|^patentblau v$/i))
+            return 'Künstlicher blauer Farbstoff (E131). Kann allergieähnliche Reaktionen begünstigen.';
+        if (n.match(/^pea$/i))
+            return 'Englisch für Erbse. Hülsenfrucht, kann als milder Liberator wirken.';
+        if (n.match(/^pepper$/i))
+            return 'Englisch für Pfeffer. Enthält scharfe Stoffe, die die Darmwand reizen können.';
+        if (n.match(/^pfeffer$/i))
+            return 'Ganze Pfefferkörner. Das enthaltene Piperin reizt die Darmschleimhaut.';
+        if (n.match(/^nudeln ei$/i))
+            return 'Eiernudeln. Das verarbeitete Hühnereiweiß kann Beschwerden verursachen.';
+        if (n.match(/^octylgallat$/i))
+            return 'Künstliches Antioxidationsmittel (E311). Kann die Mastzellen reizen.';
+        if (n.match(/^orangenschale$/i))
+            return 'Äußere Schale von Orangen. Enthält Stoffe, die als Liberator wirken können.';
+        if (n.match(/^orthophenylphenol$/i))
+            return 'Chemisches Spritzmittel für Fruchtschalen (E231). Kann gesundheitsschädlich sein.';
+        if (n.match(/^overripe$/i))
+            return 'Englisch für überreif. Bei überreifen Lebensmitteln bildet sich vermehrt Histamin.';
+        if (n.match(/^natriumguanylat$/i))
+            return 'Geschmacksverstärker (E627). Kann asthmatische oder allergische Symptome verstärken.';
+        if (n.match(/^natriumkaliumtartrat$/i))
+            return 'Salz der Weinsäure (E337), Triebmittel. Histaminfrei.';
+        if (n.match(/^natriumsorbat$/i))
+            return 'Konservierungsstoff (E201). Kann bei empfindlichen Personen Reaktionen der Mastzellen auslösen.';
+        if (n.match(/^natriumsuccinat$/i))
+            return 'Salz der Bernsteinsäure (E363). Histaminneutral.';
+        if (n.match(/^natriumtartrat$|^natriumtartrate$/i))
+            return 'Salz der Weinsäure (E335). Histaminfrei.';
+        if (n.match(/^nelkenaroma$/i))
+            return 'Geschmack von Gewürznelken. Nelken gelten als möglicher Liberator.';
+        if (n.match(/^nettle$/i))
+            return 'Englisch für Brennnessel. Frisch histaminhaltig — getrocknet als Tee oft gut verträglich.';
+        if (n.match(/^piment$/i))
+            return 'Neugewürz. Scharfe Öle können den Magen reizen und als Liberator wirken.';
+        if (n.match(/^milchkäse$/i))
+            return 'Allgemeiner Käsebegriff. Verträglichkeit hängt von der Reifezeit ab — frisch okay, lang gelagert histaminreich.';
+        if (n.match(/^milchpulver$/i))
+            return 'Getrocknete Voll-/Magermilch. Industrielle Hitzebehandlung kann Histamin bilden.';
+        if (n.match(/^mirabelle$/i))
+            return 'Kleine gelbe Pflaumenart. Wie andere Pflaumen ein möglicher milder Liberator.';
+        if (n.match(/^malic acid$/i))
+            return 'Englisch für Apfelsäure (E296). Weitgehend histaminneutral, laut SIGHI mit mildem Liberator-Potenzial.';
+        if (n.match(/^malzmehlzusatz$/i))
+            return 'Zusatz von Malzmehl im Brot. Kann bei empfindlichen Personen Symptome auslösen.';
+        if (n.match(/^mandelkerne$/i))
+            return 'Ganze Mandeln ohne Schale. Können die körpereigene Histaminfreisetzung anregen.';
+        if (n.match(/^methylparaben$/i))
+            return 'Andere Bezeichnung für E218 (Paraben-Konservierungsstoff). Nicht für Histaminintoleranz geeignet.';
+        if (n.match(/^limonade$|^limonade mild$|^limonadengetränke$/i))
+            return 'Erfrischungsgetränk. Enthält meist Zitronensäure, künstliche Aromen oder Konservierungsstoffe, die Symptome auslösen können.';
+        if (n.match(/^limonen$/i))
+            return 'Limetten. Wie fast alle Zitrusfrüchte wirken sie als Liberator.';
+        if (n.match(/^limonensaft$/i))
+            return 'Konzentrierter Saft von Limetten. Führt bei Betroffenen schnell zu typischen Beschwerden.';
+        if (n.match(/^litholrubin$/i))
+            return 'Künstlicher roter Farbstoff (E180), vor allem für Käserinden. Kann Unverträglichkeiten auslösen.';
+        if (n.match(/^kräuterteemischungen$/i))
+            return 'Mischungen aus verschiedenen Kräutern. Reine Kräuter (Kamille, Fenchel) meist gut verträglich — bei Zusätzen/Aromen prüfen.';
+        if (n.match(/^lagerbier$/i))
+            return 'Untergäriges Bier. Histaminhaltig durch die Hefe, Alkohol blockiert zudem den Histaminabbau — gilt aber als besser verträglich als obergäriges Bier.';
+        if (n.match(/^süßholz$/i))
+            return 'Lakritz aus der Süßholzwurzel. Selbst histaminarm, kann in großen Mengen den Blutdruck beeinflussen — Verträglichkeit hängt von Zusätzen wie Salmiak ab.';
+        if (n.match(/^legumes$/i))
+            return 'Englisch für Hülsenfrüchte (Bohnen, Linsen). Wirken oft als Liberator.';
+        if (n.match(/^korn$/i))
+            return 'Kann Getreide oder Schnaps bedeuten. Als Getreide sortenabhängig, als Alkohol blockiert es den Histaminabbau.';
+        if (n.match(/^krauseminze$/i))
+            return 'Minzart. Histaminarm, die Minzöle können bei empfindlichen Personen den Magen leicht reizen.';
+        if (n.match(/^kräuterseitling$|^kräuterseitlinge$/i))
+            return 'Speisepilz. Anders als Champignons gilt Kräuterseitling als recht histaminarm — frisch zubereitet meist gut verträglich.';
+        if (n.match(/^kapuzinerkresse$/i))
+            return 'Würzige Pflanze mit hohem Senfölgehalt, wirkt antimikrobiell. Histaminarm, kann bei empfindlichem Darm die Schleimhaut reizen.';
+        if (n.match(/^karmesin$/i))
+            return 'Synthetischer Azofarbstoff (E122). Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^karminsäure$/i))
+            return 'Wirkstoff des Farbstoffs E120 (Karmin, aus Schildläusen). Kann Reaktionen auslösen.';
+        if (n.match(/^kelp$/i))
+            return 'Braunalge. Sehr jodreich (Jod gilt laut SIGHI als Liberator) und potenziell mit biogenen Aminen beladen.';
+        if (n.match(/^wacholder$/i))
+            return 'Wacholderbeeren. Die ätherischen Öle können die Magenschleimhaut reizen — Histamingehalt selbst ist minimal.';
+        if (n.match(/^hülsenfrucht$|^hülsenfrüchte$/i))
+            return 'Botanische Obergruppe (Bohnen, Linsen etc.). Bekannte Liberatoren.';
+        if (n.match(/^indigoblau$|^indigocarmin$|^indigotin$/i))
+            return 'Synthetischer blauer Farbstoff (Indigokarmin, E132). Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^jodsalz$/i))
+            return 'Mit Jod angereichertes Speisesalz. Laut SIGHI gilt Jod selbst als Liberator, trotz sonst harmlosem Salz.';
+        if (n.match(/^hafer-drink$/i))
+            return 'Pflanzlicher Milchersatz aus Hafer. Histaminarm — auf fermentierte Zusätze oder Verdickungsmittel achten.';
+        if (n.match(/^harissapaste$/i))
+            return 'Paste aus Chilis, Knoblauch und Öl. Kann die Mastzellen reizen und herstellungsbedingt histaminreich sein.';
+        if (n.match(/^hefe$/i))
+            return 'Einzelliger Pilz zur Fermentation. Reich an Histamin — häufiger Trigger bei Unverträglichkeit.';
+        if (n.match(/^hefeflocken$/i))
+            return 'Inaktivierte, getrocknete Hefe. Hohe Konzentration an Glutaminsäure und biogenen Aminen.';
+        if (n.match(/^hexamethylentetramin$/i))
+            return 'Konservierungsstoff (E239). Kann pseudoallergische Reaktionen an den Mastzellen triggern.';
+        if (n.match(/^himbeersirup$/i))
+            return 'Konzentrierter Zuckersirup mit Himbeergeschmack. Kombiniert das Reizpotenzial der Himbeere mit hoher Zuckerlast.';
+        if (n.match(/^holunderbeer$/i))
+            return 'Früchte des Schwarzen Holunders. Roh ungenießbar — gekocht enthalten sie biogene Amine und wirken als Liberator.';
+        if (n.match(/^grillzwiebel$/i))
+            return 'Gekochte/gegrillte Zwiebel. Histaminarm, frisch zubereitet meist gut verträglich — langes Warmhalten vermeiden.';
+        if (n.match(/^guaran$/i))
+            return 'Wirksamer Ballaststoff im Guarkernmehl. Histaminneutral, in kleinen Mengen verträglich.';
+        if (n.match(/^gartenerbsen$/i))
+            return 'Grüne Erbsen, Hülsenfrucht. Bekannter milder Liberator — in der Anfangsphase vorsichtig testen.';
+        if (n.match(/^gemüsezwiebel$/i))
+            return 'Große, milde Zwiebelsorte. Histaminarm, Schwefelverbindungen können bei empfindlichem Magen leicht reizen.';
+        if (n.match(/^gereift$/i))
+            return 'Allgemeiner Hinweis auf Fermentation oder lange Lagerung. Bedeutet fast immer einen erhöhten Histamingehalt.';
+        if (n.match(/^rindfleisch gereift$/i))
+            return 'Durch die Reifung deutlich histaminreicher als frisches Rindfleisch.';
+        if (n.match(/^gerste$/i))
+            return 'Glutenhaltiges Getreide. Gilt als milder Liberator — kann bei sensibler Schleimhaut zusätzlich durch das Gluten reizen.';
+        if (n.match(/^gerstenkörner$/i))
+            return 'Ganze Gerstenkörner. Wie Gerste ein milder Liberator, erfordert intakte Verdauung für die Ballaststoffe.';
+        if (n.match(/^getrocknete pflaume$/i))
+            return 'Dörrpflaumen. Enthalten reichlich freie Amine, die Symptome auslösen können.';
+        if (n.match(/^folic acid$/i))
+            return 'Folsäure, synthetische Variante von Vitamin B9. Bei manchen hochsensiblen Personen werden leichte Reaktionen berichtet, meist aber gut verträglich.';
+        if (n.match(/^frischhefe$/i))
+            return 'Aktive Backhefe. Bekannter Trigger für die Histaminfreisetzung — in der strengen Anfangsphase meiden.';
+        if (n.match(/^fritz kola$|^limonade$/i))
+            return 'Koffeinhaltige Limonade. Koffein blockiert die DAO.';
+        if (n.match(/^fruchtjoghurt$|^fruit yogurt$/i))
+            return 'Fermentierter Joghurt kombiniert mit Frucht-Liberatoren, je nach Fruchtsorte unterschiedlich belastend.';
+        if (n.match(/^früchtemischung$/i))
+            return 'Mischung verschiedener Früchte — enthält oft Erdbeeren, Himbeeren oder Zitrusfrüchte, die als Liberatoren wirken.';
+        if (n.match(/^gallat$/i))
+            return 'Ester der Gallussäure (E310-E312). Stehen im Verdacht, pseudoallergische Reaktionen auszulösen.';
+        if (n.match(/^hackfleisch$/i))
+            return 'Hackfleisch hat eine große Oberfläche, wodurch sich Histamin rasch bildet — zudem oft stark gewürzt (z.B. Fleischbällchen/-klößchen).';
+        if (n.match(/^erbsenstärke$/i))
+            return 'Stärke aus Erbsen. Proteine sind weitgehend entfernt, dadurch meist besser verträglich als die ganze Erbse, kann aber Spuren enthalten.';
+        if (n.match(/^ethylparaben$/i))
+            return 'Wie Ethyl-p-hydroxybenzoat (E214): künstlicher Konservierungsstoff, kann Unverträglichkeitsreaktionen auslösen.';
+        if (n.match(/^fave$/i))
+            return 'Ackerbohne/Dicke Bohne, Hülsenfrucht. Gilt wie andere Hülsenfrüchte als möglicher Liberator.';
+        if (n.match(/^fig$|^figs$|^fig fresh$/i))
+            return 'Feige. Enthält biogene Amine, besonders in getrockneter Form — frisch meist etwas verträglicher.';
+        if (n.match(/^fleischbällchen$|^fleischklößchen$/i))
+            return 'Hackfleisch hat eine große Oberfläche, wodurch sich Histamin rasch bildet — zudem oft stark gewürzt.';
+        if (n.match(/^e959$/i))
+            return 'Neohesperidin DC, künstlicher Süßstoff. Meist gut verträglich, in Einzelfällen können Zitrusderivate reizen.';
+        if (n.match(/^e962$/i))
+            return 'Aspartam-Acesulfam-Salz, Süßstoff-Mix. Kombiniert Eigenschaften beider Stoffe — wie Aspartam ein möglicher DAO-Blocker.';
+        if (n.match(/^echtes e120|^echtes karmin$/i))
+            return 'Echtes Karmin (E120), roter Farbstoff tierischen Ursprungs (aus Schildläusen). Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^egg$|^eggs$/i))
+            return 'Englisch für Ei/Eier. Eigelb histaminarm, rohes Eiklar gilt als Liberator — gekocht deutlich verträglicher.';
+        if (n.match(/^elderberry$/i))
+            return 'Englisch für Holunderbeere. Gilt als milder Liberator.';
+        if (n.match(/^e483$/i))
+            return 'Stearyltartrat, Emulgator. Histaminarm, im Allgemeinen verträglich.';
+        if (n.match(/^e413$/i))
+            return 'Traganth, pflanzliches Verdickungsmittel. Kann als Liberator wirken.';
+        if (n.match(/^e414$/i))
+            return 'Gummi Arabicum, Verdickungsmittel. Gilt als möglicher Liberator.';
+        if (n.match(/^e417$/i))
+            return 'Tarakernmehl, pflanzliches Verdickungsmittel. In normalen Mengen meist gut verträglich.';
+        if (n.match(/^e418$/i))
+            return 'Gellan, Geliermittel aus Fermentation. Histaminarm, bei ausgeprägter Empfindlichkeit vorsichtig testen.';
+        if (n.match(/^e444$/i))
+            return 'Saccharoseacetatisobutyrat, Stabilisator. Gilt als gut verträglich.';
+        if (n.match(/^e445$/i))
+            return 'Glycerinester aus Wurzelharz, Stabilisator. Löst in der Regel keine Reaktionen aus.';
+        if (n.match(/^e231$|^e230$|^e232$/i))
+            return 'Konservierungsstoff für Zitrusschalen (Biphenyl/Orthophenylphenol-Familie). Kann pseudoallergische Reaktionen auslösen — betrifft meist nur die Schale, nicht das Fruchtfleisch.';
+        if (n.match(/^e239$/i))
+            return 'Hexamethylentetramin. Setzt im sauren Milieu Formaldehyd frei, kann empfindliche Mastzellen reizen.';
+        if (n.match(/^e297$/i))
+            return 'Fumarsäure, Säureregulator. Meist gut verträglich, in seltenen Fällen individuelle Reizung möglich.';
+        if (n.match(/^e319$/i))
+            return 'TBHQ (Tertiär-Butylhydrochinon), synthetisches Antioxidationsmittel. Kann Mastzellen reizen.';
+        if (n.match(/^e123$/i))
+            return 'Amaranth, künstlicher Azofarbstoff. Gilt als Liberator und Pseudoallergen.';
+        if (n.match(/^e124$/i))
+            return 'Cochenillerot A, synthetischer Azofarbstoff. Kann Mastzellen aktivieren und Histamin freisetzen.';
+        if (n.match(/^e127$/i))
+            return 'Erythrosin, künstlicher roter Farbstoff. Wirkt als Liberator und kann Pseudoallergien auslösen.';
+        if (n.match(/^e128$/i))
+            return 'Rot 2G, synthetischer Farbstoff. Gilt als starkes Pseudoallergen.';
+        if (n.match(/^e131$/i))
+            return 'Patentblau V, synthetischer Farbstoff. Bekanntes Pseudoallergen.';
+        if (n.match(/^e132$/i))
+            return 'Indigotin, künstlicher blauer Farbstoff. Kann als Liberator wirken.';
+        if (n.match(/^e154$/i))
+            return 'Braun FK, künstlicher Azofarbstoff-Mix. Gilt als starkes Pseudoallergen.';
+        if (n.match(/^e160b$/i))
+            return 'Annatto/Bixin/Norbixin. Natürlicher Farbstoff, der trotzdem häufiger pseudoallergische Reaktionen auslöst.';
+        if (n.match(/paprikaextrakt/i))
+            return 'SIGHI 2 — Paprikaextrakt/Capsanthin (E160c): Konzentrat wirkt als Liberator, anders als reines Paprikapulver (S0).';
+        if (n.match(/^e161g$/i))
+            return 'Canthaxanthin, rötlicher Farbstoff. Kann pseudoallergische Reaktionen auslösen — in der EU stark eingeschränkt zugelassen.';
+        if (n.match(/^e200$/i))
+            return 'Sorbinsäure, Konservierungsstoff. Kann bei empfindlichen Personen Pseudoallergien auslösen.';
+        if (n.match(/^e201$/i))
+            return 'Natriumsorbat. Sorbinsäurederivate können Mastzellen reizen.';
+        if (n.match(/^e151$/i))
+            return 'Brillantschwarz BN, künstlicher Azofarbstoff. Starkes Pseudoallergen.';
+        if (n.match(/^e104$/i))
+            return 'Chinolingelb, künstlicher Farbstoff. Bekanntes Pseudoallergen, das die Histaminfreisetzung aktivieren kann.';
+        if (n.match(/^e110$/i))
+            return 'Gelborange S, synthetischer Azofarbstoff. Wirkt als Liberator an den Mastzellen.';
+        if (n.match(/^e120$/i))
+            return 'Echtes Karmin, roter Farbstoff tierischen Ursprungs (aus Schildläusen). Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/\bdillfenchel\b/i))
+            return 'Milde Kräuter-/Gewürzmischung aus Dill und Fenchel. Histaminarm, ätherische Öle können empfindliche Personen dennoch reizen.';
+        if (n.match(/\bdinatriumdiphosphat\b/i))
+            return 'Backtriebmittel und Schmelzsalz (E450a). Histaminarm, in großen Mengen darmreizend.';
+        if (n.match(/\bdodecylgallat\b|\be312\b/i))
+            return 'Antioxidationsmittel (E312). Gilt als Liberator und kann allergieähnliche Symptome triggern.';
+        if (n.match(/\bdosenmilch\b|\bkondensmilch\b/i))
+            return 'Kondensmilch. Starke Erhitzung und Lagerung können biogene Amine bilden — vorsichtig testen.';
+        if (n.match(/\bdry yeast\b/i))
+            return 'Englisch für Trockenhefe. Bildet bei der Teiggärung biogene Amine — in der Karenzphase meiden.';
+        if (n.match(/\bcochenille\b(?!rot)/i))
+            return 'Roter Farbstoff aus Schildläusen (E120). Gilt als Liberator und kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/\bcocktailsauce\b/i))
+            return 'Enthält meist Tomatenmark, Essig und Ei — histaminreich und wirkt als Liberator.';
+        if (n.match(/\bcoconut vinegar\b/i))
+            return 'Kokosessig. Durch die Fermentation zur Essigherstellung können biogene Amine entstehen.';
+        if (n.match(/\bcroissant\b/i))
+            return 'Enthält Hefe und Weizen. Durch die Gärung können biogene Amine entstehen — frisch am besten verträglich.';
+        if (n.match(/^dattel$|^datteln$|dattelsirup|date syrup/i))
+            return 'SIGHI 2 — Datteln: Gelten als Liberator, regen die körpereigene Histaminfreisetzung an. Bei Sirup/Konzentrat aus getrockneten, oft geschwefelten Datteln zusätzlich vorsichtig sein.';
+        if (n.match(/\bbutterkäse\b/i))
+            return 'Halbfester Schnittkäse mit kurzer Reifezeit. Deutlich weniger Histamin als lang gereifter Käse, in der Anfangsphase trotzdem vorsichtig testen.';
+        if (n.match(/\bbuttermilchpulver\b/i))
+            return 'Getrocknete Buttermilch. Durch die Fermentation bei der Herstellung können biogene Amine enthalten sein.';
+        if (n.match(/\bbäckerhefe\b/i))
+            return 'Kann beim Gären des Teigs biogene Amine bilden. In der strengen Anfangsphase meiden, hefefreie Alternativen bevorzugen.';
+        if (n.match(/\bcacao\b/i))
+            return 'Andere Schreibweise für Kakao. Enthält Tyramin und Phenylethylamin (biogene Amine) und wirkt als Liberator.';
+        if (n.match(/\bcalciumsorbat\b|\be203\b/i))
+            return 'Konservierungsstoff (E203). Sorbate können bei empfindlichen Personen die Histaminfreisetzung begünstigen.';
         if (n.match(/\bfischstäbchen\b|\bfischburger\b/i))
             return 'SIGHI 1 — Fisch in Panade, meist aus TK-Ware. Weniger frisch kontrollierbar als reines Fischfilet, dadurch etwas höheres Risiko — in Maßen meist verträglich.';
         if (n.match(/\bnatriumbenzoat\b|\bkaliumbenzoat\b|\bcalciumbenzoat\b|\be21[1-3]\b/i))
@@ -10106,6 +10691,168 @@ if (cat === 'high') {
     }
 
     if (cat === 'dao_blocker') {
+        if (n.match(/^yakonsirup$/i))
+            return 'Sirup aus der Yaconwurzel. Enthält Fruktane, die ähnlich wie Inulin wirken.';
+        if (n.match(/^zellulosegummi$/i))
+            return 'Verdickungsmittel (E466, Carboxymethylcellulose). Kann in großen Mengen den Darm belasten.';
+        if (n.match(/^zuckercouleur$/i))
+            return 'Farbstoff (E150). Gilt laut histaminta als DAO-Blocker — Wirkung je nach Herstellungsverfahren unterschiedlich.';
+        if (n.match(/^weinbrand$/i))
+            return 'Alkoholische Spirituose. Alkohol blockiert die DAO.';
+        if (n.match(/^wermut$/i))
+            return 'Alkoholisch angereicherter Wein.';
+        if (n.match(/^tonic water$/i))
+            return 'Enthält Chinin, das die DAO hemmt.';
+        if (n.match(/^tween$/i))
+            return 'Englisch für Polysorbat (E432-436). Wie andere Polysorbate ein möglicher DAO-Blocker.';
+        if (n.match(/^theobromin$/i))
+            return 'Alkaloid im Kakao. Wirkt DAO-hemmend.';
+        if (n.match(/^schwarztee$/i))
+            return 'Fermentierter Tee. Enthält Histamin und blockiert zusätzlich das Abbauenzym DAO.';
+        if (n.match(/^schwarztee schwach$/i))
+            return 'Dünner Schwarztee-Aufguss. Trotz geringerer Konzentration bleibt die DAO-Blockade durch Koffein ein Problem.';
+        if (n.match(/^sencha$/i))
+            return 'Grüntee. Kann das Abbauenzym DAO leicht hemmen.';
+        if (n.match(/^skyr$/i))
+            return 'Fermentiertes Milchprodukt. Die Fermentation ist für Histaminiker problematisch.';
+        if (n.match(/^salicylat$|^salicylate$/i))
+            return 'Natürlicher Pflanzenstoff. Kann bei manchen MCAS-Betroffenen Mastzellen aktivieren, bei anderen gut vertragen.';
+        if (n.match(/^quinine$/i))
+            return 'Englisch für Chinin (z.B. in Tonic Water). Blockiert das Abbauenzym DAO.';
+        if (n.match(/^polysorbit$/i))
+            return 'Andere Bezeichnung für Polysorbate (E432-436). Wie andere Polysorbate ein möglicher DAO-Blocker.';
+        if (n.match(/^oolong$|^oolongtee$/i))
+            return 'Halbfermentierter Tee. Enthält bereits Histamin, Koffein blockiert zusätzlich den Abbau.';
+        if (n.match(/^natriumdiphosphat$/i))
+            return 'Mineralischer Zusatzstoff für Backpulver (E450a). Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^natriumtriphosphat$/i))
+            return 'Phosphat (E451). Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^natriumalginat$/i))
+            return 'Geliermittel aus Algen (E401). Gilt laut histaminta wie andere Alginate als DAO-Blocker, trotz mineralischer Herkunft.';
+        if (n.match(/^künstliche süßstoffe$/i))
+            return 'Stoffe wie Aspartam oder Sucralose. Enthalten kein Histamin, können aber die Darmflora beeinträchtigen.';
+        if (n.match(/^kokosessig$/i))
+            return 'Essig aus Kokosblütensaft. Gilt als milder als Weinessig — in kleinen Mengen oft gut verträglich, dennoch mit DAO-Effekt wie andere Essigsorten.';
+        if (n.match(/^karobpulver$/i))
+            return 'Carob, Pulver aus den Früchten des Johannisbrotbaums. Gilt wie andere Gummi-Verdickungsmittel als möglicher DAO-Blocker.';
+        if (n.match(/^johannisbrotpulver$/i))
+            return 'Getrocknetes Fruchtfleisch des Johannisbrotbaums (Carob). Gilt wie andere Gummi-Verdickungsmittel als möglicher DAO-Blocker.';
+        if (n.match(/^kaliumguanylat$/i))
+            return 'Geschmacksverstärker (E628). Steht im Verdacht, Reaktionen an den Mastzellen zu begünstigen.';
+        if (n.match(/^kaliumpropionat$/i))
+            return 'Konservierungsstoff für Backwaren (E283). Kann die Darmflora beeinträchtigen.';
+        if (n.match(/^kaliumsorbat$/i))
+            return 'Konservierungsstoff (E202). Kann bei hochsensiblen Personen pseudoallergische Reaktionen triggern.';
+        if (n.match(/^inosinmonophosphat$|^inosinsäure$/i))
+            return 'Organische Säure/Salz (E630), Geschmacksverstärker. Kann bei hoher Sensibilität Symptome verstärken.';
+        if (n.match(/^hagebutte$/i))
+            return 'Konzentriertes Pulver aus Hagebutten. Enthält eine hohe Dichte an potenziellen Liberatoren.';
+        if (n.match(/^glutaminsäure$/i))
+            return 'Aminosäure, dient als Geschmacksverstärker (Glutamat, E620). Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^guanylsäure$/i))
+            return 'Purinderivat, Geschmacksverstärker (E626). Steht im Verdacht, Reaktionen zu triggern.';
+        if (n.match(/^entkoffeiniert$/i))
+            return 'Bezieht sich meist auf Kaffee. Enthält weniger DAO-blockierendes Koffein, kann aber trotzdem den Darm reizen.';
+        if (n.match(/^eistee$/i))
+            return 'Basiert meist auf Schwarztee (DAO-Blocker) und enthält oft Zitronensäure — beides kann Symptome triggern.';
+        if (n.match(/^e635$/i))
+            return 'Dinatrium-5\'-ribonucleotid, Geschmacksverstärker. Starker möglicher Mastzelltrigger.';
+        if (n.match(/^e620$/i))
+            return 'Glutaminsäure, Geschmacksverstärker. Wirkt als Trigger für Mastzellen und kann histaminähnliche Beschwerden auslösen.';
+        if (n.match(/^e626$/i))
+            return 'Guanylsäure, Geschmacksverstärker. Kann die Histaminfreisetzung aktivieren.';
+        if (n.match(/^e628$/i))
+            return 'Kaliumguanylat, Geschmacksverstärker. Wie andere Guanylate ein möglicher Mastzell-Trigger.';
+        if (n.match(/^e629$/i))
+            return 'Calciumguanylat, Geschmacksverstärker. Wie andere Guanylate ein möglicher Mastzell-Trigger.';
+        if (n.match(/^e634$/i))
+            return 'Calcium-5\'-ribonucleotid, Geschmacksverstärker. Kann allergieähnliche Symptome hervorrufen.';
+        if (n.match(/^e952$/i))
+            return 'Cyclamat (Cyclaminsäure), künstlicher Süßstoff. Bekanntes Pseudoallergen, das sensible Schleimhäute reizen kann.';
+        if (n.match(/^e466$/i))
+            return 'Carboxymethylcellulose, Verdickungsmittel. Histaminneutral, kann in großen Mengen den Darm belasten.';
+        if (n.match(/^e491$|^e492$|^e493$|^e494$|^e495$/i))
+            return 'Sorbitanester (E491-495), Emulgator-Familie. Kann bei empfindlichem Darm Reizungen oder Histaminfreisetzung begünstigen.';
+        if (n.match(/^e413$/i))
+            return 'Traganth, pflanzliches Verdickungsmittel. Kann wie andere Gummi-Verdickungsmittel als DAO-Blocker wirken.';
+        if (n.match(/^e338$|^phosphorsäure$/i))
+            return 'Phosphorsäure. Gilt laut histaminta wie andere Phosphate als DAO-Blocker.';
+        if (n.match(/^e339$/i))
+            return 'Natriumphosphate. Gilt laut histaminta wie andere Phosphate als DAO-Blocker.';
+        if (n.match(/^e380$/i))
+            return 'Triammoniumcitrat, Säureregulator. Kann bei sehr empfindlichem Darm im Übermaß leicht irritieren.';
+        if (n.match(/^e400$/i))
+            return 'Alginsäure, Verdickungsmittel aus Algen. Gilt laut histaminta als DAO-Blocker, trotz mineralischer Herkunft.';
+        if (n.match(/^e402$/i))
+            return 'Kaliumalginat, Verdickungsmittel aus Algen. Wie andere Alginate ein möglicher DAO-Blocker.';
+        if (n.match(/^e403$/i))
+            return 'Ammoniumalginat, Geliermittel aus Algen. Wie andere Alginate ein möglicher DAO-Blocker.';
+        if (n.match(/^e404$/i))
+            return 'Calciumalginat, Verdickungsmittel aus Algen. Wie andere Alginate ein möglicher DAO-Blocker.';
+        if (n.match(/^e405$/i))
+            return 'Propylenglycolalginat, Geliermittel. Wie andere Alginate ein möglicher DAO-Blocker.';
+        if (n.match(/^e416$/i))
+            return 'Karayagummi, pflanzliches Geliermittel. Kann pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^e432$|^e433$|^e434$|^e435$|^e436$|^polysorbat$/i))
+            return 'Polysorbat (E432-436, je nach Nummer verschiedene Fettsäureester). Gilt als DAO-Blocker und kann die Darmbarriere schwächen.';
+        if (n.match(/^e441$/i))
+            return 'Gelatine. Der Histamingehalt schwankt stark je nach Rohstoffquelle (Fisch/Rind/Schwein) und Herstellungsverfahren.';
+        if (n.match(/^e442$/i))
+            return 'Ammoniumphosphatide, Emulgator. Verhält sich im Stoffwechsel meist unauffällig.';
+        if (n.match(/^e450i$/i))
+            return 'Dinatriumdiphosphat, Backtriebmittel. Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^e450iii$/i))
+            return 'Tetranatriumdiphosphat, Stabilisator. Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^e451$|^e451i$|^e451ii$/i))
+            return 'Triphosphate, Säureregulatoren/Stabilisatoren. Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^e452i$|^e452ii$|^e452iii$/i))
+            return 'Polyphosphat, Schmelzsalz/Stabilisator. Wie andere Phosphate ein möglicher DAO-Blocker.';
+        if (n.match(/^e280$/i))
+            return 'Propionsäure, Konservierungsstoff. Kann in der Anfangsphase Reaktionen auslösen.';
+        if (n.match(/^e281$/i))
+            return 'Natriumpropionat, Schimmelhemmer. Wirkt wie Propionsäure als möglicher Liberator.';
+        if (n.match(/^e283$/i))
+            return 'Kaliumpropionat. Wirkt wie Calciumpropionat (E282) als möglicher Mastzell-Trigger.';
+        if (n.match(/^e310$/i))
+            return 'Propylgallat, künstliches Antioxidationsmittel. Gilt als Liberator.';
+        if (n.match(/^e311$/i))
+            return 'Octylgallat. Kann wie Propylgallat pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^e312$/i))
+            return 'Dodecylgallat, künstliches Antioxidationsmittel. Kann Histamin freisetzen.';
+        if (n.match(/^e320$/i))
+            return 'BHA (Butylhydroxyanisol). Bekannter Histaminliberator.';
+        if (n.match(/^e150$/i))
+            return 'Zuckerkulör (Farbstoff aus erhitztem Zucker). Gilt laut histaminta als DAO-Blocker — Wirkung je nach Herstellungsverfahren unterschiedlich stark.';
+        if (n.match(/^e150a$/i))
+            return 'Einfache Zuckerkulör, ohne Sulfit/Ammoniak hergestellt — die verträglichste E150-Variante, aber weiterhin als DAO-Blocker eingestuft.';
+        if (n.match(/^e150b$/i))
+            return 'Sulfitlaugen-Zuckerkulör. Enthält Sulfite, die zusätzlich als Liberatoren wirken können — stärker belastend als E150a.';
+        if (n.match(/^e150c$/i))
+            return 'Ammoniak-Zuckerkulör. Kann bei empfindlichen Personen pseudoallergische Reaktionen auslösen.';
+        if (n.match(/^e150d$/i))
+            return 'Ammoniumsulfit-Zuckerkulör. Enthält Sulfite und Ammoniumverbindungen — die am stärksten belastende E150-Variante.';
+        if (n.match(/\bdinatriuminosinat\b|\be631\b/i))
+            return 'Geschmacksverstärker (E631), ähnlich wie Glutamat. Kann pseudoallergische Reaktionen und Mastzellaktivierung triggern.';
+        if (n.match(/\bdipotassium phosphat\b|\be340\b/i))
+            return 'Kaliumphosphat (E340). Gilt laut histaminta wie andere Phosphate als DAO-Blocker.';
+        if (n.match(/\bcyclamic acid\b/i))
+            return 'Cyclaminsäure, chemischer Ausgangsstoff für Cyclamat (E952). Gilt wie Cyclamat als potenzielles Pseudoallergen.';
+        if (n.match(/\bcola\b|\bcola zero\b/i))
+            return 'Enthält Koffein, das die DAO blockiert. Farbstoffe und Säuren können den Darm zusätzlich reizen.';
+        if (n.match(/\bcold brew\b/i))
+            return 'Kalt extrahierter Kaffee mit sehr hohem Koffeingehalt — blockiert die DAO stärker als normaler Filterkaffee.';
+        if (n.match(/\bbutylhydroxyanisol\b/i))
+            return 'Künstliches Antioxidationsmittel (E320). Blockiert das DAO-Enzym und kann Mastzellen zusätzlich aktivieren.';
+        if (n.match(/\bbutylhydroxytoluol\b/i))
+            return 'Synthetischer Konservierungsstoff (E321). Blockiert wie BHA das DAO-Enzym und steht im Verdacht, Mastzellen zu aktivieren.';
+        if (n.match(/\bcaffeine\b/i))
+            return 'Englisch für Koffein. Blockiert die DAO und wirkt zusätzlich als Liberator — wie bei Kaffee/Grüntee.';
+        if (n.match(/\bcalciumguanylat\b|\be627\b/i))
+            return 'Geschmacksverstärker (E627), ähnlich wie Glutamat. Kann pseudoallergische Reaktionen und Mastzellaktivierung triggern.';
+        if (n.match(/\bcalciumphosphate?\b|\be341\b/i))
+            return 'Säureregulator/Schmelzsalz (E341). Gilt laut histaminta als DAO-Blocker, trotz mineralischer Herkunft — in größeren Mengen meiden.';
+        if (n.match(/\bcalciumpropionat\b|\be282\b/i))
+            return 'Konservierungsstoff gegen Schimmel (E282). Gilt laut histaminta als DAO-Blocker — pseudoallergische Reaktionen möglich.';
         if (n.match(/\bmatetee\b|\byerba\s*mate\b/i))
             return 'SIGHI 1-2 — Mate-Tee: Koffein blockiert DAO wie bei Kaffee/Grüntee. SIGHI nennt zusätzlich einen eigenen Mechanismus — mögliche Erhöhung der Darmdurchlässigkeit (Leaky Gut), was Reaktionen unabhängig vom Koffeingehalt begünstigen kann.';
         if (n.match(/bitterlemon/i))
@@ -10208,6 +10955,1162 @@ if (cat === 'high') {
         return 'SIGHI 3 — Wild wird traditionell abgehangen (Reifung): dabei entsteht massiv Histamin. Frisch = S1, gereift = S3';
 
     if (cat === 'safe') {
+        if (n.match(/^kräuter$/i))
+            return 'Sammelbegriff für Wildkräuter. Meist histaminarm.';
+        if (n.match(/^reis$/i))
+            return 'Wassergras-Samen (Wildreis). Histaminarm.';
+        if (n.match(/^wolfsbarsch$/i))
+            return 'Fischart. Fangfrisch oder schockgefroren histaminarm.';
+        if (n.match(/^xantangummi$/i))
+            return 'Verdickungsmittel (E415). Histaminneutral.';
+        if (n.match(/^ysop$/i))
+            return 'Gewürzpflanze. Histaminarm.';
+        if (n.match(/^zichorienfaser$|^zichorieninulin$/i))
+            return 'Ballaststoff (Inulin) aus Zichorie. Kann bei empfindlichen Personen Blähungen verursachen, histaminneutral.';
+        if (n.match(/^ziegenfleisch$/i))
+            return 'Fleischart. Absolut frisch verarbeitet gut verträglich.';
+        if (n.match(/^zinc$/i))
+            return 'Englisch für Zink. Histaminneutral.';
+        if (n.match(/^zinkacetat$|^zinkoxid$/i))
+            return 'Zinkverbindung. Histaminneutral.';
+        if (n.match(/^zinnchlorid$/i))
+            return 'Stabilisator (E512). Histaminneutral.';
+        if (n.match(/^zistrose$|^zistrosentee$/i))
+            return 'Heilpflanze bzw. Aufguss daraus. Histaminarm.';
+        if (n.match(/^zitronenpfeffer$/i))
+            return 'Gewürzmischung. Der Pfefferanteil kann den Darm reizen.';
+        if (n.match(/^zitronenschale$/i))
+            return 'Fruchtschale (auch Zitronenabrieb/-zeste). Ätherische Öle können reizen — mit Vorsicht dosieren.';
+        if (n.match(/^zucchinni$|^zuchini$/i))
+            return 'Schreibvariante für Zucchini. Histaminarm.';
+        if (n.match(/^zuckeralkohol$/i))
+            return 'Sammelbegriff (z.B. Sorbit, Xylit). Histaminneutral.';
+        if (n.match(/^zuckermais$/i))
+            return 'Histaminarm.';
+        if (n.match(/^öl$/i))
+            return 'Ohne weitere Angabe unklarer Herkunft — reine Pflanzenöle sind meist eiweißfrei und histaminfrei.';
+        if (n.match(/^überzugsmittel$/i))
+            return 'Sammelbegriff. Meist unbedenkliche Stoffe — Zutatenliste prüfen.';
+        if (n.match(/^gemüse$/i))
+            return 'Wasserkastanie, Knolle aus Asien. Histaminarm.';
+        if (n.match(/^melone$/i))
+            return 'Wassermelone. Histaminarm.';
+        if (n.match(/^water$/i))
+            return 'Englisch für Wasser. Histaminfrei.';
+        if (n.match(/^kartoffel$/i))
+            return 'Kartoffelspalten (Wedges). Frisch und ungewürzt histaminarm.';
+        if (n.match(/^weichsel$/i))
+            return 'Regionale Bezeichnung für Sauerkirsche. Histaminarm.';
+        if (n.match(/^branntweinessig$/i))
+            return 'Essig auf Alkoholbasis (Weingeistessig). Aufgrund der Essigsäure mit Vorsicht.';
+        if (n.match(/^weinstein$/i))
+            return 'Kaliumtartrat (E336). Histaminneutral.';
+        if (n.match(/^weizenballaststoffe$/i))
+            return 'Ballaststoffkonzentrat aus Weizen. Kann bei empfindlichem Darm reizend wirken.';
+        if (n.match(/^gluten$/i))
+            return 'Klebereiweiß (Weizeneiweiß/-gluten). Häufiger Auslöser für Darmprobleme.';
+        if (n.match(/^weizenvollkorngrieß$/i))
+            return 'Grobes Weizenprodukt. Wie andere Weizenprodukte mit Vorsicht.';
+        if (n.match(/^wellenchips$|^chips$/i))
+            return 'Kartoffelscheiben. Oft mit Aromen und Geschmacksverstärkern versetzt.';
+        if (n.match(/^fischfilet$/i))
+            return 'Fischart (Wels). Nur fangfrisch histaminarm.';
+        if (n.match(/^wermutkraut$/i))
+            return 'SIGHI 2 — Bitterkraut. Enthält Thujon und Bitterstoffe, die Mastzellen aktivieren können.';
+        if (n.match(/^wheat$/i))
+            return 'Englisch für Weizen. Bei Glutenempfindlichkeit mit Vorsicht.';
+        if (n.match(/^wheat flour$/i))
+            return 'Englisch für Weizenmehl.';
+        if (n.match(/^wheat gluten$/i))
+            return 'Englisch für Weizengluten. Häufiger Auslöser für Darmprobleme.';
+        if (n.match(/^wheat starch$/i))
+            return 'Englisch für Weizenstärke. Histaminarm.';
+        if (n.match(/^whipping cream$/i))
+            return 'Englisch für Schlagsahne. Histaminarm.';
+        if (n.match(/^wildhonig$/i))
+            return 'Naturbelassener Honig. Histaminarm.';
+        if (n.match(/^ungesüßt$/i))
+            return 'Hinweis auf den Verzicht von Zucker. Histaminneutral.';
+        if (n.match(/^unreif$/i))
+            return 'Hinweis auf Früchte vor voller Reife. Verträglichkeit hängt von der Fruchtsorte ab.';
+        if (n.match(/^urkorn$/i))
+            return 'Sammelbegriff für Dinkel, Einkorn, Emmer. Bei Glutenempfindlichkeit mit Vorsicht testen.';
+        if (n.match(/^valerianella$/i))
+            return 'Botanischer Name für Feldsalat. Histaminarm.';
+        if (n.match(/^vanillemark$/i))
+            return 'Mark der Vanilleschote. Histaminarm.';
+        if (n.match(/^verveine$|^verveinetee$/i))
+            return 'Zitronenverbene bzw. Aufguss daraus. Histaminarm.';
+        if (n.match(/^wasser$/i))
+            return 'Histaminfrei.';
+        if (n.match(/^tischessig$/i))
+            return 'Konventioneller Essig. Enthält je nach Sorte oft Histamin oder reizt die Schleimhaut.';
+        if (n.match(/^toastbrot$/i))
+            return 'Vorverpacktes Brot. Enthält oft Konservierungsstoffe und Hefe.';
+        if (n.match(/^torte$/i))
+            return 'Backwerk. Verträglichkeit hängt stark von den Zutaten ab (Ei, Kakao, Sahne).';
+        if (n.match(/^traditionell$/i))
+            return 'Herkunftshinweis. Sagt allein nichts über den Histamingehalt aus.';
+        if (n.match(/^transglutaminase$/i))
+            return 'Enzym zur Bindung von Proteinen. Kann Darmreizungen verursachen.';
+        if (n.match(/^traube$/i))
+            return 'Weintraube. Histaminarm.';
+        if (n.match(/^trägerstoff$/i))
+            return 'Sammelbegriff. Meist unbedenkliche Stoffe wie Maltodextrin oder Stärke — Zutatenliste prüfen.';
+        if (n.match(/^kräuter tee$/i))
+            return 'Aufguss aus Tulsi (Heiliges Basilikum). Histaminarm.';
+        if (n.match(/^turkey$/i))
+            return 'Englisch für Pute. Absolut frisch verarbeitet histaminarm.';
+        if (n.match(/^un$/i))
+            return 'Vorsilbe (z.B. ungesalzen). Sagt allein nichts über die Verträglichkeit aus.';
+        if (n.match(/^sunflower proteinriegel$/i))
+            return 'Sonnenblumenprotein. Pflanzliche Konzentrate können bei empfindlichen Personen den Magen belasten.';
+        if (n.match(/^suppe$/i))
+            return 'Meist lang gekochte Brühe. Proteinabbau kann viel Histamin erzeugen.';
+        if (n.match(/^suppennudeln$/i))
+            return 'Kleinteilige Teigwaren. Bestehen oft aus Weizen und Ei.';
+        if (n.match(/^sweet paprika$/i))
+            return 'Englisch für milde Paprika. Frisch histaminarm.';
+        if (n.match(/^sweetcorn$/i))
+            return 'Englisch für Zuckermais. Histaminarm.';
+        if (n.match(/^süßrahmbutter$/i))
+            return 'Ungesäuerte Butter. Histaminarm.';
+        if (n.match(/^süßstoff$/i))
+            return 'Synthetische Süßungsmittel. Meist histaminneutral.';
+        if (n.match(/^tagliatelle$/i))
+            return 'Bandnudeln. Aus Hartweizengrieß ohne Ei meist gut verträglich.';
+        if (n.match(/^tandoori$|^gewürze$/i))
+            return 'Indische Gewürzmischung/Zubereitungsart. Enthält oft Chili und weitere reizende Gewürze.';
+        if (n.match(/^tarragon$|^estragon$/i))
+            return 'Englisch/Deutsch für Estragon. Histaminarm.';
+        if (n.match(/^tartaric acid$/i))
+            return 'Englisch für Weinsäure (E334). Histaminneutral.';
+        if (n.match(/^tarte$/i))
+            return 'Gebäck. Verträglichkeit hängt stark von der Füllung ab (oft Käse oder Obst).';
+        if (n.match(/^tausendgüldenkraut$/i))
+            return 'Bitterkraut. Histaminarm.';
+        if (n.match(/^tee$/i))
+            return 'Sammelbegriff. Kräutertees meist unbedenklich, Schwarz-/Grüntee blockieren die DAO.';
+        if (n.match(/^teffmehl$/i))
+            return 'Mehl aus Zwerghirse. Histaminarm.';
+        if (n.match(/^teltower rübchen$|^gemüse$/i))
+            return 'Regionale Gemüsespezialität (z.B. Teltower Rübchen). Histaminarm.';
+        if (n.match(/^thymiantee$/i))
+            return 'Aufguss aus Thymian. Histaminarm und beruhigend.';
+        if (n.match(/^thymus vulgaris$/i))
+            return 'Botanischer Name für Thymian. Histaminarm.';
+        if (n.match(/^tiefkühlgemüse$/i))
+            return 'Frosterware. Direkt nach der Ernte schockgefroren, meist gut verträglich.';
+        if (n.match(/^tierisch$/i))
+            return 'Herkunftshinweis. Sagt allein nichts über den Histamingehalt aus.';
+        if (n.match(/^tierisches kulturen$/i))
+            return 'Fermentationsstarter. Bilden während der Herstellung Histamin.';
+        if (n.match(/^sonnenblumenproteinpulver$/i))
+            return 'Konzentriertes Eiweiß aus Sonnenblumenkernen. Proteinpulver können bei Empfindlichkeit den Darm belasten.';
+        if (n.match(/^sorbet$/i))
+            return 'Wassereis. Aus verträglichen Früchten histaminarm.';
+        if (n.match(/^sour cherry$/i))
+            return 'Englisch für Sauerkirsche. Histaminarm.';
+        if (n.match(/^spearmint$/i))
+            return 'Grüne Minze. Ätherische Öle können den Magen bei hoher Empfindlichkeit leicht reizen.';
+        if (n.match(/^spelt$/i))
+            return 'Englisch für Dinkel. Histaminarm.';
+        if (n.match(/^squash$/i))
+            return 'Kürbisart. Histaminarm.';
+        if (n.match(/^starch$/i))
+            return 'Englisch für Stärke. Histaminfrei.';
+        if (n.match(/^stearoyl-e481$/i))
+            return 'Emulgator (E481). Histaminneutral.';
+        if (n.match(/^sternfrucht$/i))
+            return 'Exotisches Obst. Histaminarm.';
+        if (n.match(/^stevia glycoside$/i))
+            return 'Englisch für Stevioglycoside. Histaminneutral.';
+        if (n.match(/^steviosid$/i))
+            return 'Süßstoff aus Stevia. Histaminneutral.';
+        if (n.match(/^strauß$/i))
+            return 'Fleischart (Straußenfleisch). Frisch verarbeitet histaminarm.';
+        if (n.match(/^stärkenatrium-octenylsuccinat$/i))
+            return 'Modifizierte Stärke (E1450). Histaminneutral.';
+        if (n.match(/^sucroglyceride$/i))
+            return 'Emulgator (E474). Histaminneutral.';
+        if (n.match(/^sucroseester$/i))
+            return 'Emulgator (E473). Histaminneutral.';
+        if (n.match(/^sugar$/i))
+            return 'Englisch für Zucker. Histaminfrei.';
+        if (n.match(/^schwach$/i))
+            return 'Allgemeiner Begriff für die Konzentration (z.B. bei Tee). Kein direkter Bezug zum Histamingehalt.';
+        if (n.match(/^schwarz$/i))
+            return 'Farbangabe ohne weiteren Kontext — keine Aussage zur Verträglichkeit möglich.';
+        if (n.match(/^schwefelsäure$/i))
+            return 'Säureregulator (E513). Als reiner Stoff histaminneutral.';
+        if (n.match(/^schweinebrühe$/i))
+            return 'Lange gekochter Fleischsud. Hohe Aminkonzentration.';
+        if (n.match(/^schweinskeule$/i))
+            return 'Fleischstück. Frisch verarbeitet histaminarm.';
+        if (n.match(/^kulturen$/i))
+            return 'Teepilz-Kultur zur Kombucha-Herstellung (Scoby). Durch Fermentation kann Histamin entstehen.';
+        if (n.match(/^scorzonera$/i))
+            return 'Schwarzwurzel. Frisches Gemüse histaminarm.';
+        if (n.match(/^seehecht$|^seehechts$/i))
+            return 'Fischart. Fangfrisch oder schockgefroren histaminarm.';
+        if (n.match(/^selen$|^selenium$/i))
+            return 'Spurenelement. Als Nahrungsergänzung unbedenklich.';
+        if (n.match(/^weizenmehl$/i))
+            return 'Hartweizengrieß (Semola).';
+        if (n.match(/^sharon fruit$|^sharonfrucht$/i))
+            return 'Kaki-Sorte. Histaminarm.';
+        if (n.match(/^pflanzenöl$/i))
+            return 'Pflanzliches Fett (z.B. Sheabutter). Histaminneutral.';
+        if (n.match(/^shio kulturen$/i))
+            return 'Fermentierte Reis-Koji-Paste (Shio Koji). Durch die Fermentation histaminreich.';
+        if (n.match(/^sojadrink$/i))
+            return 'Sojamilch-Alternative. Soja ist ein bekannter Liberator.';
+        if (n.match(/^sojaisolat$/i))
+            return 'Stark verarbeitetes Sojaeiweiß.';
+        if (n.match(/^safran$/i))
+            return 'Hochwertiges Gewürz. Histaminarm.';
+        if (n.match(/^sago$|^sago starch$/i))
+            return 'Stärkeprodukt aus Palmenmark. Reine Stärke, histaminneutral.';
+        if (n.match(/^salat$/i))
+            return 'Frisches Blattgemüse (z.B. Kopfsalat). Histaminarm.';
+        if (n.match(/^salatgurke$/i))
+            return 'Frisches Gemüse. Histaminarm.';
+        if (n.match(/^salatherz$/i))
+            return 'Herz des Salatkopfes. Wie der restliche Salat histaminarm.';
+        if (n.match(/^salt$/i))
+            return 'Englisch für Salz. Histaminfrei.';
+        if (n.match(/^salzlake$/i))
+            return 'Salzwasserlösung. Histaminneutral — die eingelegte Zutat selbst kann durch die Lagerung kritischer sein.';
+        if (n.match(/^sanddorn$/i))
+            return 'Vitaminreiche Beeren. Histaminarm.';
+        if (n.match(/^saturnpfirsich$/i))
+            return 'Plattpfirsich-Variante. Wie andere Pfirsiche histaminarm.';
+        if (n.match(/^savory$/i))
+            return 'Englisch für Bohnenkraut. Histaminarm.';
+        if (n.match(/^schabzigerklee$/i))
+            return 'Würzpflanze. Histaminarm.';
+        if (n.match(/^schaummittel$|^schaumverhüter$/i))
+            return 'Zusatzstoff. Verträglichkeit hängt vom konkreten Stoff ab — meist unbedenklich.';
+        if (n.match(/^schichtkäse$/i))
+            return 'Ungereifter Käse. Histaminarm.';
+        if (n.match(/^schmalz$/i))
+            return 'Tierisches Fett. Rein und ungewürzt histaminfrei.';
+        if (n.match(/^schrot$/i))
+            return 'Grob gemahlenes Getreide. Verträglichkeit hängt von der Getreidesorte ab.';
+        if (n.match(/^rieselhilfe$/i))
+            return 'Sammelbegriff für Zusätze in Salz/Pulvern. Verträglichkeit hängt vom Stoff ab (z.B. Siliciumdioxid unbedenklich).';
+        if (n.match(/^rinderbouillon$/i))
+            return 'Konzentrierter Fleischsud. Lange Kochzeit und oft Hefeextrakte machen ihn kritisch.';
+        if (n.match(/^rindfleisch$/i))
+            return 'Gebratenes/geschmortes Rindfleisch (z.B. Roastbeef, Rouladen). Frisch zubereitet histaminarm — Aufschnitt oder Lagerung kritischer.';
+        if (n.match(/^rohkost$/i))
+            return 'Ungekochtes Gemüse/Obst. Frische, histaminarme Sorten gut verträglich.';
+        if (n.match(/^rohmilch$/i))
+            return 'Nicht erhitzte Milch. Höheres Keimrisiko begünstigt Histaminbildung bei Lagerung.';
+        if (n.match(/^romanasalat$|^romanobohnen$/i))
+            return 'Blattsalat mit festen Blättern bzw. Stangenbohnenart. Frischer Salat gut verträglich, Hülsenfrüchte können als Liberator wirken.';
+        if (n.match(/^rosenwasser$/i))
+            return 'Destillat aus Rosenblüten. In kleinen Mengen meist unbedenklich.';
+        if (n.match(/^rotbuschtee$/i))
+            return 'Rooibostee. Koffeinfrei und gut verträglich.';
+        if (n.match(/^brot$/i))
+            return 'Zwieback/Knäckebrot (z.B. Rusks). Meist weizen- oder roggenbasiert.';
+        if (n.match(/^knäckebrot$/i))
+            return 'Roggenbasiertes Knäckebrot (z.B. Ryvita).';
+        if (n.match(/^kartoffel$/i))
+            return 'Kartoffelgericht (z.B. Rösti). Frisch aus geriebenen Kartoffeln histaminarm.';
+        if (n.match(/^röstwiebeln$/i))
+            return 'Frittierte Zwiebeln. Oft in ungeeigneten Fetten ausgebacken, mit Zusätzen.';
+        if (n.match(/^rübenzucker$/i))
+            return 'Haushaltszucker aus Rüben. Histaminneutral.';
+        if (n.match(/^ratatouille$/i))
+            return 'Geschmortes Gemüsegericht, klassisch mit Tomaten und Auberginen — beides für sich genommen kritischer als Zucchini. Je nach Rezept und Anteil individuell einschätzen.';
+        if (n.match(/^propylenglycolester$/i))
+            return 'Künstlicher Emulgator (E477) aus Fettsäuren. Histaminneutral.';
+        if (n.match(/^proteinriegel$/i))
+            return 'Eiweiß-Snack/-Getränk. Enthält oft Soja, Molkeneiweiß oder Casein, die den Darm belasten können.';
+        if (n.match(/^pumpernickel$/i))
+            return 'Kompaktes Roggenvollkornbrot. Sehr lange Back-/Ruhezeit lässt viel Histamin entstehen.';
+        if (n.match(/^pumpkin$/i))
+            return 'Englisch für Kürbis. Histaminarm.';
+        if (n.match(/^pute$/i))
+            return 'Geflügelfleisch. Frisch oder frisch aufgetaut histaminarm.';
+        if (n.match(/^rapesöl$/i))
+            return 'Vermutlich Tippfehler für Rapsöl. Reines Pflanzenöl, eiweißfrei und histaminfrei.';
+        if (n.match(/^rapslecithin$/i))
+            return 'Emulgator aus Raps. Anders als Sojalecithin histaminisch unauffällig.';
+        if (n.match(/^rein$/i))
+            return 'Allgemeiner Begriff auf Verpackungen ohne Aussagekraft zum Histamingehalt — einzelne Zutaten prüfen.';
+        if (n.match(/^reisgoldsirup$/i))
+            return 'Aus Reis fermentiertes Süßungsmittel. Meist eiweißfrei, gut verträglich.';
+        if (n.match(/^reiskeimöl$/i))
+            return 'Speiseöl aus der Reiskleie. Histaminfrei.';
+        if (n.match(/^rhabarberkompott$/i))
+            return 'Gekochter Rhabarber. Histaminarm, sofern ohne kritische Zusätze.';
+        if (n.match(/^rhizopus$/i))
+            return 'Pilzkultur zur Fermentation (z.B. Tempeh). Pilze und Fermentation können hohe Aminwerte erzeugen.';
+        if (n.match(/^ribisel$/i))
+            return 'Österreichisch für Rote Johannisbeere. Histaminarm.';
+        if (n.match(/^sahne$/i))
+            return 'Ersatzprodukt für Sahne/Butter (z.B. Pflanzencrème). Verträglichkeit hängt von Ölen und Stabilisatoren ab — Zutatenliste prüfen.';
+        if (n.match(/^pgpr$/i))
+            return 'Künstlicher Emulgator (E476), oft in Schokolade. Histaminneutral, kann bei sehr empfindlichem Darm leicht reizen.';
+        if (n.match(/^physalis$/i))
+            return 'Kapstachelbeere. Histaminarm.';
+        if (n.match(/^pimpinelle$/i))
+            return 'Küchenkraut. Histaminarm.';
+        if (n.match(/^pistachio$/i))
+            return 'Englisch für Pistazie. Histaminarm.';
+        if (n.match(/^pistazienkern$|^pistazienkerne$/i))
+            return 'Geschälte Pistazienkerne. Unbehandelt histaminarm.';
+        if (n.match(/^pitahaya$/i))
+            return 'Drachenfrucht. Histaminarm.';
+        if (n.match(/^plattpfirsich$/i))
+            return 'Pfirsichvariante (Wildpfirsich). Wie runder Pfirsich histaminarm.';
+        if (n.match(/^polyglycerin-polyricinoleat$|^polyglycerol-polyricinoleat$/i))
+            return 'Andere Bezeichnung für PGPR (E476). Histaminneutral.';
+        if (n.match(/^polyglycerinester$/i))
+            return 'Emulgator aus Speisefettsäuren (E475). Histaminfrei.';
+        if (n.match(/^popcorn$/i))
+            return 'Gepuffter Mais. Reiner Mais histaminarm — bei Fertigprodukten auf künstliche Aromen achten.';
+        if (n.match(/^porridge$/i))
+            return 'Haferbrei aus reinen Haferflocken. Histaminarm.';
+        if (n.match(/^portulak$/i))
+            return 'Blattgemüse mit nussigem Geschmack. Histaminarm.';
+        if (n.match(/^potassium chloride$/i))
+            return 'Englisch für Kaliumchlorid (E508). Histaminneutral.';
+        if (n.match(/^supplement$/i))
+            return 'Präparate mit lebenden Bakterienstämmen (Probiotika). Manche Stämme bilden Histamin, andere bauen es ab — gezielte Stämme wählen.';
+        if (n.match(/^paneer$|^frischkäse$/i))
+            return 'Indischer Frischkäse (Paneer). Reift traditionell nicht — histaminarm.';
+        if (n.match(/^paprika powder$/i))
+            return 'Englisch für Paprikapulver. Edelsüße Sorten meist gut bekömmlich, scharfe Sorten belastender.';
+        if (n.match(/^paprikaextrakt$/i))
+            return 'Konzentrierter Auszug aus Paprika. Durch Verarbeitung/Schärfe oft ein Reizstoff.';
+        if (n.match(/^passionsblume$/i))
+            return 'Heilpflanze für Beruhigungstees. Histaminarm.';
+        if (n.match(/^pasta$/i))
+            return 'Teigwaren aus Dinkel, Reis oder Mais. Histaminarm — bei Weizen etwas Vorsicht.';
+        if (n.match(/^pectin$/i))
+            return 'Englisch für Pektin. Pflanzliches Geliermittel, histaminneutral.';
+        if (n.match(/^pefferminztee$/i))
+            return 'Schreibvariante für Pfefferminztee. Histaminarm, ätherische Öle können sensiblen Magen leicht irritieren.';
+        if (n.match(/^penicillium$/i))
+            return 'Edelschimmelpilzkulturen (z.B. in Blauschimmelkäse). Pilze bilden beim Wachstum Amine.';
+        if (n.match(/^peppermint$/i))
+            return 'Englisch für Pfefferminze. Ätherische Öle in Maßen genießen.';
+        if (n.match(/^perch$/i))
+            return 'Englisch für Flussbarsch. Fangfrisch oder schockgefroren histaminarm.';
+        if (n.match(/^persimmon$|^persimone$/i))
+            return 'Kaki-Frucht (auch Persimone). Histaminarm.';
+        if (n.match(/^pesto$/i))
+            return 'Kräutersauce mit Parmesan und Nüssen. Fertigprodukte oft histaminreich durch gereiften Käse.';
+        if (n.match(/^pfannkuchen$/i))
+            return 'Eierkuchen. Das verarbeitete Hühnereiweiß kann als Liberator wirken.';
+        if (n.match(/^kräuter$/i))
+            return 'Blätter der Minze (z.B. Pfefferminzblätter). Histaminfrei, können bei hoher Empfindlichkeit den Magen leicht irritieren.';
+        if (n.match(/^pfeilwurzel$|^pfeilwurzelstärke$/i))
+            return 'Tropische Nutzpflanze bzw. ihre Stärke. Histaminarm.';
+        if (n.match(/^pferdefleisch$/i))
+            return 'Mageres Fleisch. Histaminarm frisch verarbeitet — abgehangene Ware ungeeignet.';
+        if (n.match(/^nisin$/i))
+            return 'Haltbarmacher aus Fermentation (E234). Kann bei empfindlichem Darm reizen.';
+        if (n.match(/^nudeln$/i))
+            return 'Teigwaren. Dinkel-, Reis- oder Maisnudeln histaminarm — bei Weizen etwas Vorsicht.';
+        if (n.match(/^nussmus$/i))
+            return 'Fein gemahlene Nüsse. Wie Nüsse selbst ein möglicher Liberator.';
+        if (n.match(/^nüsslisalat$/i))
+            return 'Schweizer Begriff für Feldsalat. Histaminarm.';
+        if (n.match(/^obergärig$/i))
+            return 'Brauart für Bier (z.B. Weizenbier). Hefe und Alkohol machen es kritisch.';
+        if (n.match(/^obst$/i))
+            return 'Früchte allgemein. Verträglichkeit sehr unterschiedlich — Zitrusfrüchte eher meiden, andere Sorten oft gut verträglich.';
+        if (n.match(/^oligofruktose$/i))
+            return 'Pflanzlicher Ballaststoff. Kein Histamin, kann bei empfindlicher Darmflora Blähungen verursachen.';
+        if (n.match(/^origanum$/i))
+            return 'Echter Oregano. Histaminarm.';
+        if (n.match(/^oxidierte stärke$/i))
+            return 'Chemisch veränderte Stärke (E1404) zum Andicken. Histaminfrei.';
+        if (n.match(/^natriumselenit$/i))
+            return 'Quelle für das Spurenelement Selen. Histaminneutral.';
+        if (n.match(/^naturtrüb$/i))
+            return 'Meist bei Säften (z.B. Apfelsaft). Enthält mehr Pflanzenstoffe, frisch meist gut verträglich.';
+        if (n.match(/^nectarine$/i))
+            return 'Nektarine (Englisch). Histaminarmes Steinobst.';
+        if (n.match(/^neutrales öl$/i))
+            return 'Pflanzenöle wie Raps- oder Kokosöl ohne starken Eigengeschmack. Histaminfrei.';
+        if (n.match(/^milchprotein$/i))
+            return 'Isoliertes Proteingemisch aus Milch. Histaminneutral, sofern keine Milchallergie vorliegt.';
+        if (n.match(/^milchreis$/i))
+            return 'Gericht aus Reis und Milch. Frisch gekocht histaminarm.';
+        if (n.match(/^milchsäurekulturen$|^kulturen$/i))
+            return 'Bakterien zum Vergären von Lebensmitteln. Manche Stämme können Histamin bilden — mit Vorsicht genießen.';
+        if (n.match(/^laktose$/i))
+            return 'Milchzucker. Histaminneutral, macht nur bei zusätzlicher Laktoseintoleranz Probleme.';
+        if (n.match(/^milk$/i))
+            return 'Englisch für Milch. Frisch histaminarm.';
+        if (n.match(/^mineralwasser$/i))
+            return 'Wasser aus geschützten Quellen. Histaminfrei — stille Sorten meist besser verträglich als mit Kohlensäure.';
+        if (n.match(/^mint$/i))
+            return 'Englisch für Minze. Histaminarm, ätherische Öle können empfindliche Mägen leicht irritieren.';
+        if (n.match(/^mischgemüse$/i))
+            return 'Mischung verschiedener Gemüsesorten. Verträglichkeit hängt von den Zutaten ab.';
+        if (n.match(/^modifizierungsmittel$/i))
+            return 'Stoffe, die die Beschaffenheit von Lebensmitteln verändern (z.B. modifizierte Stärke). Meist histaminneutral.';
+        if (n.match(/^mono-diglycerinfettsäureester$/i))
+            return 'Andere Bezeichnung für Emulgatoren E471. Histaminneutral.';
+        if (n.match(/^monostärkephosphat$/i))
+            return 'Chemisch veränderte Stärke (E1410) zum Verdicken. Histaminfrei.';
+        if (n.match(/^moosbeere$/i))
+            return 'Wildbeere, verwandt mit der Cranberry. Histaminarm.';
+        if (n.match(/^morello$/i))
+            return 'Sauerkirschenart (Schattenmorelle). Histaminarm.';
+        if (n.match(/^moringatee$/i))
+            return 'Aufguss aus Moringablättern. Meist gut verträglich, sofern ohne künstliche Aromastoffe.';
+        if (n.match(/^mozzarella$/i))
+            return 'Panierte/frittierte Käsestäbchen (Mozzarella Sticks). Frischer Mozzarella wäre okay — Panade und Frittieren machen es oft unverträglich.';
+        if (n.match(/^mulberry$/i))
+            return 'Englisch für Maulbeere. Im Vergleich zu anderen Beeren überwiegend histaminarm.';
+        if (n.match(/^müsli$|^müsliüsli$/i))
+            return 'Getreidemischung. Reine Hafer-/Dinkelflocken gut, Varianten mit Nüssen/Trockenfrüchten oft kritischer.';
+        if (n.match(/^müsliüsliriegel$/i))
+            return 'Snackriegel aus Getreide. Enthält oft Honig, Nüsse, Trockenfrüchte oder Haltbarmacher.';
+        if (n.match(/^natamycin$/i))
+            return 'Konservierungsstoff (E235), oft auf Käserinden gesprüht. Kann den empfindlichen Darm reizen.';
+        if (n.match(/^maiskolben$/i))
+            return 'Frischer Mais am Stück. Histaminarm.';
+        if (n.match(/^maisöl$/i))
+            return 'Pflanzenöl aus Mais. Histaminfrei.';
+        if (n.match(/^maitake$/i))
+            return 'Speisepilz (Klapperschwamm). Pilze allgemein können Histamin enthalten — mit Vorsicht genießen.';
+        if (n.match(/^maize$/i))
+            return 'Englisch für Mais. Histaminarm.';
+        if (n.match(/^malzmehl$/i))
+            return 'Mehl aus Malz, oft in Backmischungen für die Farbe. Wegen des verarbeiteten Getreideeiweißes eher ungeeignet.';
+        if (n.match(/^mandel$/i))
+            return 'Mandeln gelten oft als milder Histaminfreisetzer — enthalten aber weniger Histamin als andere Nüsse.';
+        if (n.match(/^mandeldrink$/i))
+            return 'Milchersatz aus Mandeln. In kleinen Mengen oft verträglich, bei hoher Empfindlichkeit vorsichtig testen.';
+        if (n.match(/^marille$/i))
+            return 'Aprikose. Histaminarm.';
+        if (n.match(/^marone$/i))
+            return 'Esskastanie. Frisch meist gut verträglich, in seltenen Fällen können Kastaniengewächse reagieren.';
+        if (n.match(/^maulbeere$/i))
+            return 'Beerenfrucht. Im Vergleich zu Erdbeeren/Himbeeren überwiegend histaminarm.';
+        if (n.match(/^mct$|^mct oil$/i))
+            return 'Mittelkettige Triglyceride. Histaminneutral.';
+        if (n.match(/^mehl$/i))
+            return 'Gemahlenes Korn. Verträglichkeit hängt von der Getreidesorte ab — Weizen oft kritisch, Dinkel/Reis/Mais meist gut.';
+        if (n.match(/^melissa tea$/i))
+            return 'Englisch für Melissentee. Wirkt beruhigend, hat teils natürliche antihistaminähnliche Eigenschaften.';
+        if (n.match(/^mesquite$|^zucker$/i))
+            return 'Süßliches Pulver aus den Schoten des Mesquitebaums. Gilt als histaminarm.';
+        if (n.match(/^mikroalgenöl$|^pflanzenöl$/i))
+            return 'Öl aus Algen (Omega-3-Quelle). Stark gereinigt, anders als ganze Algen meist histaminarm.';
+        if (n.match(/^leitungswasser$/i))
+            return 'Normales Trinkwasser. Histaminfrei, sicherste Basis für Getränke und Speisen.';
+        if (n.match(/^lettuce$/i))
+            return 'Englisch für Blattsalat. Frische Salate sind histaminarm.';
+        if (n.match(/^linsencracker$/i))
+            return 'Knabbergebäck aus Linsenmehl. Linsen sind Hülsenfrüchte und können die Histaminfreisetzung triggern.';
+        if (n.match(/^lutein$/i))
+            return 'Natürlicher gelber Farbstoff (E161b) aus Pflanzen. Histaminneutral.';
+        if (n.match(/^lycopin$/i))
+            return 'Roter Farbstoff (E160d), vor allem aus Tomaten. Da Tomaten kritisch sind, isolierten Stoff mit Vorsicht genießen.';
+        if (n.match(/^lysoenzym$|^lysozym$/i))
+            return 'Enzym (E1105), meist aus Hühnereiweiß, in Käse eingesetzt. Da Eiweiß Histamin freisetzen kann, oft unverträglich.';
+        if (n.match(/^lösungsmittel$/i))
+            return 'Chemische Rückstände aus industrieller Verarbeitung. Können Darm und Abbauenzyme allgemein belasten.';
+        if (n.match(/^löwenzahntee$/i))
+            return 'Kräutertee aus Löwenzahnblättern/-wurzeln. Histaminarm, wirkt wohltuend auf den Magen-Darm-Trakt.';
+        if (n.match(/^magermilchpulver$/i))
+            return 'Getrocknete Milch. Durch die industrielle Verarbeitung kann sich Histamin bilden.';
+        if (n.match(/^magnesiumhydrogencarbonat$/i))
+            return 'Mineralischer Zusatzstoff zur Säureregulierung. Histaminfrei.';
+        if (n.match(/^magnesiumlactat$/i))
+            return 'Magnesiumsalz der Milchsäure (E329). Trotz des Namens milch- und laktosefrei.';
+        if (n.match(/^lorbeers$/i))
+            return 'Lorbeerblätter. Getrocknet für die histaminarme Küche unbedenklich.';
+        if (n.match(/^löwenzahn$|^kräuter$/i))
+            return 'Wildkraut (z.B. Löwenzahn). Unterstützt die Verdauung, histaminarm.';
+        if (n.match(/^mahon$/i))
+            return 'Spanischer Schnittkäse. Traditionell lange gereift — hoher Histamingehalt.';
+        if (n.match(/^gemüse$/i))
+            return 'Frisches, weißes Wurzelgemüse (z.B. Mairübchen). Histaminarm.';
+        if (n.match(/^mais kolbchen$/i))
+            return 'Kleine, junge Maiskölbchen (Babymais). Unfermentiert eine sichere Gemüsezutat.';
+        if (n.match(/^kuchen$/i))
+            return 'Süßgebäck. Verträglichkeit hängt stark von den Zutaten ab — Hefe/Weizen/Schokolade/Nüsse oft kritisch, einfacher Rührkuchen mit Dinkelmehl meist besser.';
+        if (n.match(/^kupferkomplexe$/i))
+            return 'Oberbegriff für Farbstoffe wie E141 (Kupferchlorophyll). Histaminfrei.';
+        if (n.match(/^kümmelitee$/i))
+            return 'Aufguss aus Kümmelsamen. Wirkt beruhigend auf den Darm und gegen Blähungen, histaminarm.';
+        if (n.match(/^kürbiskernmehl$/i))
+            return 'Gemahlene, entfettete Kürbiskerne. Kürbiskerne können im Einzelfall Histamin freisetzen — vorsichtig testen.';
+        if (n.match(/^kürbisproteinpulver$/i))
+            return 'Eiweißpulver aus Kürbiskernen. Konzentriert, kann bei hoher Empfindlichkeit Reaktionen begünstigen.';
+        if (n.match(/^lab$/i))
+            return 'Enzym aus dem Kälbermagen zur Käseherstellung. Das Enzym selbst ist histaminfrei — entscheidend ist die spätere Reifezeit des Käses.';
+        if (n.match(/^lactase$/i))
+            return 'Enzym zum Abbau von Milchzucker. Histaminneutral.';
+        if (n.match(/^lactylat$/i))
+            return 'Emulgator (E481/E482), oft in Backwaren. Histaminneutral.';
+        if (n.match(/^lakrizwurzel$/i))
+            return 'Süßholzwurzel. Als Tee entzündungshemmend, histaminarm — bei hohem Blutdruck nicht dauerhaft trinken.';
+        if (n.match(/^lamb$/i))
+            return 'Lammfleisch (Englisch). Frisch oder direkt schockgefroren histaminarm.';
+        if (n.match(/^lamb lettuce$/i))
+            return 'Feldsalat (Englisch). Histaminarmer Blattsalat.';
+        if (n.match(/^lang gelagert$/i))
+            return 'Hinweis auf lange Reifezeit (Käse, Schinken, Wein). Bedeutet meist erheblichen Histamingehalt.';
+        if (n.match(/^lard$/i))
+            return 'Schweineschmalz (Englisch). Reines Fett, frisch verarbeitet histaminfrei.';
+        if (n.match(/^lavendel$/i))
+            return 'Pflanze mit beruhigenden Eigenschaften. Histaminarm, ätherische Öle bei empfindlichem Magen sparsam nutzen.';
+        if (n.match(/^lavendeltee$/i))
+            return 'Aufguss aus Lavendelblüten. Histaminarm, kann nervöse Magen-Darm-Beschwerden lindern.';
+        if (n.match(/^kochcreme$/i))
+            return 'Pflanzlicher Sahneersatz (z.B. Hafer/Reis). Meist histaminarm — auf Verdickungsmittel achten.';
+        if (n.match(/^kochsalz$/i))
+            return 'Normales Speisesalz. Histaminfrei.';
+        if (n.match(/^kohle$/i))
+            return 'Aktivkohle, bindet Stoffe im Darm. Histaminneutral.';
+        if (n.match(/^koji$|^kulturen$/i))
+            return 'Mikrobielle Kultur zur Fermentation. Das fertige fermentierte Produkt ist histaminreich, die reine Kultur selbst meist weniger kritisch.';
+        if (n.match(/^kokos$/i))
+            return 'Produkte aus der Kokosnuss. Gilt allgemein als histaminarm.';
+        if (n.match(/^kokosoel$/i))
+            return 'Flüssiges Fett aus der Kokosnuss. Histaminfrei.';
+        if (n.match(/^molke$/i))
+            return 'Eiweißbaustein (z.B. Kollagen), oft als Pulver. Je nach Rohstoff/Verarbeitung können freie Aminosäuren enthalten sein.';
+        if (n.match(/^e425 nudeln$/i))
+            return 'Shirataki-Nudeln aus Konjakwurzel. Histaminfrei, können stark sättigen.';
+        if (n.match(/^konservierter fisch$/i))
+            return 'Fisch aus Dose oder Glas (z.B. Thunfisch). Lange Lagerung führt zu erheblichem Histaminaufbau.';
+        if (n.match(/^konsistenzmittel$/i))
+            return 'Verdickungsmittel allgemein. Verträglichkeit unterschiedlich — Guarkernmehl meist okay, Carrageen kann reizen.';
+        if (n.match(/^krauspeter$/i))
+            return 'Gekräuselte Petersilie. Frisch histaminarm.';
+        if (n.match(/^kresse$/i))
+            return 'Gartenkresse. Histaminarm, mit natürlicher Schärfe.';
+        if (n.match(/^kronsbeere$/i))
+            return 'Preiselbeere. Anders als Erdbeeren/Himbeeren histaminarm.';
+        if (n.match(/^kräutermischungen$/i))
+            return 'Getrocknete Kräutermischung. Reine Mischungen meist gut, bei Zusätzen wie Knoblauch/Hefeextrakt prüfen.';
+        if (n.match(/^kräutertee$/i))
+            return 'Aufguss aus Kräutern. Kamille/Fenchel/Pfefferminze meist gut verträglich — aromatisierte Mischungen prüfen.';
+        if (n.match(/^kandissirup$/i))
+            return 'Eingedickte, flüssige Saccharose. Histaminfrei.';
+        if (n.match(/^karamell$/i))
+            return 'Durch Erhitzung gebräunter Zucker. Histaminfrei, in großen Mengen kann der Zuckeranteil die Verdauung belasten.';
+        if (n.match(/^karamellisierung$/i))
+            return 'Prozess der Zuckerbräunung durch Hitze. Ohne Bedeutung für den Histaminstoffwechsel.';
+        if (n.match(/^karfiol$/i))
+            return 'Regionale Bezeichnung für Blumenkohl. Histaminarm.';
+        if (n.match(/^kartoffeleiweiß$/i))
+            return 'Isoliertes Protein der Kartoffel. Histaminarm, Verträglichkeit hängt vom Extraktionsverfahren ab.';
+        if (n.match(/^kasein$/i))
+            return 'Hauptprotein der Kuhmilch. Histaminfrei, kann bei Milcheiweißallergie eigene Beschwerden verursachen.';
+        if (n.match(/^kastanienmehl$/i))
+            return 'Mehl aus Esskastanien. Meist histaminarm, im Einzelfall aber als milder Liberator beschrieben.';
+        if (n.match(/^kaugummi$/i))
+            return 'Enthält oft Menthol, ätherische Öle oder künstliche Süßstoffe, die die Mundschleimhaut reizen können.';
+        if (n.match(/^klassisch$/i))
+            return 'Unspezifischer Begriff auf Verpackungen. Die genaue Rezeptur sollte geprüft werden.';
+        if (n.match(/^kleie$/i))
+            return 'Äußere Schale des Getreidekorns. Ballaststoffreich, kann bei gereizter Darmschleimhaut mechanisch reizen.';
+        if (n.match(/^knödel$/i))
+            return 'Verträglichkeit hängt von Hefe, altem Brot (Weizen) oder verwendeten Bindemitteln ab.';
+        if (n.match(/^jodiert$/i))
+            return 'Kennzeichnung für den Zusatz von Jod zu einem Lebensmittel (z.B. Salz).';
+        if (n.match(/^kulturen$/i))
+            return 'Milchsäurebakterien zur Fermentation (z.B. Joghurtkulturen). Je nach Bakterienstamm können geringe Mengen biogener Amine entstehen.';
+        if (n.match(/^johannisbeere$/i))
+            return 'Beerenfrucht. Histaminarm und reich an Vitamin C — anders als Erdbeeren/Himbeeren histaminisch unkritisch.';
+        if (n.match(/^johannisbeere schwarz$/i))
+            return 'Schwarze Johannisbeere. Reich an Antioxidantien, histaminarm.';
+        if (n.match(/^jostabeere$/i))
+            return 'Kreuzung aus schwarzer Johannisbeere und Stachelbeere. Histaminarm.';
+        if (n.match(/^kabeljaufilet$/i))
+            return 'Weißfisch. Frisch oder direkt schockgefroren histaminarm — verdirbt bei unsachgemäßer Kühlung sehr schnell.';
+        if (n.match(/^kaki$/i))
+            return 'Exotische Frucht (Persimone). Histaminarm.';
+        if (n.match(/^kaliumcitrate$/i))
+            return 'Salze der Zitronensäure (E332). Können bei hoher Sensibilität die Darmschleimhaut leicht reizen.';
+        if (n.match(/^kaliumhexacyanoferrat$/i))
+            return 'Trennmittel für Speisesalz (E536). In den verwendeten Kleinstmengen histaminneutral.';
+        if (n.match(/^kaliumlactat$/i))
+            return 'Salz der Milchsäure (E326). Trotz des Namens frei von Milchprotein und Laktose.';
+        if (n.match(/^kaliummalat$/i))
+            return 'Salz der Apfelsäure (E351), Säureregulator. Histaminfrei.';
+        if (n.match(/^kaliumtartrat$|^kaliumtartrate$/i))
+            return 'Salz der Weinsäure (E336, Weinstein). Histaminfreie Backpulver-Alternative.';
+        if (n.match(/^kamille$/i))
+            return 'Heilkraut. Wirkt beruhigend auf den Magen-Darm-Trakt, histaminarm.';
+        if (n.match(/^holunderblütentee$/i))
+            return 'Aufguss aus getrockneten Holunderblüten. Histaminarm, wirkt beruhigend auf die Schleimhäute.';
+        if (n.match(/^hopfen$/i))
+            return 'Pflanzlicher Rohstoff. Als Tee histaminarm — in fermentierten Getränken wie Bier zusätzlich mit Alkohol kombiniert problematisch.';
+        if (n.match(/^huhn$/i))
+            return 'Geflügelfleisch. Frisch oder direkt schockgefroren histaminarm.';
+        if (n.match(/^bonbon$/i))
+            return 'Zuckerware, teils mit Kräuterzusätzen (z.B. Hustenbonbon). Histaminarm, ätherische Öle wie Menthol können Schleimhäute reizen.';
+        if (n.match(/^hydroxypropylmethylcellulose$/i))
+            return 'Verdickungsmittel (E464). Histaminneutral.';
+        if (n.match(/^hydroxypropylstärke$/i))
+            return 'Modifizierte Stärke (E1440) zur Texturverbesserung. Histaminfrei.';
+        if (n.match(/^hähnchen$/i))
+            return 'Mageres Geflügelfleisch. Frisch oder schockgefroren histaminarm.';
+        if (n.match(/^hühnereiprodukte$/i))
+            return 'Verarbeitete Bestandteile von Hühnereiern. Eiklar gilt als Liberator — in der Anfangsphase mit Vorsicht behandeln.';
+        if (n.match(/^hühnerfilet$/i))
+            return 'Frisch verarbeitetes Hühnerfleisch. Histaminarm bei lückenloser Kühlkette.';
+        if (n.match(/^hühnerpulver$/i))
+            return 'Getrocknetes, pulverisiertes Hühnerfleisch. Verarbeitungsbedingt reich an freien Aminosäuren, oft mit Geschmacksverstärkern.';
+        if (n.match(/^schwarztee$/i))
+            return 'Basiert meist auf Schwarz-/Grüntee (DAO-Blocker) — zudem oft reich an Zitronensäure.';
+        if (n.match(/^indischer frischkaese$/i))
+            return 'Paneer. Ungereift und traditionell ohne Fermentation hergestellt — histaminarm.';
+        if (n.match(/^inulin$/i))
+            return 'Pflanzlicher Ballaststoff. Histaminfrei, kann dosisabhängig zu Blähungen führen.';
+        if (n.match(/^in salzlake$/i))
+            return 'Konservierungshinweis. Die Lagerung in Lake kann bei proteinreichen Lebensmitteln (Fisch, Käse) zu Histaminaufbau führen — hängt vom Ausgangsprodukt ab.';
+        if (n.match(/^reis$/i))
+            return 'Langkornreis-Sorte (z.B. Jasminreis). Von Natur aus glutenfrei und histaminarm.';
+        if (n.match(/^haddock$/i))
+            return 'Schellfisch (Englisch). Mager, nur bei fangfrischer Verarbeitung oder direkt schockgefroren histaminarm.';
+        if (n.match(/^kräuter$/i))
+            return 'Reich an Vitamin C (z.B. Hagebutte), gilt aber im Körper als möglicher Liberator.';
+        if (n.match(/^hake$/i))
+            return 'Seehecht (Englisch), Weißfisch. Frisch oder direkt tiefgekühlt histaminarm — ungekühlt bildet sich schnell Histamin.';
+        if (n.match(/^halbfettmilch$/i))
+            return 'Kuhmilch mit reduziertem Fettgehalt. Histaminarm, sofern keine Laktoseintoleranz vorliegt.';
+        if (n.match(/^haribo$/i))
+            return 'Markenname für Fruchtgummis. Enthält meist Gelatine und Zitronensäure — beides potenzielle Liberatoren.';
+        if (n.match(/^haricots verts$/i))
+            return 'Grüne Bohnen (Französisch). Hülsenfrucht, kann als milder Liberator wirken.';
+        if (n.match(/^haverkleie$/i))
+            return 'Haferkleie (häufige Schreibweise). Ballaststoffreich und histaminarm.';
+        if (n.match(/^heidelbeer$/i))
+            return 'Heidelbeeren/Blaubeeren. Histaminarm und reich an Antioxidantien.';
+        if (n.match(/^herbal tea$/i))
+            return 'Kräutertee (Englisch). Verträglichkeit hängt von den verwendeten Pflanzen ab — Kamille/Fenchel meist sicher.';
+        if (n.match(/^hirsebrei$/i))
+            return 'Gekochte Speise aus Hirse. Histaminarm, glutenfrei und darmfreundlich.';
+        if (n.match(/^hirseflocksen$/i))
+            return 'Flocken aus Hirse (Schreibvariante). Histaminarm und leicht verdaulich.';
+        if (n.match(/^hirsekorn$/i))
+            return 'Ganzes Korn der Hirse. Histaminfrei, reich an Mineralstoffen.';
+        if (n.match(/^hirsemehl$/i))
+            return 'Gemahlene Hirse. Histamin- und glutenfreie Mehlalternative.';
+        if (n.match(/^holunderblüte$/i))
+            return 'Blüten des Holunderstrauchs. Als Teeaufguss meist gut verträglich — im Gegensatz zu den Beeren histaminarm.';
+        if (n.match(/^gluconsäure$/i))
+            return 'Organische Säure (E574), Säuerungsmittel. Histaminneutral.';
+        if (n.match(/^glucose$/i))
+            return 'Traubenzucker, reines Monosaccharid. Histaminfrei.';
+        if (n.match(/^glucose-fructose-zucker$/i))
+            return 'Aus Stärke gewonnener Zuckersirup. Histaminneutral, bei Fruktosemalabsorption den Fruktoseanteil beachten.';
+        if (n.match(/^gluten$/i))
+            return 'Klebereiweiß bestimmter Getreidesorten. Histaminfrei, kann bei Zöliakie/Glutensensitivität die Darmschleimhaut belasten.';
+        if (n.match(/^glycerinacetoester$/i))
+            return 'Emulgator auf Basis von Speisefettsäuren (E472a). Histaminneutral.';
+        if (n.match(/^gnocchi$/i))
+            return 'Kartoffel- oder Teigklößchen. Frisch zubereitet sicher — bei Fertigprodukten Zusatzstoffe prüfen.';
+        if (n.match(/^golden delicious$/i))
+            return 'Klassische Apfelsorte. Histaminarm.';
+        if (n.match(/^griess$|^grieß$/i))
+            return 'Gemahlenes Getreidekorn (meist Weizen/Dinkel). Histaminfrei, sofern keine Glutenunverträglichkeit vorliegt.';
+        if (n.match(/^grün$|^grüne$/i))
+            return 'Unspezifische Angabe. Verträglichkeit hängt von den konkret verwendeten Kräutern/Gemüsesorten ab — Zutatenliste prüfen.';
+        if (n.match(/^kohl$/i))
+            return 'Wintergemüse (z.B. Grünkohl). Histaminarm, frisch zubereitet meist sehr gut verträglich.';
+        if (n.match(/^guanylat$/i))
+            return 'Geschmacksverstärker (E626-629). Kann pseudoallergische Reaktionen verstärken.';
+        if (n.match(/^gummi$/i))
+            return 'Oberbegriff für pflanzliche Verdickungsmittel. Meist histaminarm, genaue Quelle zur Sicherheit prüfen.';
+        if (n.match(/^gummibase$/i))
+            return 'Grundmasse für Kaugummi. Meist neutral, zugesetzte Aromen/Minze können reizen.';
+        if (n.match(/^gummibärchen$/i))
+            return 'Zuckerware mit Gelatine und Zitronensäure — beides potenzielle Liberatoren, eher ungeeignet.';
+        if (n.match(/^gänsefleisch$/i))
+            return 'Geflügelfleisch. Histaminarm, sofern absolut frisch verarbeitet — auf lückenlose Kühlkette achten.';
+        if (n.match(/^ganzes$|^ganzes korn$/i))
+            return 'Unverarbeitete, ganze Form eines Lebensmittels. Die intakte Oberfläche verzögert bakteriellen Histaminaufbau gegenüber zerkleinerten Produkten.';
+        if (n.match(/^gdl$/i))
+            return 'Glucono-delta-lacton (E575), Säureregulator. Synthetisch hergestellt, histaminfrei.';
+        if (n.match(/^ge$|^ges$/i))
+            return 'Unvollständige Zutatenangabe — die genaue Bezeichnung sollte geprüft werden.';
+        if (n.match(/^keks$/i))
+            return 'Feine Backwaren. Backtriebmittel, Hefe oder Weizenkleber können empfindliche Därme belasten.';
+        if (n.match(/^geflügelextrakt$/i))
+            return 'Hochkonzentrierte Fleischbrühe. Durch lange Koch-/Reduktionsprozesse reichern sich freie Aminosäuren und Histamin an.';
+        if (n.match(/^pasta$/i))
+            return 'Gefüllte Pasta (Ravioli/Tortellini). Die Füllung (oft gereifter Käse, Spinat, Fleisch) bestimmt den Histamingehalt.';
+        if (n.match(/^gelatin$/i))
+            return 'Gelatine. Kollagenes Protein tierischen Ursprungs, kann als Liberator wirken.';
+        if (n.match(/^paprika$/i))
+            return 'Nachtschattengewächs. Wird individuell unterschiedlich vertragen — bei hoher Empfindlichkeit vorsichtig testen.';
+        if (n.match(/^gelierzucker$/i))
+            return 'Zucker mit Pektin und Zitronensäure. Die Säure kann die Darmschleimhaut reizen.';
+        if (n.match(/^nussmix$/i))
+            return 'Nussmischung — je nach enthaltener Sorte unterschiedlich, manche Nüsse (z.B. Erdnuss, Walnuss) sind Liberatoren.';
+        if (n.match(/^gepuffterdinkel$/i))
+            return 'Urkorn-Snack aus gepufftem Dinkel. Histaminarm, gute Alternative für Müsli.';
+        if (n.match(/^gerstengras$/i))
+            return 'Junges Getreidegras. Histaminneutral — bei ausgeprägter Gräserpollenallergie anfangs vorsichtig dosieren.';
+        if (n.match(/^gerstenmehl$/i))
+            return 'Gemahlene Gerste. Histaminarm, glutenhaltig.';
+        if (n.match(/^getreidegluten$/i))
+            return 'Weizenkleber. Kann bei entsprechender Veranlagung die Darmwand durchlässiger machen.';
+        if (n.match(/^ginseng$/i))
+            return 'Heilwurzel. Kann das Immunsystem beeinflussen, in Einzelfällen Mastzellen aktivieren — individuell vorsichtig dosieren.';
+        if (n.match(/^salz$/i))
+            return 'Meersalz-Variante (Fleur de Sel). Histaminfrei.';
+        if (n.match(/^flour$/i))
+            return 'Englisch für Mehl. Histaminfrei, Gluten kann bei Empfindlichkeit den Darm belasten.';
+        if (n.match(/^flussbarsch$/i))
+            return 'Süßwasserfisch. Frisch gefangen oder schockgefroren histaminarm.';
+        if (n.match(/^vitamine$/i))
+            return 'B-Vitamin (z.B. Folat/Folsäure). Histaminneutral.';
+        if (n.match(/^zucker$/i))
+            return 'Reine Zuckermasse (z.B. Fondant). Histaminfrei, hoher Zuckeranteil kann die Darmflora belasten.';
+        if (n.match(/^fructose$/i))
+            return 'Fruchtzucker. Kann bei Fruktosemalabsorption Beschwerden verursachen, ist aber histaminseitig neutral.';
+        if (n.match(/^frauenmantel(?:kraut)?$/i))
+            return 'Heilkraut, als Tee/Aufguss traditionell zur Beruhigung des Magen-Darm-Trakts verwendet. Histaminarm.';
+        if (n.match(/^french beans$/i))
+            return 'Grüne Bohnen (Englisch). Hülsenfrucht, kann als milder Liberator wirken.';
+        if (n.match(/^french gewürze$/i))
+            return 'Kräutermischung nach französischer Art. Einzelne Komponenten können die Mastzellen reizen — Zutatenliste prüfen.';
+        if (n.match(/^fromage blanc$|^fromage frais$/i))
+            return 'Französischer Frischkäse. Ungereift und mild, histaminarm.';
+        if (n.match(/^frucht$/i))
+            return 'Obst allgemein. Verträglichkeit schwankt stark je Sorte — Zitrusfrüchte eher meiden, Heidelbeeren gut verträglich.';
+        if (n.match(/^fruchtbonbons?$/i))
+            return 'Zuckerware mit Fruchtaroma. Meist frei von Histamin, künstliche Aromen/Säuren können den Darm reizen.';
+        if (n.match(/^fruchtzucker$/i))
+            return 'Fruktose. Kann bei Malabsorption den Darm belasten, ist histaminseitig neutral.';
+        if (n.match(/^fructooligosaccharide$/i))
+            return 'FOS, präbiotische Ballaststoffe. Können anfangs Blähungen verursachen, sind histaminseitig neutral.';
+        if (n.match(/^fruit candy$/i))
+            return 'Englisch für künstliche Fruchtbonbons. Kein direkter Histamingehalt, kann den Darm reizen.';
+        if (n.match(/^fruit gum$/i))
+            return 'Englisch für Fruchtgummi. Säuerungsmittel können die Schleimhäute reizen.';
+        if (n.match(/^gemüse$/i))
+            return 'Enthält oft Sojasauce, lange gelagertes Gemüse und Glutamat (z.B. Frühlingsrolle) — je nach Zubereitung belastend.';
+        if (n.match(/^fumarsäuremonoester$/i))
+            return 'Chemisches Derivat der Fumarsäure. Kann in seltenen Fällen Flush-Symptome auslösen, die einer Histaminreaktion ähneln.';
+        if (n.match(/^furikake$|^gewürze$/i))
+            return 'Japanische Gewürzmischung, oft mit Algen, getrocknetem Fisch und Sesam — reich an freien Aminosäuren/Glutamat.';
+        if (n.match(/^nudeln$/i))
+            return 'Spiralnudeln aus Hartweizengrieß oder Dinkel. Histaminfrei.';
+        if (n.match(/^erbse$/i))
+            return 'Hülsenfrucht. Gilt als milder Histaminliberator — in der Anfangsphase vorsichtig testen.';
+        if (n.match(/^erbsenschote$/i))
+            return 'Verhält sich wie die Erbse selbst — möglicher milder Liberator.';
+        if (n.match(/^süßungsmittel$/i))
+            return 'Zuckeraustauschstoff. Histaminneutral, kann aber unabhängig davon in größeren Mengen Magen-Darm-Beschwerden verursachen.';
+        if (n.match(/^essiglake$/i))
+            return 'Aufguss aus Essig. Essig ist durch Fermentation und Lagerung histaminreich.';
+        if (n.match(/^essigsaeure rein$/i))
+            return 'Reine Essigsäure (E260). Chemisch hergestellt, histaminfrei — kann empfindliche Magenschleimhäute reizen.';
+        if (n.match(/^ethylmethylcellulose$/i))
+            return 'Verdickungsmittel (E465). Histaminfrei.';
+        if (n.match(/^ethylvanille$/i))
+            return 'Künstliches Vanillearoma. Anders als echter, fermentierter Vanilleextrakt histaminarm.';
+        if (n.match(/^extra virgin$/i))
+            return 'Natives Öl extra (meist Olivenöl). Das Öl selbst ist histaminarm.';
+        if (n.match(/^felchen$/i))
+            return 'Süßwasserfisch. Frisch oder schockgefroren histaminarm — auf lückenlose Kühlung achten.';
+        if (n.match(/^fermentationskultur$|^milchsäurekulturen$/i))
+            return 'Bakterien-/Pilzkulturen zur Reifung von Lebensmitteln. Bei der Fermentation selbst entsteht Histamin — die Kultur pur enthält meist wenig.';
+        if (n.match(/^festigungsmittel$/i))
+            return 'Zusatzstoff zur Stabilisierung der Struktur. Verträglichkeit hängt vom genauen Stoff ab — Calciumsalze meist unbedenklich.';
+        if (n.match(/^pflanzenöl$/i))
+            return 'Reines Fett (z.B. Butter, Kokosöl) ist histaminfrei — Verträglichkeit hängt von Frische und Ausgangszutat ab.';
+        if (n.match(/^filterhilfsmittel$/i))
+            return 'Stoffe wie Bentonit zur Klärung von Flüssigkeiten. Werden aus dem Endprodukt wieder herausgefiltert, histaminneutral.';
+        if (n.match(/^flachbohnen$/i))
+            return 'Schnittbohnen, Hülsenfrucht. Kann wie andere Hülsenfrüchte als milder Liberator wirken.';
+        if (n.match(/^fleischalternative$/i))
+            return 'Fleischersatz aus Soja-, Weizen- oder Erbsenprotein. Stark verarbeitet, oft mit Liberatoren aus den Rohstoffen.';
+        if (n.match(/^e953$/i))
+            return 'Isomalt, Zuckeraustauschstoff. Kann in großen Mengen abführend wirken, histaminseitig meist neutral.';
+        if (n.match(/^e954$/i))
+            return 'Saccharin, künstlicher Süßstoff. Kann die Darmflora beeinflussen.';
+        if (n.match(/^e957$/i))
+            return 'Thaumatin, natürlicher Süßstoff aus Proteinen. Histaminneutral.';
+        if (n.match(/^e960a$/i))
+            return 'Steviolglycoside aus Stevia — präzisierte Bezeichnung für Stevia-Süßstoff. Histaminarm.';
+        if (n.match(/^e966$/i))
+            return 'Lactit, Zuckeraustauschstoff. Kann Magen-Darm-Beschwerden verstärken, besonders bei zusätzlicher Laktoseintoleranz.';
+        if (n.match(/^echter dost$/i))
+            return 'Wilder Oregano. Histaminarm und darmberuhigend.';
+        if (n.match(/^edamame chips$/i))
+            return 'Aus unreifen Sojabohnen hergestellt. Soja wirkt als Liberator.';
+        if (n.match(/^edelkastanie$/i))
+            return 'Maroni. Histaminarm, anders als viele echte Nüsse gut verträglich.';
+        if (n.match(/^egli$/i))
+            return 'Flussbarsch. Frisch oder tiefgefroren histaminarm — auf lückenlose Kühlung achten.';
+        if (n.match(/^eierkuchen$|^pfannkuchen$/i))
+            return 'Enthält meist Eiklar und Weizenmehl. Je nach Zubereitung und Empfindlichkeit möglich Reaktionen — frisch zubereitet meist gut verträglich.';
+        if (n.match(/^eiernudeln$/i))
+            return 'Nudeln mit Ei-Anteil (Eiklar). Bei hoher Empfindlichkeit können eifreie Nudeln besser verträglich sein.';
+        if (n.match(/^eierteigwaren$/i))
+            return 'Nudeln/Teige mit Ei. Der Eiklar-Anteil kann in der Anfangsphase Beschwerden verursachen.';
+        if (n.match(/^eingelegt$/i))
+            return 'Allgemeiner Begriff für Einlegen in Lake, Essig oder Öl. Durch die Lagerung entsteht meist deutlich mehr Histamin als bei der frischen Zutat.';
+        if (n.match(/^einmachgewürz$/i))
+            return 'Gewürzmischung, enthält oft Senfkörner, Koriander oder Paprika — kann als Liberator wirken oder den Magen reizen.';
+        if (n.match(/^eis$/i))
+            return 'Speiseeis. Verträglichkeit hängt komplett von den Zutaten ab — Milcheis/Vanille oft verträglich, Schokolade/Erdbeere eher meiden.';
+        if (n.match(/^mineralstoffe$/i))
+            return 'Mineralstoff (z.B. Eisen). In reiner Form histaminneutral, kann auf nüchternen Magen unspezifische Beschwerden verursachen.';
+        if (n.match(/^eisenkrauttee$/i))
+            return 'Kräutertee aus Verbena. Gilt als histaminarm und darmberuhigend.';
+        if (n.match(/^endiviensalat$/i))
+            return 'Die Endivie selbst ist histaminarm — beim Dressing auf histaminarme Zutaten achten.';
+        if (n.match(/^enoki$/i))
+            return 'Enoki-Pilze. Pilze gelten allgemein als möglicher Liberator.';
+        if (n.match(/^geflügel$/i))
+            return 'Frisch zubereitetes Geflügel ist histaminarm — auf absolute Frische achten, manche Sorten (z.B. Ente) sind fettreicher.';
+        if (n.match(/^e631$/i))
+            return 'Dinatriuminosinat, Geschmacksverstärker, tritt oft zusammen mit Glutamat auf.';
+        if (n.match(/^stickstoff$/i))
+            return 'Stickstoff (E941), Schutzgas zur Verpackung. Inertgas, histaminfrei.';
+        if (n.match(/^e528$/i))
+            return 'Magnesiumhydroxid, Säureregulator. Histaminfrei.';
+        if (n.match(/^e530$/i))
+            return 'Magnesiumoxid, Trennmittel. Histaminneutral.';
+        if (n.match(/^e535$/i))
+            return 'Natriumferrocyanid, Rieselhilfe für Salz. Histaminfrei in den üblichen kleinen Mengen.';
+        if (n.match(/^e536$/i))
+            return 'Kaliumferrocyanid, Rieselhilfe. Histaminneutral.';
+        if (n.match(/^e541$/i))
+            return 'Saures Natriumaluminiumphosphat, Backtriebmittel. Enthält Aluminium, das den empfindlichen Darm irritieren kann.';
+        if (n.match(/^e542$/i))
+            return 'Essbares Knochenphosphat, Trennmittel aus tierischen Rohstoffen. Kann herstellungsbedingt biogene Amine enthalten.';
+        if (n.match(/^e550$/i))
+            return 'Natriumsilikate, Trennmittel. Histaminfrei.';
+        if (n.match(/^e551$/i))
+            return 'Siliciumdioxid (Kieselsäure), Rieselhilfe. Wird nicht aufgenommen, histaminfrei.';
+        if (n.match(/^e553$|^e553a$|^e553b$/i))
+            return 'Magnesiumsilikate/Talkum, Trennmittel. Histaminfrei.';
+        if (n.match(/^e560$/i))
+            return 'Kaliumsilikat, Trennmittel. Histaminfrei.';
+        if (n.match(/^e572$/i))
+            return 'Magnesiumstearat, Trennmittel aus Fettsäuren. Histaminfrei.';
+        if (n.match(/^e574$/i))
+            return 'Gluconsäure, Säuerungsmittel. Histaminarm.';
+        if (n.match(/^e575$/i))
+            return 'Glucono-delta-lacton, Säureregulator. Histaminfrei, in großen Mengen leicht abführend.';
+        if (n.match(/^e576$/i))
+            return 'Natriumgluconat, Stabilisator. Histaminneutral.';
+        if (n.match(/^e577$/i))
+            return 'Kaliumgluconat, Stabilisator. Histaminfrei.';
+        if (n.match(/^e579$/i))
+            return 'Eisen-II-gluconat, Farbstabilisator (z.B. für Oliven). Histaminneutral, kann in großen Mengen den Magen reizen.';
+        if (n.match(/^e585$/i))
+            return 'Eisen-II-lactat, Farbstabilisator. Histaminfrei.';
+        if (n.match(/^e650$/i))
+            return 'Zinkacetat, Geschmacksverstärker für Kaugummi. Histaminneutral.';
+        if (n.match(/^e902$/i))
+            return 'Candelillawachs, pflanzliches Überzugsmittel. Histaminfrei.';
+        if (n.match(/^e903$/i))
+            return 'Carnaubawachs, pflanzliches Überzugsmittel. Histaminfrei.';
+        if (n.match(/^e904$/i))
+            return 'Schellack, Überzugsmittel aus Insektensekreten. Histaminarm.';
+        if (n.match(/^e920$/i))
+            return 'L-Cystein, Mehlbehandlungsmittel (Aminosäure). Histaminarm, bei hochsensiblen Personen im Einzelfall möglich.';
+        if (n.match(/^e927b$/i))
+            return 'Carbamid (Harnstoff), Stabilisator für Kaugummi. Histaminneutral.';
+        if (n.match(/^e938$/i))
+            return 'Argon, Verpackungsgas. Inertgas, histaminfrei.';
+        if (n.match(/^e942$/i))
+            return 'Distickstoffmonoxid (Lachgas), Treibgas (z.B. Sprühsahne). Anderes Gas als Stickstoff (E941) — verflüchtigt sich schnell, histaminneutral.';
+        if (n.match(/^e948$/i))
+            return 'Sauerstoff, Packgas. Histaminfrei.';
+        if (n.match(/^e950$/i))
+            return 'Acesulfam K, künstlicher Süßstoff. Kann die Darmflora beeinträchtigen.';
+        if (n.match(/^e463$/i))
+            return 'Hydroxypropylcellulose, Verdickungsmittel. Histaminfrei.';
+        if (n.match(/^e464$/i))
+            return 'Hydroxypropylmethylcellulose, Verdickungsmittel. Histaminneutral.';
+        if (n.match(/^e465$/i))
+            return 'Ethylmethylcellulose, Verdickungsmittel. Histaminfrei.';
+        if (n.match(/^e470a?$|^e470b$/i))
+            return 'Salze von Speisefettsäuren, Trenn-/Emulgiermittel. Histaminfrei.';
+        if (n.match(/^e471$/i))
+            return 'Mono- und Diglyceride von Speisefettsäuren, Emulgator. Histaminneutral.';
+        if (n.match(/^e472a$|^e472b$|^e472c$/i))
+            return 'Ester von Mono- und Diglyceriden (Essigsäure-/Milchsäure-/Zitronensäureester), Emulgator. Histaminfrei.';
+        if (n.match(/^e473$/i))
+            return 'Zuckerester von Speisefettsäuren, Emulgator. Histaminneutral.';
+        if (n.match(/^e474$/i))
+            return 'Zuckerglyceride, Emulgator. Histaminfrei.';
+        if (n.match(/^e475$/i))
+            return 'Polyglycerinester von Speisefettsäuren, Emulgator. Histaminfrei.';
+        if (n.match(/^e476$/i))
+            return 'Polyglycerin-Polyricinoleat, Emulgator. Histaminneutral, kommt aber oft in Schokolade vor, die selbst histaminreich sein kann.';
+        if (n.match(/^e477$/i))
+            return 'Propandiolester von Speisefettsäuren, Emulgator. Histaminfrei.';
+        if (n.match(/^e481$/i))
+            return 'Natriumstearoyl-2-lactylat, Emulgator. Histaminneutral.';
+        if (n.match(/^e500$/i))
+            return 'Natriumcarbonate (z.B. Natron), Backtriebmittel. Histaminfrei.';
+        if (n.match(/^e501$/i))
+            return 'Kaliumcarbonate, Backtriebmittel. Histaminfrei.';
+        if (n.match(/^e504ii$/i))
+            return 'Magnesiumhydrogencarbonat, Säureregulator. Histaminneutral.';
+        if (n.match(/^e507$/i))
+            return 'Salzsäure, Säuerungsmittel. In Lebensmitteln stark verdünnt und histaminfrei.';
+        if (n.match(/^e508$/i))
+            return 'Kaliumchlorid, Kochsalzersatz. Histaminneutral.';
+        if (n.match(/^e511$/i))
+            return 'Magnesiumchlorid, Festigungsmittel. Histaminfrei.';
+        if (n.match(/^e512$/i))
+            return 'Zinn-II-chlorid, Antioxidationsmittel in Konservendosen. Kann den Magen-Darm-Trakt reizen.';
+        if (n.match(/^e513$/i))
+            return 'Schwefelsäure, Säuerungsmittel. In Lebensmitteln neutralisiert und histaminfrei.';
+        if (n.match(/^e514$/i))
+            return 'Natriumsulfate (Glaubersalz). Histaminneutral, kann in größeren Mengen abführend wirken.';
+        if (n.match(/^e515$/i))
+            return 'Kaliumsulfat, Trägerstoff. Histaminneutral.';
+        if (n.match(/^e518$/i))
+            return 'Magnesiumsulfat (Bittersalz). Histaminneutral, kann in großen Mengen abführend wirken.';
+        if (n.match(/^e524$/i))
+            return 'Natriumhydroxid, Säureregulator (u.a. für Laugengebäck). Histaminfrei.';
+        if (n.match(/^e525$/i))
+            return 'Kaliumhydroxid, Säureregulator. Histaminneutral.';
+        if (n.match(/^e337$/i))
+            return 'Kaliumnatriumtartrat, Salz der Weinsäure. Histaminfrei.';
+        if (n.match(/^e350$/i))
+            return 'Natriummalat, Salz der Apfelsäure. Histaminfrei.';
+        if (n.match(/^e351$/i))
+            return 'Kaliummalat, Säureregulator. Histaminneutral.';
+        if (n.match(/^e364$/i))
+            return 'Kaliumsuccinat, Säureregulator. Histaminfrei.';
+        if (n.match(/^e392$/i))
+            return 'Rosmarinextrakt, natürliches Antioxidationsmittel. Histaminarm, bei Empfindlichkeit gegenüber Gewürzextrakten vorsichtig testen.';
+        if (n.match(/^e421$/i))
+            return 'Mannit, Zuckeraustauschstoff. Kann die Verdauung belasten und Blähungen verursachen.';
+        if (n.match(/^e422$/i))
+            return 'Glycerin, Feuchthaltemittel. Histaminfrei.';
+        if (n.match(/^e425$/i))
+            return 'Konjak, Verdickungsmittel. Histaminfrei, quillt im Magen stark auf.';
+        if (n.match(/^e452$/i))
+            return 'Polyphosphate, Schmelzsalze. Können in großen Mengen die Darmtätigkeit beeinflussen.';
+        if (n.match(/^e460$/i))
+            return 'Cellulose, Füllstoff/Trennmittel. Wird nicht verdaut, histaminfrei.';
+        if (n.match(/^e461$/i))
+            return 'Methylcellulose, Verdickungsmittel. Histaminneutral.';
+        if (n.match(/^e462$/i))
+            return 'Ethylcellulose, Überzugsmittel. Histaminfrei.';
+        if (n.match(/^e234$/i))
+            return 'Nisin, ein konservierendes Peptid. Kann die Darmflora beeinflussen — bei empfindlichem Darm vorsichtig testen.';
+        if (n.match(/^e235$/i))
+            return 'Natamycin, Konservierungsstoff gegen Pilze. Kann die Darmgesundheit belasten und den Histaminabbau indirekt schwächen.';
+        if (n.match(/^lecithin$/i))
+            return 'Lecithine, Emulgator. An sich histaminarm — bei hoher Empfindlichkeit auf die Rohstoffquelle achten (oft Soja).';
+        if (n.match(/^e260$/i))
+            return 'Essigsäure in reiner Form. Histaminfrei, kann bei empfindlichem Magen die Schleimhaut reizen.';
+        if (n.match(/^e261$/i))
+            return 'Kaliumacetat, Salz der Essigsäure. Histaminneutral.';
+        if (n.match(/^e262$/i))
+            return 'Natriumacetate, Säureregulator. Histaminfrei.';
+        if (n.match(/^e270$/i))
+            return 'Milchsäure, meist chemisch oder vegan hergestellt trotz des Namens. Histaminfrei.';
+        if (n.match(/^e290$/i))
+            return 'Kohlendioxid (Kohlensäure). Histaminneutral, kann durch Magenblähung unspezifische Beschwerden verursachen.';
+        if (n.match(/^e297$/i))
+            return 'Fumarsäure, Säureregulator. Histaminneutral.';
+        if (n.match(/^e306$|^e307$|^e308$|^e309$/i))
+            return 'Vitamin E in verschiedenen Formen (Tocopherol-Extrakt, Alpha-/Gamma-/Delta-Tocopherol). Histaminfrei, wirkt antioxidativ.';
+        if (n.match(/^e315$/i))
+            return 'Isoascorbinsäure, ein Isomer der Ascorbinsäure. Histaminneutral, gut verträglich.';
+        if (n.match(/^e316$/i))
+            return 'Natriumisoascorbat. Histaminneutral.';
+        if (n.match(/^e325$/i))
+            return 'Natriumlactat, Salz der Milchsäure. Trotz des Namens frei von Milcheiweiß und Histamin.';
+        if (n.match(/^e326$/i))
+            return 'Kaliumlactat, Säureregulator. Histaminneutral.';
+        if (n.match(/^e329$/i))
+            return 'Magnesiumlactat. Histaminfrei, liefert zusätzlich Magnesium.';
+        if (n.match(/^e331$/i))
+            return 'Natriumcitrate, Salze der Zitronensäure. Histaminfrei.';
+        if (n.match(/^e332$/i))
+            return 'Kaliumcitrate. Histaminfrei, blockiert die DAO nicht.';
+        if (n.match(/^e334$/i))
+            return 'Weinsäure. Kann laut manchen Quellen die DAO geringfügig beeinflussen — bei hoher Empfindlichkeit in Maßen genießen.';
+        if (n.match(/^e335$/i))
+            return 'Natriumtartrate, Salze der Weinsäure. Meist gut verträglich.';
+        if (n.match(/^e336$/i))
+            return 'Kaliumtartrate (Reinweinstein). Histaminarm, gute Backpulver-Alternative.';
+        if (n.match(/^e140$/i))
+            return 'Chlorophylle, natürlicher grüner Pflanzenfarbstoff. Histaminfrei.';
+        if (n.match(/^e1404$/i))
+            return 'Oxidierte Stärke, modifizierte Stärke. Histaminneutral.';
+        if (n.match(/^e141$/i))
+            return 'Kupferhaltige Komplexe der Chlorophylle. Histaminfrei wie Chlorophyll selbst.';
+        if (n.match(/^e1410$/i))
+            return 'Monostärkephosphat, modifizierte Stärke. Histaminfrei, sicheres Bindemittel.';
+        if (n.match(/^e1413$/i))
+            return 'Phosphatiertes Distärkephosphat, modifizierte Stärke. Histaminfrei.';
+        if (n.match(/^e1414$/i))
+            return 'Acetyliertes Distärkephosphat, modifizierte Stärke. Histaminneutrales Dickungsmittel.';
+        if (n.match(/^e142$/i))
+            return 'Grün S, künstlicher Farbstoff. Kann pseudoallergische Reaktionen begünstigen.';
+        if (n.match(/^e1420$/i))
+            return 'Acetylierte Stärke, modifizierte Stärke. Histaminfrei.';
+        if (n.match(/^e1422$/i))
+            return 'Acetyliertes Distärkeadipat, modifizierte Stärke. Histaminneutral.';
+        if (n.match(/^e1440$/i))
+            return 'Hydroxypropylstärke, modifizierte Stärke. Histaminfrei.';
+        if (n.match(/^e1442$/i))
+            return 'Hydroxypropyldistärkephosphat, modifizierte Stärke. Histaminneutral.';
+        if (n.match(/^e1450$/i))
+            return 'Stärkenatriumoctenylsuccinat, modifizierte Stärke. Histaminneutraler Stabilisator.';
+        if (n.match(/^e1451$/i))
+            return 'Acetylierte oxidierte Stärke, modifizierte Stärke. Histaminfrei.';
+        if (n.match(/^e1521$/i))
+            return 'Polyethylenglycol, Überzugsmittel. Histaminfrei, kann in großen Mengen die Darmbarriere beeinflussen.';
+        if (n.match(/^e153$/i))
+            return 'Pflanzenkohle, natürlicher Farbstoff. Wird nicht verdaut, histaminfrei.';
+        if (n.match(/^e160c$/i))
+            return 'Capsanthin/Capsorubin als reines Paprikapulver — anders als konzentrierter Paprikaextrakt (S2) hier S0.';
+        if (n.match(/^e160d$/i))
+            return 'Lycopin, roter Farbstoff aus Tomaten. Da Tomaten Liberatoren sind, kann das isolierte Lycopin theoretisch ebenfalls wirken — meist in geringer Dosierung aber unkritisch.';
+        if (n.match(/^e161b$/i))
+            return 'Lutein, natürlicher gelber Pflanzenfarbstoff. Histaminfrei.';
+        if (n.match(/^e171$/i))
+            return 'Titandioxid, Weißpigment. Histaminneutral, kann die Darmschleimhaut irritieren.';
+        if (n.match(/^e172$/i))
+            return 'Eisenoxide und Eisenhydroxide, mineralische Farbstoffe. Histaminfrei.';
+        if (n.match(/\bdextrin\b/i))
+            return 'Abbauprodukt von Stärke. Histaminfrei und gut verträglich.';
+        if (n.match(/\bdiacetylweinsäureester\b|\be472e\b/i))
+            return 'Emulgator (E472e). Histaminneutral.';
+        if (n.match(/\bdiatomeenerde\b|\bkieselgur\b/i))
+            return 'Mineralischer Zusatzstoff (Filterhilfsmittel). Histaminfrei.';
+        if (n.match(/\bdimethylpolysiloxan\b|\be900\b/i))
+            return 'Schaumverhütungsmittel (E900). Histaminneutral, wird vom Körper nicht aufgenommen.';
+        if (n.match(/\bdinatriumribonucleotide\b|\be635\b/i))
+            return 'Geschmacksverstärker (E635), wirkt ähnlich wie Glutamat als möglicher Mastzelltrigger.';
+        if (n.match(/\bdinkelsirup\b/i))
+            return 'Natürliches Süßungsmittel aus Dinkel. Histaminarm und gut verträglich.';
+        if (n.match(/^direktsaft$/i))
+            return 'Nicht aus Konzentrat hergestellter Saft. Die Verträglichkeit hängt komplett von der zugrundeliegenden Frucht ab — konkrete Fruchtsorte prüfen.';
+        if (n.match(/\bdistilöl\b/i))
+            return 'Wahrscheinlich Schreibvariante für Distelöl. Histaminfrei.';
+        if (n.match(/\bdistärkephosphat\b|\be1412\b/i))
+            return 'Modifizierte Stärke (E1412). Histaminneutral, dient als Bindemittel.';
+        if (n.match(/\bdonutpfirsich\b/i))
+            return 'Plattpfirsich. Histaminarm und säurearm wie normaler Pfirsich.';
+        if (n.match(/^dotter$/i))
+            return 'Eigelb. Histaminarm — im Gegensatz zum Eiklar (roh S2) deutlich besser verträglich.';
+        if (n.match(/\bdrachenfrucht\b|\bdragonfruit\b/i))
+            return 'Pitaya. Histaminarm und meist gut verträglich.';
+        if (n.match(/\bdurum\b/i))
+            return 'Hartweizen. Wie anderer Weizen histaminarm, kann bei Glutenempfindlichkeit unspezifische Beschwerden auslösen.';
+        if (n.match(/^e101$/i))
+            return 'Riboflavin (Vitamin B2). Histaminneutral.';
+        if (n.match(/^e101a$/i))
+            return 'Riboflavin-5-phosphat, eine Form von Vitamin B2. Histaminneutral.';
+        if (n.match(/^e1103$/i))
+            return 'Invertase, ein Enzym zur Zuckeraufspaltung. Wird oft aus Hefe gewonnen — bei Hefeempfindlichkeit vorsichtig.';
+        if (n.match(/^e1200$/i))
+            return 'Polydextrose, synthetischer Ballaststoff. Histaminfrei, in großen Mengen abführend.';
+        if (n.match(/^e1201$/i))
+            return 'Polyvinylpyrrolidon, ein Stabilisator. Histaminneutral.';
+        if (n.match(/^e1202$/i))
+            return 'Polyvinylpolypyrrolidon, technischer Klärungshilfsstoff. Histaminneutral.';
+        if (n.match(/\bcurcumin\b|\be100\b/i))
+            return 'Isolierter, aktiver Farbstoff aus Kurkuma (E100). Histaminneutral, wirkt entzündungshemmend.';
+        if (n.match(/\bcoconut\b(?!.*(?:vinegar|blossom))/i))
+            return 'Englisch für Kokosnuss. Histaminarm und in der Regel sehr gut verträglich.';
+        if (n.match(/\bcoconut blossom sugar\b|\bcoconut sugar\b/i))
+            return 'Kokosblütenzucker. Histaminfrei und eine gut verträgliche Alternative zu herkömmlichem Zucker.';
+        if (n.match(/\bcoconut flour\b/i))
+            return 'Kokosmehl. Histaminarm, glutenfrei und gut für die histaminarme Küche geeignet.';
+        if (n.match(/\bcollagen\b/i))
+            return 'Kollagenpulver. Histaminfrei, sofern es ein reines Produkt ohne künstliche Zusätze ist.';
+        if (n.match(/\bconvenience-?soße\b/i))
+            return 'Fertigsoßen enthalten häufig Geschmacksverstärker, Hefeextrakt oder Tomaten — dadurch meist deutlich histaminreicher als selbst zubereitete Soßen.';
+        if (n.match(/\bcoregone\b/i))
+            return 'Speisefisch (Felchen/Renke). Wie bei jedem Fisch: nur fangfrisch oder direkt schockgefroren histaminarm.';
+        if (n.match(/\bcoriander\b/i))
+            return 'Englisch für Koriander. Als frisches Kraut oder Samen histaminarm und meist gut verträglich.';
+        if (n.match(/^corn$/i))
+            return 'Englisch für Mais. Histaminarm. Mais aus der Dose vor dem Verzehr abspülen, frisch oder TK ist am besten.';
+        if (n.match(/\bcorn oil\b/i))
+            return 'Maiskeimöl. Histaminfrei und eine gut verträgliche pflanzliche Fettquelle.';
+        if (n.match(/\bcorn starch\b/i))
+            return 'Maisstärke. Reines Kohlenhydrat, histaminfrei und als Bindemittel geeignet.';
+        if (n.match(/\bcornflakes\b/i))
+            return 'Reine Cornflakes (nur Mais, Salz/Zucker) sind histaminarm. Produkte mit Malzextrakt oder Zusätzen meiden.';
+        if (n.match(/\bcourgette\b/i))
+            return 'Britisches Englisch für Zucchini. Histaminarm und gut verträglich.';
+        if (n.match(/\bcream\b(?!.*cheese)/i))
+            return 'Englisch für süße Sahne. Unfermentiert und histaminarm.';
+        if (n.match(/\bcream cheese\b/i))
+            return 'Englisch für Frischkäse. Unfermentiert und histaminarm — auf Frische und zusatzfreie Varianten achten.';
+        if (n.match(/\bcream of tartar\b/i))
+            return 'Reinweinstein. Histaminfreie Alternative zu herkömmlichem Backpulver.';
+        if (n.match(/\bcrêpe\b|\bcrepe\b/i))
+            return 'Dünner Pfannkuchen aus Mehl, Milch und Ei. Frisch zubereitet und direkt gebacken meist gut verträglich.';
+        if (n.match(/\bcucumber\b/i))
+            return 'Englisch für Salatgurke. Histaminarm, wasserreich und darmfreundlich.';
+        if (n.match(/\bcurcuma\b/i))
+            return 'Kurkuma. Histaminarm, wirkt entzündungshemmend und gilt als gut verträgliches Gewürz.';
+        if (n.match(/\bcurryblätter\b/i))
+            return 'Gewürz der indischen Küche. Kann empfindliche Darmschleimhäute reizen — anfangs vorsichtig dosieren.';
+        if (n.match(/\bcyanocobalamin\b/i))
+            return 'Synthetische Form von Vitamin B12. Histaminneutral und sicher als Nahrungsergänzung.';
+        if (n.match(/\bdattelkaki\b/i))
+            return 'Auch bekannt als Kaki, Persimone oder Sharonfrucht. Histaminarm und säurearm.';
+        if (n.match(/\bbutterkekse\b/i))
+            return 'Enthalten meist Weizenmehl, Zucker und Butter — histaminarm, auf künstliche Aromen/Zusatzstoffe im Fertigprodukt achten.';
+        if (n.match(/\bbutternusskürbis\b/i))
+            return 'Kürbissorte, histaminarm und nährstoffreich — in jeder Phase der Ernährungsumstellung sicher.';
+        if (n.match(/\bbutterschmalz\b/i))
+            return 'Ghee bzw. geklärte Butter. Histaminfrei, hocherhitzbar und eine der sichersten Fettquellen.';
+        if (n.match(/\bcaesar\s*salat\b/i))
+            return 'Enthält meist gereiften Parmesan, Sardellen und Zitronensaft im Dressing — die Kombination macht den Salat histaminreicher als reine Blattsalate.';
+        if (n.match(/\bcalciumacetat\b|\be263\b/i))
+            return 'Säureregulator (E263). Histaminneutral und gut verträglich.';
+        if (n.match(/\bcalciumaluminiumsilicat\b|\be556\b/i))
+            return 'Trennmittel (E556), technischer Hilfsstoff. Histaminfrei.';
+        if (n.match(/\bcalciumascorbat\b/i))
+            return 'Gepuffertes Vitamin C (E302). Säurearm und kann den Histaminabbau als DAO-Cofaktor unterstützen.';
+        if (n.match(/\bcalciumcarbonat\b|\be170\b/i))
+            return 'Natürlicher Farbstoff und Säureregulator (E170). Histaminfrei.';
+        if (n.match(/\bcalciumchlorid\b|\be509\b/i))
+            return 'Festigungsmittel (E509). Histaminneutral.';
+        if (n.match(/\bcalciumcitrate?\b|\be333\b/i))
+            return 'Säureregulator aus Zitronensäure (E333). Histaminfrei, bei ausgeprägter Zitronensäure-Empfindlichkeit mit Vorsicht.';
+        if (n.match(/\bcalciumdinatrium-?edta\b|\be385\b/i))
+            return 'Antioxidationsmittel (E385). Kann die Durchlässigkeit der Darmschleimhaut beeinflussen — in der Karenzphase vorsichtshalber meiden.';
+        if (n.match(/\bcalciumferrocyanid\b|\be538\b/i))
+            return 'Trennmittel für Kochsalz (E538). Rein chemischer, histaminneutraler Zusatz.';
+        if (n.match(/\bcalciumgluconat\b|\be578\b/i))
+            return 'Stabilisator und Säureregulator (E578). Histaminfrei.';
+        if (n.match(/\bcalciumhydroxid\b|\be526\b/i))
+            return 'Säureregulator (E526). Histaminneutral.';
+        if (n.match(/\bcalciumkaseinat\b/i))
+            return 'Milchprotein (Kasein). Histaminarm, kann bei Milcheiweißunverträglichkeit den Darm belasten.';
+        if (n.match(/\bcalciumlactat\b|\be327\b/i))
+            return 'Säureregulator (E327). Trotz des Namens frei von Milchprotein und Histamin.';
+        if (n.match(/\bcalciummalat\b|\be352\b/i))
+            return 'Säureregulator aus Apfelsäure (E352). Histaminneutral und darmfreundlich.';
+        if (n.match(/\bcalciumsilicat\b|\be552\b/i))
+            return 'Trennmittel (E552). Wird vom Körper nicht aufgenommen, histaminneutral.';
+        if (n.match(/\bcalciumstearoyl-?2-?lactylat\b|\be482\b/i))
+            return 'Emulgator (E482). Histaminfrei.';
+        if (n.match(/\bcalciumsulfat\b|\be516\b/i))
+            return 'Festigungsmittel (E516). Frei von Histamin und biogenen Aminen.';
+        if (n.match(/\bcamu[\s-]?camu\b/i))
+            return 'Tropische Frucht mit sehr hohem Vitamin-C-Gehalt. Kann den Histaminabbau unterstützen. Als Pulver auf Zusatzfreiheit achten.';
         if (n.match(/\bpolydextrose\b/i))
             return 'Synthetischer löslicher Ballaststoff (E1200), chemisch verschieden von Stärke oder Traubenzucker trotz ähnlichem Namen. Histaminfrei, in großen Mengen abführend wirkend.';
         if (n.match(/\bmaca\b/i))
