@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.15<br>
+                Histaminscanner v12.29<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1784,6 +1784,7 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'säuerungsmittel',  // S0 Kategorie-Label, konkrete Säure oft in Klammern — siehe Hint-Text-Warnung
         'xantangummi','xanthan',  // S0 SIGHI (Kategorie-Registrierung, siehe auch SIGHI_DB[0])
         'aufstrich','braten',  // S0 — Nachtrag (generische, aber übliche Bezeichnungen)
         'borretsch',  // S0-1 — gilt als histaminarmer Spinat-Ersatz (Batch4-Check korrigiert)
@@ -3945,15 +3946,34 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         .map(p => p.trim().replace(/[.!?]+$/, ''))  // trailing punct
         .filter(p => p.length > 1);
 
+    const usedRawParts = new Set();
+    // Vorab-Reservierung: JEDES normierte Token (auch triviale wie e300/Wasser) reserviert
+    // seinen exakten Roh-Text-Treffer, damit dieser nicht später fälschlich einem anderen,
+    // generischen Token (z.B. 'vitamine') als Ursprung zugeordnet wird.
+    for (const normToken of normalizedTokens) {
+        for (const raw of rawParts) {
+            if (usedRawParts.has(raw)) continue;
+            const rawLowerExact = raw.toLowerCase().replace(/\s*\d+[,.]?\d*\s*%\s*/g, '').replace(/\s+/g, ' ').trim();
+            if (rawLowerExact === normToken) { usedRawParts.add(raw); break; }
+        }
+    }
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
         // Triviale Zutaten brauchen keinen Original-Label
-        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose|glutamat|glutaminsäure|e621|e620|petersilie|kräuter|gewürzkräuter|chiliöl|chilisamenöl|chiliesamenöl|weißtee|gouda jung|e412|e410|e440|e322|e471|chili|chiliöl|maisstärke|tapiokastärke|stärke|weizenstärke|kartoffelstärke|pfeilwurzelstärke|sorbit|soja|teilweise|gehärtet|omega|in wasser|in öl|mariniert|konzentriert|getrocknet|frisch|gekocht|kaltgepresst|extra vergine|selbstgemacht|mit hefeextrakt|mit kräutern|mit gewürzen|mono-|fettarmes?|kakaohaltige[rs]?|crispies?)$/i;  // zucker+mehl raus für bessere Labels
+        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose|glutamat|glutaminsäure|e621|e620|petersilie|kräuter|gewürzkräuter|chiliöl|chilisamenöl|chiliesamenöl|weißtee|gouda jung|e412|e410|e440|e322|e471|chili|chiliöl|maisstärke|tapiokastärke|stärke|weizenstärke|kartoffelstärke|pfeilwurzelstärke|sorbit|soja|teilweise|gehärtet|omega|in wasser|in öl|mariniert|konzentriert|getrocknet|frisch|gekocht|kaltgepresst|extra vergine|selbstgemacht|mit hefeextrakt|mit kräutern|mit gewürzen|mono-|fettarmes?|kakaohaltige[rs]?|crispies?|vitamine)$/i;  // zucker+mehl raus für bessere Labels; vitamine = Sammelbucket, keine Einzel-Zuordnung
         if (TRIVIAL.test(normToken)) continue;
+        // Erst prüfen ob dieses Token einen HOCH sicheren Exakt-Treffer unter den noch freien rawParts hat.
+        // Falls ja, wird dieser sofort reserviert, damit er später keinem anderen Token zugeordnet wird.
+        for (const raw of rawParts) {
+            if (usedRawParts.has(raw)) continue;
+            const rawLowerExact = raw.toLowerCase().replace(/\s*\d+[,.]?\d*\s*%\s*/g, '').replace(/\s+/g, ' ').trim();
+            if (rawLowerExact === normToken) { usedRawParts.add(raw); break; }
+        }
         let bestOriginal = null;
         let bestScore = 0;
 
         for (const raw of rawParts) {
+            if (usedRawParts.has(raw)) continue;  // Bereits einem anderen Token zugeordnet — nicht erneut verwenden
             const rawLower = raw.toLowerCase()
                 .replace(/\s*\d+[,.]?\d*\s*%\s*/g, '')
                 .replace(/\s+/g, ' ').trim();
@@ -3986,6 +4006,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
 
         // Original-Name nur speichern wenn wirklich anders als normierter Name
         if (bestOriginal && bestOriginal.toLowerCase().trim() !== normToken) {
+            usedRawParts.add(bestOriginal);
             const origLower = bestOriginal.toLowerCase().trim();
             const lengthRatio = origLower.length / normToken.length;
             if (lengthRatio > 1.3 || !origLower.includes(normToken)) {
@@ -4197,14 +4218,30 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.15');
+    dbg('VERSION: v12.29');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
+    // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
+    // obwohl das gleichwertige Alias 'Vitamin H' korrekt funktioniert. Früh ersetzen, um das Problem zu umgehen.
+    inputText = inputText.replace(/\bbiotin\b/gi, 'Vitamin H');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
     // Aufzählungszeichen/Bullet-Trenner als Komma behandeln — kopierte Webseiten-Listen
     // nutzen oft "·", "•", "‣", "▪", "○", "●" statt Kommas als Trennzeichen zwischen Zutaten.
     inputText = inputText.replace(/\s*[·•‣▪○●∙⋅]\s*/g, ', ');
+    // Hochgestellte Fußnoten-Ziffern (¹²³⁴⁵⁶⁷⁸⁹⁰) gefolgt von Leerzeichen+Wort:
+    // oft fehlt hier im Original ein Komma zwischen zwei Zutaten ("Petersilie² Pfeffer" → zwei Zutaten!)
+    inputText = inputText.replace(/([¹²³⁴⁵⁶⁷⁸⁹⁰]+)\s+(?=[A-ZÄÖÜ])/g, '$1, ');
+    // Reine Fußnoten-Ziffern ohne Trennfunktion (am Wortende vor Komma/Punkt) einfach entfernen
+    inputText = inputText.replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]+/g, '');
+    // Fehlendes Komma zwischen zwei Zutaten erkennen: Wort endet auf -extrakt/-mittel/-pulver/-konzentrat,
+    // direkt gefolgt von einem weiteren großgeschriebenen Wort ohne Komma dazwischen.
+    // Häufiger Fehler in echten Zutatenlisten: "Rindfleischextrakt Kartoffelstärke" oder
+    // "Säuerungsmittel Citronensäure" sind ZWEI separate Zutaten, kein zusammengesetzter Name!
+    inputText = inputText.replace(/\b(\w*(?:extrakt|mittel|konzentrat))\s+(?=[A-ZÄÖÜ]\w)/g, '$1, ');
+    // Ergänzend die umgekehrte Richtung: vollständiges Wort direkt gefolgt von einem
+    // Kategorie-Wort (-mittel/-extrakt/-konzentrat) ohne Komma dazwischen, z.B. "Maltodextrin Sauerungsmittel".
+    inputText = inputText.replace(/([a-zäöüß]{4,})\s+(?=[A-ZÄÖÜ]\w*(?:mittel|extrakt|konzentrat)\b)/g, '$1, ');
     // E-Nummern-Schreibweisen vereinheitlichen: "E-250", "E 412", "E.250" → "E250"
     inputText = inputText.replace(/\bE[\s.-]+(\d{3,4}[a-d]?)\b/gi, 'E$1');
     // Produktname-Überschrift vor "mit X% Zutat :" entfernen (OpenFoodFacts-Artefakt):
@@ -4260,7 +4297,7 @@ function parseIngredients(inputText) {
         (m, pre, inner) => {
             if ((pre+inner).toLowerCase().includes("curry") || (pre+inner).toLowerCase().includes("pfeffer") || (pre+inner).toLowerCase().includes("habanero")) { if(window._histDebug) { const _m = "[HIT] LIB_BRACKET: "+JSON.stringify(pre.slice(0,50))+" INNER: "+JSON.stringify(inner.slice(0,50)); console.log(_m); window._hlog(_m); } }
             // Wenn alle Komma-Teile reine Deskriptoren sind → pre behalten, inner verwerfen
-            const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut(?:e[mnrs]?)?|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei|laktosefrei|vegan|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w|selbst(?:gemacht|gekocht|zubereitet)e?r?s?|hausgemacht|in\\s+wasser|in\\s+öl|in\\s+eigenem\\s+saft|in\\s+lake|mit\\s+hefeextrakt|mit\\s+kräutern|unverarbeitet|hefefrei+)\b/i;
+            const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut(?:e[mnrs]?)?|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei|laktosefrei|vegan|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w|selbst(?:gemacht|gekocht|zubereitet)e?r?s?|hausgemacht|in\\s+wasser|in\\s+öl|in\\s+eigenem\\s+saft|in\\s+lake|mit\\s+hefeextrakt|mit\\s+kräutern|unverarbeitet|hefefrei+)\b/i;
             const parts = inner.split(',').map(p => p.trim());
             if (parts.every(p => DESCRIPTOR_WORDS.test(p))) return pre.trim();
             // Bekannte Compound-Produkte: Namen behalten + Sub-Zutaten expandieren
@@ -4278,7 +4315,7 @@ function parseIngredients(inputText) {
     const liberateSingleBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%*]{3,})\s*[*]?\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s-]{2,60})\)/gi,
         (m, pre, inner) => {
-            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|fresh|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
+            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|fresh|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
             // Lecithin-Quelle: 'Lecithine (Sonnenblume)' → e322
             if (/lecithin/i.test(pre.trim()) && /^(?:sonnenblume|soja|raps|sonnenblumen|sunflower)$/i.test(inner.trim())) return 'e322';
             // Emulgator mit Lecithin-Quelle: 'Emulgator (Lecithine' + '(Sonnenblume)' 
@@ -4329,6 +4366,7 @@ function parseIngredients(inputText) {
     let text = inputText;
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
+        [/\bgemüsemais\b/gi, 'mais'],
         [/\bcitric\s*acid\b/gi, 'zitronensäure'],
         [/\bcolagetr‰nke\b/gi, 'colagetränke'],
         [/\brote-bete\b/gi, 'rote bete'],
@@ -6105,7 +6143,7 @@ function parseIngredients(inputText) {
         [/pflanzliches?\s*fett/gi,       'pflanzenöl'],
         [/pflanzliche?\s*öle?/gi,        'pflanzenöl'],
         // Stärke-Varianten (alle safe)
-        [/modifizierte?\s*stärke/gi,     'stärke'],  // generic ok
+        [/modifi?zierte?\s*stärke/gi,     'stärke'],  // generic ok; 'i' optional für Tippfehler "modifzierte"
         [/kartoffelstärke\b/gi,          'kartoffelstärke'],
         // [/maisstärke/gi, 'stärke'],  // DEAKTIVIERT,
         [/weizenstärke/gi,               'weizenstärke'],
@@ -6727,7 +6765,7 @@ function parseIngredients(inputText) {
         [/\bextrakt\s+(?:von|aus)\s+rosmarin\b|\brosmarinpflanzen?extrakt\b/gi, 'kräuter'], // "Extrakt von Rosmarin" → safe
         [/\bgemüsemischung\b|\bgemüsepulver\b/gi, 'gemüse'],
         // ── Öle ──
-        [/\bsojaöl\b/gi, 'pflanzenöl'],
+        // sojaöl behält eigene Identität (S1 SIGHI) — siehe eigene Registrierung + Hint-Text
         [/\bzitronenöl\b/gi, 'zitronenschale'],  // = ätherisches Öl aus Zitronenschale
         [/\blimettenschale\b|\bkaffirlimette\w*\b/gi, 'limette'],
         // ── Würzmittel ──
@@ -7672,7 +7710,7 @@ function parseIngredients(inputText) {
     const SECTION_RE = /^(für\s+die|für\s+den|für\s+das|außerdem|zubehör|dazu|beilage|füllung|marinade|dressing|topping|garnitur|teig|glasur|dekoration|zum\s+servieren|zum\s+garnieren|zum\s+bestreuen|zum\s+bestreichen|außen|innen|basis|zutaten\s+für|frucht-?\s*und\s+pflanz\w+|frucht\s*-\s*und\s+pflanz)/i;
 
     // ── Descriptor-Adjektive entfernen ──────────────────────
-    const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält(?:e[mnrs]?)?|gehackt(?:e[mnrs]?)?|gewürfelt(?:e[mnrs]?)?|gerieben(?:e[mnrs]?)?|geröstet(?:e[mnrs]?)?|geschmolzen(?:e[mnrs]?)?|tiefgekühlt(?:e[mnrs]?)?|tiefgefroren(?:e[mnrs]?)?|gestreift(?:e[mnrs]?)?|gegrillt(?:e[mnrs]?)?|gebacken(?:e[mnrs]?)?|pasteurisiert(?:e[mnrs]?)?|homogenisiert(?:e[mnrs]?)?|modifiziert(?:e[mnrs]?)?|gehärtet(?:e[mnrs]?)?|gekörnt(?:e[mnrs]?)?|gegart(?:e[mnrs]?)?|geraspelt(?:e[mnrs]?)?|gefüllt(?:e[mnrs]?)?|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|aufgetaut(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|fettarm(?:e[mnrs]?)?|feinherb(?:e[mnrs]?)?|vollkorn-?|frische?[rns]?(?!\w)|weich(?:e[mnrs]?)?|hart(?:e[mnrs]?)?|mittlere[rs]?|groß(?:e[mnrs]?)?|klein(?:e[mnrs]?)?|roh(?!schinken)(?:e[mnrs]?)?|gekocht(?:e[mnrs]?)?|kalt(?:e[mnrs]?)?|lauwarm(?:e[mnrs]?)?|doppelt(?:e[mnrs]?)?|würzig(?:e[mnrs]?)?|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf(?:e[mnrs]?)?|milden?|warm(?:e[mnrs]?)?|edelsüß(?:e[mnrs]?)?|trocken(?:e[mnrs]?)?|stückig(?:e[mnrs]?)?|zart(?:e[mnrs]?)?|pflanzliche[rs]?|natürliche[rs]?|fein(?:e[mnrs]?)?|grob(?:e[mnrs]?)?|dünn(?:e[mnrs]?)?|dick(?:e[mnrs]?)?|bio|tk|naturell|natur|pure?[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut(?:e[mnrs]?)?|kräftig(?:e[mnrs]?)?|daumengroß(?:e[mnrs]?)?|eingeweicht(?:e[mnrs]?)?|alternative[rs]?|braun(?:e[mnrs]?)?|gemahlen(?:e[mnrs]?)?|halb(?:e[mnrs]?)?|voll(?:e[mnrs]?)?|hell(?:e[mnrs]?)?)\b/gi;
+    const DESCRIPTOR_RE = /\b(gemischtes?|gemischten?|geschält(?:e[mnrs]?)?|gehackt(?:e[mnrs]?)?|gewürfelt(?:e[mnrs]?)?|gerieben(?:e[mnrs]?)?|geröstet(?:e[mnrs]?)?|geschmolzen(?:e[mnrs]?)?|tiefgekühlt(?:e[mnrs]?)?|tiefgefroren(?:e[mnrs]?)?|hitzebehandelt(?:e[mnrs]?)?|gestreift(?:e[mnrs]?)?|gegrillt(?:e[mnrs]?)?|gebacken(?:e[mnrs]?)?|pasteurisiert(?:e[mnrs]?)?|homogenisiert(?:e[mnrs]?)?|modifiziert(?:e[mnrs]?)?|gehärtet(?:e[mnrs]?)?|gekörnt(?:e[mnrs]?)?|gegart(?:e[mnrs]?)?|geraspelt(?:e[mnrs]?)?|gefüllt(?:e[mnrs]?)?|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|aufgetaut(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|fettarm(?:e[mnrs]?)?|feinherb(?:e[mnrs]?)?|vollkorn-?|frische?[rns]?(?!\w)|weich(?:e[mnrs]?)?|hart(?:e[mnrs]?)?|mittlere[rs]?|groß(?:e[mnrs]?)?|klein(?:e[mnrs]?)?|roh(?!schinken)(?:e[mnrs]?)?|gekocht(?:e[mnrs]?)?|kalt(?:e[mnrs]?)?|lauwarm(?:e[mnrs]?)?|doppelt(?:e[mnrs]?)?|würzig(?:e[mnrs]?)?|\brote[rs]?\b|\bgrüne[rs]?\b|\bgelbe[rs]?\b|\bweiße[rs]?\b|\bschwarze[rs]?\b|braune[rs]?|dunkle[rs]?|helle[rs]?|scharfe[rs]?|mittelscharfer?|scharf(?:e[mnrs]?)?|milden?|warm(?:e[mnrs]?)?|edelsüß(?:e[mnrs]?)?|trocken(?:e[mnrs]?)?|stückig(?:e[mnrs]?)?|zart(?:e[mnrs]?)?|pflanzliche[rs]?|natürliche[rs]?|fein(?:e[mnrs]?)?|grob(?:e[mnrs]?)?|dünn(?:e[mnrs]?)?|dick(?:e[mnrs]?)?|bio|tk|naturell|natur|pure?[rs]?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut(?:e[mnrs]?)?|kräftig(?:e[mnrs]?)?|daumengroß(?:e[mnrs]?)?|eingeweicht(?:e[mnrs]?)?|alternative[rs]?|braun(?:e[mnrs]?)?|gemahlen(?:e[mnrs]?)?|halb(?:e[mnrs]?)?|voll(?:e[mnrs]?)?|hell(?:e[mnrs]?)?)\b/gi;
 
     // ── Füllzeilen komplett überspringen ────────────────────
     const SKIP_LINE_RE = /^(etwas|n\.?\s*b\.?|nach\s+bedarf|nach\s+belieben|nach\s+geschmack|nach\s+wunsch|ggf\.?|optional|evtl\.?|zum\s+\w+en?|für\s+die\s+form|fett\s+für|öl\s+zum|butter\s+zum|mehl\s+zum|außerdem:|zubehör:|tipp:|hinweis:|variante:|viel|einige|wenige?|reichlich|sahnesteif|gelierfix|emulgatoren?|vitaminmischung|färbende\s*lebensmittel|stabilisatoren?|konservierungsmittel|verdickungsmittel|säuerungsmittel|farbstoffe?|vitamin\w*mischung|backtriebmittel|weißmischung|oberflächenbehandlungsmittel|glutenfrei\.?|mindestens\.?|laktosefrei\.?|vegan\.?|bio\.?|\*zertifiziert\w*.*|zertifiziert\w*\s+\w+|tortengu(?:ß|ss)|für\s+die\s+sauce|für\s+den\s+(?:belag|teig|rührteig)|für\s+die\s+(?:füllung|glasur)|enthält\s*:.*|kann\s+spuren\s+von.*|spuren\s+von\s*:?.*|was\s+du\s+zu\s+hause.*|was\s+ihr\s+zu\s+hause.*|zutaten\s+für.*|du\s+brauchst.*|außerdem\s+benötigst.*|immer\s+dabei.*|immer\s+im\s+haus.*|vorratszutaten.*|grundzutaten.*|\(enthält.*|\(kann\s+spuren.*|bei\s+[+\-]?\s*\d+\s*°|lagern\s+bei|kühl\s+und|dunkel\s+und\s+kühl|\d+\s*°\s*c\s*bis|\d+\s*°\s*c|\.\s*kann\s+.+)$/i;
@@ -7906,7 +7944,7 @@ function parseIngredients(inputText) {
         p = p.replace(/^\d+\w*$/, '').trim();  // reine Zahlen/Zahl+Einheit verwerfen
         p = p.replace(/^type$/i, '').trim();  // 'Type' allein verwerfen
         // Reine Deskriptoren als Token verwerfen
-        if (/^(?:ultrahocherhitzt|uht|granuliert|fraktioniert|pasteurisiert|homogenisiert|blanchiert|type|glutenfrei|laktosefrei|konzentriert|dreifach|zweifach|gehackt|frisch|getrocknet|gemahlen|zart|edelsüß|kaltgepresst|gepökelt|geräuchert|geschält|stückig|gelb|weiß|braun|grün|rot|blau|schwarz|hell|dunkel|mild|scharf|nativ|extra|vergine|bio|vegan|naturell|natur|doppelrahmstufe|zartbitter|halbbitter|naturtrüb|gefriergetrocknet|luftgetrocknet|sonnengetrocknet|vakuumverpackt|kaltgepresst|raffiniert|unfiltriert|geschwefelt|ungeschwefelt|säuerungsmittel|säurungsmittel)$/i.test(p.trim())) return '';
+        if (/^(?:ultrahocherhitzt|uht|granuliert|fraktioniert|pasteurisiert|hitzebehandelt|homogenisiert|blanchiert|type|glutenfrei|laktosefrei|konzentriert|dreifach|zweifach|gehackt|frisch|getrocknet|gemahlen|zart|edelsüß|kaltgepresst|gepökelt|geräuchert|geschält|stückig|gelb|weiß|braun|grün|rot|blau|schwarz|hell|dunkel|mild|scharf|nativ|extra|vergine|bio|vegan|naturell|natur|doppelrahmstufe|zartbitter|halbbitter|naturtrüb|gefriergetrocknet|luftgetrocknet|sonnengetrocknet|vakuumverpackt|kaltgepresst|raffiniert|unfiltriert|geschwefelt|ungeschwefelt|säuerungsmittel|säurungsmittel)$/i.test(p.trim())) return '';
         p = p.replace(/\b(?:d\.?o\.?p\.?|g\.?u\.?|a\.?o\.?p\.?)\b\.?/gi, '').trim();  // D.O.P./g.U. Herkunftssiegel
         p = p.replace(/\bparmigiano\s+reggiano\b/gi, 'parmesan');  // früh normalisieren
         p = p.replace(/\blecithine?\s+(?:sonnenblume|soja|raps|sonnenblumen)\b/gi, 'e322');
@@ -7947,6 +7985,9 @@ function parseIngredients(inputText) {
             // Zusammengesetzte Komponenten-Überschrift vor Doppelpunkt: "Wildpreiselbeer-Dip:", "Vanille-Sauce:" etc.
             // (Wort-Dip/-Sauce/-Soße/-Creme/-Topping/-Dressing/-Glasur am Satzanfang oder nach Punkt, gefolgt von Doppelpunkt)
             clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+-(?:dip|sauce|soße|creme|crème|topping|dressing|glasur|marinade)\s*:\s*/gi, '$1');
+            // Zusammengesetzte Komponenten-Überschrift ohne Bindestrich, auch mit Prozentangabe in Klammern davor:
+            // "Weizenkleingebäck:", "Knoblauch-Butterzubereitung (20 %):" etc.
+            clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+(?:zubereitung|gebäck|gebäckstücke|mischung|masse|brät|teig|paste|creme|süßware)(?:\s*\(\s*\d+([.,]\d+)?\s*%\s*\))?\s*:\s*/gi, '$1');
 
             // "Hühnerbrühe : Wasser" (Leerzeichen vor Doppelpunkt = Zutat-Aufschlüsselung, keine Kategorie)
             // → Komma, damit beide Seiten als eigene Tokens erhalten bleiben
@@ -8021,6 +8062,8 @@ function parseIngredients(inputText) {
             // Länderkürzel-Tokens filtern: "(CH : Vollmilch, Rahm)" → CH-Präfix wird nach Komma-Split als Token isoliert
             // Entfernt 2-3-Buchstaben-Großbuchstaben-Tokens (ISO-3166 Länderkürzel) gefolgt von Doppelpunkt
             clean = clean.replace(/\b[A-Z]{2,3}\s*:\s*/g, '');
+            // Ausgeschriebene Ländernamen als Namensvarianten-Präfix: "Österreich: Weingeistessig" → nur "Weingeistessig"
+            clean = clean.replace(/(?:^|[,;.]\s*)(?:Österreich|Deutschland|Schweiz|Italien|Frankreich|Belgien|Niederlande|Polen)\s*:\s*/gi, ', ');
 
             // Auf Kommas splitten
             let parts = clean.split(',');
@@ -8031,7 +8074,7 @@ function parseIngredients(inputText) {
                 // Alle anderen bekannten (nicht-signifikanten) Deskriptor-Wörter ebenfalls anhängen,
                 // statt als eigenen kaputten Pseudo-Eintrag stehen zu lassen (z.B. "Kakao, pur" → "Kakao pur",
                 // DESCRIPTOR_RE entfernt "pur" später sauber im Kontext statt es isoliert zu belassen).
-                const KNOWN_NONSIGNIFICANT_QUALIFIER = /^\s*(?:gemischt|geschält|gehackt|gewürfelt|gerieben|geröstet|geschmolzen|tiefgekühlt|tiefgefroren|gestreift|gegrillt|gebacken|pasteurisiert|homogenisiert|modifiziert|gehärtet|gekörnt|gegart|geraspelt|gefüllt|getrennt|gewaschen|aufgetaut|abgezogen|fettarm|feinherb|vollkorn|frisch|weich|hart|mittlere?|groß|klein|roh|gekocht|kalt|lauwarm|doppelt|rote?|grüne?|gelbe?|weiße?|schwarze?|braune?|dunkle?|helle?|scharfe?|mittelscharf|mild|warm|edelsüß|trocken|stückig|zart|pflanzlich|natürlich|fein|grob|dünn|dick|bio|tk|naturell|natur|pure?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|hell)e?[mnrs]?\s*$/i;
+                const KNOWN_NONSIGNIFICANT_QUALIFIER = /^\s*(?:gemischt|geschält|gehackt|gewürfelt|gerieben|geröstet|geschmolzen|tiefgekühlt|tiefgefroren|hitzebehandelt|gestreift|gegrillt|gebacken|pasteurisiert|homogenisiert|modifiziert|gehärtet|gekörnt|gegart|geraspelt|gefüllt|getrennt|gewaschen|aufgetaut|abgezogen|fettarm|feinherb|vollkorn|frisch|weich|hart|mittlere?|groß|klein|roh|gekocht|kalt|lauwarm|doppelt|rote?|grüne?|gelbe?|weiße?|schwarze?|braune?|dunkle?|helle?|scharfe?|mittelscharf|mild|warm|edelsüß|trocken|stückig|zart|pflanzlich|natürlich|fein|grob|dünn|dick|bio|tk|naturell|natur|pure?|sehr|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|hell)e?[mnrs]?\s*$/i;
                 const mergedParts = [];
                 for (const p of parts) {
                     if ((SIGNIFICANT_QUALIFIER.test(p) || KNOWN_NONSIGNIFICANT_QUALIFIER.test(p)) && mergedParts.length > 0) {
@@ -8435,7 +8478,7 @@ function classifyIngredient(name) {
     n = n.replace(/\b(?:stücke?(?:chen)?|püree|pulver(?!.*milch)|scheiben|flocken|raspel|körner|samen|kerne?n?)\b/gi, '').trim();
     // Strip 'extrakt/konzentrat/auszug/saft' ONLY when not forming a compound with a different ingredient type
     // e.g. hefeextrakt→hefe(wrong!), tomatenextrakt→tomate(ok), apfelextrakt→apfel(ok)
-    if (!n.match(/^(?:hefe|malz|rogen|fisch|fleisch|knochen|paprika|rauch|wasabi)extrakt/i)) {
+    if (!n.match(/^(?:hefe|malz|rogen|\w*fisch|\w*fleisch|geflügel|knochen|paprika|rauch|wasabi)extrakt/i)) {
         n = n.replace(/(?:saft|extrakt|konzentrat|auszug)\b/gi, '').trim();
     }
     n = n.replace(/\b(?:apfel|dattel|birn|erdbe?er|blaubee?r|cranberry|himbe?er|mandel|kokos|hafer|quinoa)(stücke?|pulver|püree|chips|flocken|raspel|mehl|öl|milch)?\b/gi,
@@ -8790,6 +8833,7 @@ const SIGHI_DB = {
     ],
 
     2: [
+        'sonnenblumenöl','sunflower oil','sonnenblumenfett',  // S2 L SIGHI — von S0-Liste entfernt, hier korrekt registriert
         'milder cheddar','mild cheddar',  // S2 — Batch-Check: deutlich weniger Histamin als gereifter Cheddar, aber nicht sicher
         'buchweizen','buchweizenmehl','buckwheat',  // S2 — Batch1-Check: Token normalisiert zu buchweizenmehl
         'alkoholfreies bier','bier alkoholfrei','non-alcoholic beer','alcohol-free beer',  // S2 — Batch1-Check: Histamin vergleichbar untergärigem Bier trotz Alkoholentfernung
@@ -8916,6 +8960,8 @@ const SIGHI_DB = {
         'nicht-ionische kontrastmittel',
     ],
     1: [
+        'sojaöl','soybean oil',  // S1 SIGHI (nicht S2) — Registrierung nachgeholt
+        'e150b','e150c','e150d',  // enthalten Sulfit/Ammoniak — stärker als E150a, siehe Hint-Texte
         'fischstäbchen','fischburger',  // S1 — Batch-Check: Panade+Verarbeitung, nicht wie frisches Fischfilet (S0)
         'sonnenblumenprotein','sunflower protein',  // S1 L (Präventiv-Scan: Hint sagte S1, Badge fehlte)
         'koriander','koriandersamen',  // S1 L (Präventiv-Scan: Hint sagte S1, Badge fehlte)
@@ -9108,7 +9154,7 @@ const SIGHI_DB = {
         'camu camu','camu-camu',
 
         // ── Sicher: Fette & Öle ──
-        'rapsöl','olivenöl','sonnenblumenöl','kokosöl','palmöl','palmkernöl',
+        'rapsöl','olivenöl','kokosöl','palmöl','palmkernöl',  // sonnenblumenöl siehe S2-Liberator-Registrierung
         'butterschmalz','butterfett',
         // Vitamine (E300-309): sicher
         'ascorbinsäure','e300','natriumascorbat','e301','calciumascorbat','e302','e304',
@@ -9164,7 +9210,7 @@ const SIGHI_DB = {
         'birkenzucker','xylit','xylitol','e967',
         'isomalt','e953',
         'sorbit','sorbitol','e420',
-        'e150','e150a','e150b','e150c','e150d','zuckercouleur','karamell','karamellfarbe',  // S0 SIGHI
+        'e150','e150a','zuckercouleur','karamell','karamellfarbe',  // S0 SIGHI (nur milde Variante ohne Sulfit)
         'e415','xanthan','xantangummi',  // S0 SIGHI
         'mannit','mannitol','e421',
         'agavendicksaft','agavendick','agavensirup','agaven',
@@ -9409,6 +9455,8 @@ function showHistoryDetail(entry) {
         
 function getIngredientInfo(name, cat, aiGuess) {
  const n = name.toLowerCase();
+        if (n === 'säuerungsmittel')
+            return '⚠️ Keine Einschätzung möglich: "Säuerungsmittel" ohne Angabe der konkreten Säure kann von unbedenklich (z.B. Citronensäure) bis reizend variieren. Zutatenliste auf die konkrete Säure in Klammern prüfen.';
         if (n === 'stärke' || n === 'starch')
             return '⚠️ Nicht näher spezifiziert. Auf deutschen Zutatenlisten ist damit fast immer Mais- oder Kartoffelstärke gemeint — beide sind histaminfrei. Bei Unsicherheit die Verpackung genauer prüfen.';
         if (n === 'aroma' || n === 'natürliches aroma' || n === 'aromen' || n === 'natürliche aromen')
@@ -10526,7 +10574,7 @@ if (cat === 'high') {
         if (n.match(/grüne erbsen|green peas?(?!.*protein)/i))
             return 'SIGHI 1 — Grüne Erbsen: Hülsenfrucht, gilt als Histaminliberator. Kann die körpereigene Ausschüttung triggern.';
         if (n.match(/carrageen|e407/i))
-            return 'SIGHI 1 — Carrageen (E407): Gilt meist als histaminarm, steht aber im Verdacht, die Darmwand zu reizen. Besonders bei MCAS kann dieser Zusatzstoff Reaktionen auslösen. Individuell vorsichtig testen.';
+            return 'SIGHI 2 — Carrageen (E407): Verdickungsmittel, gilt als Liberator und steht im Verdacht, die Darmwand zu reizen. Besonders bei MCAS kann dieser Zusatzstoff Reaktionen auslösen.';
         if (n.match(/frisches? schweinefleisch|schweinefleisch(?!.*räuch|.*gereift)/i))
             return 'SIGHI 1 — Frisches Schweinefleisch: Rasche postmortale Histaminbildung — lückenlose Kühlkette wichtig. Frische ist entscheidend.';
         if (n.match(/apfelessig|apple.?cider.?vinegar/i))
@@ -11395,7 +11443,7 @@ if (cat === 'high') {
         if (n.match(/^selen$|^selenium$/i))
             return 'Spurenelement. Als Nahrungsergänzung unbedenklich.';
         if (n.match(/^weizenmehl$/i))
-            return 'Hartweizengrieß (Semola).';
+            return 'Weizenmehl (auch Hartweizengrieß/Semola). Histaminfrei, bei Glutenempfindlichkeit können unspezifische Beschwerden auftreten.';
         if (n.match(/^sharon fruit$|^sharonfrucht$/i))
             return 'Kaki-Sorte. Histaminarm.';
         if (n.match(/^pflanzenöl$/i))
@@ -11717,7 +11765,9 @@ if (cat === 'high') {
         if (n.match(/^kokosoel$/i))
             return 'Flüssiges Fett aus der Kokosnuss. Histaminfrei.';
         if (n.match(/^molke$/i))
-            return 'Eiweißbaustein (z.B. Kollagen), oft als Pulver. Je nach Rohstoff/Verarbeitung können freie Aminosäuren enthalten sein.';
+            return 'Milchnebenprodukt aus der Käseherstellung. Histaminarm, kann bei stärkerer Verarbeitung (z.B. Pulver) vereinzelt freie Aminosäuren enthalten.';
+        if (n.match(/^kollagen$/i))
+            return 'Eiweißbaustein aus tierischem Bindegewebe, oft als Pulver. Histaminneutral, bei sehr empfindlichem Darm in Einzelfällen möglich.';
         if (n.match(/^e425 nudeln$/i))
             return 'Shirataki-Nudeln aus Konjakwurzel. Histaminfrei, können stark sättigen.';
         if (n.match(/^konservierter fisch$/i))
@@ -11899,7 +11949,7 @@ if (cat === 'high') {
         if (n.match(/^ginseng$/i))
             return 'Heilwurzel. Kann das Immunsystem beeinflussen, in Einzelfällen Mastzellen aktivieren — individuell vorsichtig dosieren.';
         if (n.match(/^salz$/i))
-            return 'Meersalz-Variante (Fleur de Sel). Histaminfrei.';
+            return 'Kochsalz (z.B. Speise-, Meer- oder Grobsalz). Histaminfrei.';
         if (n.match(/^flour$/i))
             return 'Englisch für Mehl. Histaminfrei, Gluten kann bei Empfindlichkeit den Darm belasten.';
         if (n.match(/^flussbarsch$/i))
@@ -13025,9 +13075,9 @@ if (cat === 'high') {
         return 'Histaminarm — in der Regel gut verträglich';
     }
     if (aiGuess) {
-        return '🤔 Weder in der lokalen Datenbank noch von der KI eindeutig zuordenbar. Möglicherweise ein Tippfehler oder eine sehr seltene/regionale Bezeichnung — bitte Schreibweise prüfen. Falls die Zutat korrekt geschrieben ist, gerne über den Feedback-Button melden, damit sie ergänzt werden kann.';
+        return '🤔 Weder automatische Tippfehler-Erkennung noch KI konnten diese Zutat eindeutig zuordnen. Bitte Schreibweise manuell prüfen — falls korrekt geschrieben, gerne über den Feedback-Button melden, damit sie ergänzt werden kann.';
     }
-    return 'Nicht in der lokalen Datenbank — KI-Analyse möglich, falls ein API-Schlüssel hinterlegt ist (siehe Einstellungen)';
+    return '🔍 Weder in der lokalen Datenbank noch per automatischer Tippfehler-Erkennung gefunden — bitte manuell prüfen. KI-Analyse zusätzlich möglich, falls ein API-Schlüssel hinterlegt ist (siehe Einstellungen).';
 }
 
 // ═══════════════════════════════════════════════════════════
