@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.13<br>
+                Histaminscanner v12.15<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4197,7 +4197,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.13');
+    dbg('VERSION: v12.15');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
@@ -13798,7 +13798,19 @@ document.addEventListener('visibilitychange', () => {
             <p style="margin:0;font-size:13px;line-height:1.6;color:#856404"><strong>HIT ist kein ICD-anerkanntes Krankheitsbild</strong> und Symptome sind oft nicht reproduzierbar. Histamingehalt variiert stark im gleichen Lebensmittel (Emmentaler 0,1–2.000 mg/kg!). Diese App nutzt SIGHI 2024 als Orientierung — individuelle Verträglichkeit immer selbst testen.</p>
         </div>
 
-        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:32px">
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
+            <h3 style="color:var(--color-primary);margin:0 0 8px">🏷️ Kategorie vs. Schweregrad — zwei getrennte Achsen</h3>
+            <p style="margin:0 0 10px;font-size:13px;line-height:1.7">Diese App zeigt zu jeder Zutat zwei unabhängige Informationen: eine <strong>Kategorie</strong> (der Wirkmechanismus) und einen <strong>SIGHI-Schweregrad</strong> (S0–S3). Diese beiden Achsen sind unabhängig voneinander — die Kategorie sagt nichts über die Schwere aus, und umgekehrt.</p>
+            <p style="margin:0 0 8px;font-size:13px;line-height:1.8">
+            <strong style="color:var(--color-high)">Histaminreich</strong> — enthält direkt Histamin oder biogene Amine (z.B. gereifter Käse, Rotwein).<br>
+            <strong style="color:var(--color-warning)">Liberator</strong> — setzt körpereigenes Histamin aus Mastzellen frei (z.B. Erdnuss, Zitrusfrüchte).<br>
+            <strong style="color:var(--color-warning)">DAO-hemmend</strong> — blockiert das Abbauenzym DAO, wodurch sich vorhandenes Histamin anstaut (z.B. Alkohol, Koffein).<br>
+            <strong style="color:var(--color-safe)">Unbedenklich</strong> — keiner der obigen Mechanismen bekannt.
+            </p>
+            <p style="margin:0;font-size:13px;line-height:1.6"><strong>Wichtig:</strong> Auch ein „nur" DAO-hemmender oder Liberator-Stoff kann Stufe S3 erreichen — Alkohol etwa blockiert lediglich den Abbau, tut das aber so stark, dass er die höchste Warnstufe verdient. Umgekehrt gibt es histaminreiche Zutaten, die nur bei S1-S2 liegen. Beide Angaben zusammen ergeben das vollständige Bild, nicht die Kategorie allein.</p>
+        </div>
+
+        <div style="background:var(--surface);border-radius:12px;padding:16px;margin-bottom:16px">
             <h3 style="color:var(--color-primary);margin:0 0 8px">📊 SIGHI-Skala</h3>
             <p style="margin:0;font-size:14px;line-height:1.6">
             <strong style="color:var(--color-safe)">● S0</strong> — Gut verträglich<br>
@@ -13915,7 +13927,7 @@ document.addEventListener('visibilitychange', () => {
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Snacks unterwegs</div>
                         <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Reiswaffeln natur · ✅ Wasa/Finn Crisp natur · ✅ Cashews/Mandeln natur · ✅ Banane, Apfel · 🟡 Heidelbeeren</div>
-                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Chips mit Hefeextrakt/Käse/BBQ. Keine Energy Drinks!</div>
+                        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Keine Chips mit Hefeextrakt/Käse/BBQ. Keine Energy Drinks! Walnüsse/Erdnüsse meiden (S2, siehe unten) — Cashew/Mandel sind besser verträglich.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Nachtisch &amp; Dessert</div>
@@ -13946,7 +13958,7 @@ document.addEventListener('visibilitychange', () => {
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
                         <div style="font-size:13px;font-weight:600;margin-bottom:4px">Soda-Brot (hefefrei)</div>
-                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelmehl · ✅ Natron · ✅ Salz · ⚠️ Buttermilch nur wenn verträglich (S2, fermentiert!) · ✅ Alternative: Milch + Vit-C-Tropfen</div>
+                        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">✅ Dinkelmehl · ✅ Natron · ✅ Salz · ⚠️ Buttermilch nur wenn verträglich (S1, fermentiert!) · ✅ Alternative: Milch + Vit-C-Tropfen</div>
                         <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px;font-style:italic">Sofort backen — nicht stehen lassen (Histaminbildung bei Wartezeit!). Buttermilch bei Karenzphase ersetzen.</div>
                     </div>
                     <div style="background:var(--color-bg);border-radius:8px;padding:10px 12px">
@@ -14019,7 +14031,7 @@ document.addEventListener('visibilitychange', () => {
                             🔴 Hoisin, Doubanjiang, XO-Sauce, Miso<br>
                             🔴 Ajvar, Letscho, Tapenade, Kapernsud<br>
                             🔴 Hefeextrakt (Marmite, Cenovis, in Fertigsoßen!)<br>
-                            🔴 Glutamat (E621), E627, E631 — dreifacher DAO-Hemmer
+                            🔴 Glutamat (E621, Liberator) und E627 (DAO-hemmend)
                         </div>
                     </div>
 
@@ -14042,7 +14054,9 @@ document.addEventListener('visibilitychange', () => {
                             🔴 Tomaten (roh oder verarbeitet — immer S3!)<br>
                             🔴 Avocado (S2-3 — steigt mit Reife!), Guacamole<br>
                             🔴 Getrocknete Feigen, Pflaumen, Aprikosen (E220!)<br>
+                            🔴 Walnüsse, Erdnüsse (enthalten selbst Histamin + Liberator)<br>
                             🟠 Erdbeeren, Himbeeren, Ananas, Kiwi (Liberatoren S1-2)<br>
+                            🟠 Sonnenblumenkerne, Sonnenblumenöl (Liberator laut SIGHI)<br>
                             🔴 Seitan, Weizengluten-Produkte (S3!)<br>
                             🔴 Instant-Nudeln, Fix-Soßen (Glutamat + Hefeextrakt)<br>
                             🔴 Chips mit Käse/Sour Cream/BBQ (Hefeextrakt!)<br>
