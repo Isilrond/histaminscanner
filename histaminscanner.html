@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.29<br>
+                Histaminscanner v12.30<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4053,6 +4053,7 @@ async function runAnalysis(product, ingredientsText) {
                     // Eindeutiger 1-Buchstaben-Fehler: direkt klassifizieren
                     item.cat = fuzzy.cat;
                     item.sighi = getSIGHI(fuzzy.match);
+                    item.correctedName = fuzzy.match;  // für getIngredientInfo: korrigierte Schreibweise verwenden, nicht den Tippfehler
                     // Dieselbe Konsistenzkorrektur wie oben anwenden, da item.cat hier NACH
                     // der ursprünglichen Prüfschleife gesetzt wird und sonst nie korrigiert würde.
                     if (item.sighi !== null) {
@@ -4218,7 +4219,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.29');
+    dbg('VERSION: v12.30');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -13467,7 +13468,7 @@ function renderResult(product, analyzed, fromHistory = false, normWarning = null
     } else {
         for (const item of analyzed) {
             const m    = BADGE_META[item.cat] || BADGE_META.unknown;
-            const info = getIngredientInfo(item.name, item.cat, item.aiAttemptedNoResult)
+            const info = getIngredientInfo(item.correctedName || item.name, item.cat, item.aiAttemptedNoResult)
                 + (item.fuzzyHint ? `<br><span style="font-size:0.82em;opacity:0.75;font-style:italic">${item.fuzzyHint.startsWith('🔍') ? '' : '🔍 '}${item.fuzzyHint}</span>` : '');
             const div  = document.createElement('div');
             div.className = 'ing-item';
