@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.30<br>
+                Histaminscanner v12.54<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1197,7 +1197,7 @@ const DB = {
         'orange','apfelsine','orangensaft','blutorange','orangen',  // ❌ S3 A L (SIGHI)
         // mandarine/clementine/grapefruit → liberator[] S2 A L (SIGHI: nicht S3!)
         // orange → high[] S3 A L (SIGHI: S3)
-        'jod','iod','iodine','kaliumiodid','kaliumiodat','jodtabletten',  // ❌ S3 L
+        'jod','iod','iodine','kaliumiodid','kaliumjodid','kaliumiodat','jodtabletten',  // ❌ S3 L
         'kaliumjodat','natriumjodat','jodat',  // ❌ S3 L — alle Jodverbindungen (SIGHI!)
         'walnuss','walnut','walnüsse',  // ❌ SIGHI S3
         'rotwein','weißwein','rosé','rosewein','sekt','champagner','prosecco',
@@ -1248,7 +1248,7 @@ const DB = {
         'aufgewärmte speisen','kantinenessen',
         'gulasch','rouladen','sauerbraten','eintopf mit fleisch',
         'fleischwaren vom schwein','schweinewurst',
-        'algen','alge','spirulina','chlorella','nori','wakame','hijiki',
+        'algen','alge','meeresalgen','spirulina','chlorella','nori','wakame','hijiki',
         'kombu',
         // kefir → liberator[] S1
         // sojamilch → liberator S2 (SIGHI: S1-2 L, nicht histaminreich!)
@@ -1608,7 +1608,7 @@ const DB = {
         'malzmehlzusatz',  // S1 — Gerstenmalzmehl als Backzusatz, milder als Malzextrakt aber Restrisiko
         // malzmehlzusatz → liberator S1 (siehe liberator-Array), NICHT safe_hints!
         'gegrillte zwiebel','gegrillte zwiebeln','grillzwiebel','gegrilltes gemüse',  // S1 — Röststoffe/Maillard-Reaktion
-        'rote bete','rote beete','randen','ringelbete',  // S1 — Betain
+        'rote bete','rote beete','beete','bete','randen','ringelbete',  // S1 — Betain
         'reishi','chaga',  // S1-2 — Heilpilze (Histaminfreisetzung möglich)
         'kondensmilch','dosenmilch','evaporated milk',  // S1-2 konzentrierte Milch
         'pizza','fertigpizza',  // S2-3 Tomaten+Käse+oft Salami
@@ -3914,6 +3914,9 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
     // Satzpunkt-zu-Komma-Vorbereitung, damit "Petersile. Verdickungsmittel" nicht
     // als zusammenhängender Original-Name fehlinterpretiert wird
     inputText = inputText.replace(/\.\s+(?=[A-ZÄÖÜ])/g, ', ');
+    inputText = inputText.replace(/\.\s*(?=\d+[,.]?\d*\s*%)/g, ', ');
+    inputText = inputText.replace(/\bdas\s+produkt\s+kann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '');
+    inputText = inputText.replace(/\bkann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '');
 
     // ── Schritt 1: Eltern-Kontext aus Klammern extrahieren ──
     // z.B. "Savoiardi Biskotten (11%) (Mehl, Zucker, Eier)" → parent="Savoiardi Biskotten", children=[Mehl, Zucker, Eier]
@@ -3925,6 +3928,12 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         const childrenRaw = pm[2];
         // Elternname muss mindestens 4 Zeichen haben und kein reiner E-Nummern/Prozent sein
         if (parentRaw.length < 4 || /^\d/.test(parentRaw)) continue;
+        // Wenn der Elternname selbst als eigenes Kind innerhalb der Klammer auftaucht
+        // (z.B. "Rosinen (Rosinen, Sonnenblumenöl)"), ist die Gruppe kein echtes Sub-Rezept,
+        // sondern eher "Basiszutat + Zusatz" — "X aus PARENT"-Anzeige für die ganze Gruppe unterdrücken.
+        const parentRawLower = parentRaw.toLowerCase();
+        const childrenList = childrenRaw.split(',').map(c => c.trim().toLowerCase().replace(/\s*\d+[,.]?\d*\s*%\s*/g, '').trim());
+        if (childrenList.includes(parentRawLower)) continue;
         // Kinder-Token aus Klammer extrahieren
         childrenRaw.split(',').forEach(child => {
             const childClean = child.trim().toLowerCase()
@@ -3960,7 +3969,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
         // Triviale Zutaten brauchen keinen Original-Label
-        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose|glutamat|glutaminsäure|e621|e620|petersilie|kräuter|gewürzkräuter|chiliöl|chilisamenöl|chiliesamenöl|weißtee|gouda jung|e412|e410|e440|e322|e471|chili|chiliöl|maisstärke|tapiokastärke|stärke|weizenstärke|kartoffelstärke|pfeilwurzelstärke|sorbit|soja|teilweise|gehärtet|omega|in wasser|in öl|mariniert|konzentriert|getrocknet|frisch|gekocht|kaltgepresst|extra vergine|selbstgemacht|mit hefeextrakt|mit kräutern|mit gewürzen|mono-|fettarmes?|kakaohaltige[rs]?|crispies?|vitamine)$/i;  // zucker+mehl raus für bessere Labels; vitamine = Sammelbucket, keine Einzel-Zuordnung
+        const TRIVIAL = /^(wasser|salz|öl|rapsöl|pflanzenöl|stärke|mehl|aroma|gewürze?|essig|weinessig|apfelessig|branntweinessig|e290|e501|e500|natriumchlorid|milchfett|butter|sahne|milch|rahm|zitronensäure|citronensäure|ascorbinsäure|e330|e300|traubenzucker|glucose|dextrose|glutamat|glutaminsäure|e621|e620|petersilie|kräuter|gewürzkräuter|chiliöl|chilisamenöl|chiliesamenöl|weißtee|gouda jung|e412|e410|e440|e322|e471|chili|chiliöl|maisstärke|tapiokastärke|stärke|weizenstärke|kartoffelstärke|pfeilwurzelstärke|sorbit|soja|teilweise|gehärtet|omega|in wasser|in öl|mariniert|konzentriert|getrocknet|frisch|gekocht|kaltgepresst|extra vergine|selbstgemacht|mit hefeextrakt|mit kräutern|mit gewürzen|mono-|fettarmes?|kakaohaltige[rs]?|crispies?|vitamine|süßungsmittel)$/i;  // zucker+mehl raus für bessere Labels; vitamine/süßungsmittel = Sammelbucket, keine Einzel-Zuordnung
         if (TRIVIAL.test(normToken)) continue;
         // Erst prüfen ob dieses Token einen HOCH sicheren Exakt-Treffer unter den noch freien rawParts hat.
         // Falls ja, wird dieser sofort reserviert, damit er später keinem anderen Token zugeordnet wird.
@@ -3986,6 +3995,20 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
                 const score = Math.max(60, normToken.length / rawLower.length * 80);
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
+            // Infix-Match für kürzere Token als Kernbestandteil eines deutschen Kompositums ohne
+            // eigene Wortgrenze, z.B. "malz" in "Weizenmalzmehl", "gluten" in "Weizengluten".
+            // Suffix-Position (Token am Wortende, der semantische Kern im Deutschen) bekommt einen
+            // höheren Score als eine bloße Teilübereinstimmung mitten im Wort — verhindert, dass
+            // z.B. "Molkeneiweisskäse" (nur zufälliges Präfix) "Süssmolke" (korrekter Kern) schlägt.
+            if (!normToken.includes(' ') && normToken.length >= 4 && normToken.length <= 7 &&
+                rawLower.length > normToken.length + 2 && rawLower.endsWith(normToken)) {
+                const score = 55;
+                if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+            } else if (!normToken.includes(' ') && normToken.length >= 4 && normToken.length <= 7 &&
+                rawLower.length > normToken.length + 2 && rawLower.includes(normToken)) {
+                const score = 40;
+                if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+            }
             if (!normToken.includes(' ') && normToken.length > 7 && rawLower.startsWith(normToken.substring(0, Math.floor(normToken.length * 0.8))) && normToken.substring(0, Math.floor(normToken.length * 0.8)).length >= 5) {
                 const score = 50;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
@@ -3995,8 +4018,12 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
             if (normToken.length > 7) {
                 if (!normToken.includes(' ')) {
                 const suffix = normToken.slice(-Math.max(8, Math.floor(normToken.length * 0.6)));
+                const prefix = normToken.slice(0, normToken.length - suffix.length);
                 const rawIsCompoundSuffixOfToken = normToken.length > rawLower.length && normToken.endsWith(rawLower);
-                if (!rawIsCompoundSuffixOfToken && (rawLower.endsWith(suffix) || rawLower.includes(suffix + ' ') || new RegExp(`\\b${suffix}\\b`).test(rawLower))) {
+                // Plausibilitätsprüfung: der Präfix-Teil vor dem gemeinsamen Suffix muss auch im
+                // Rohtext auftauchen — sonst nur zufällig geteilte generische Endung (z.B. "-protein").
+                const prefixPlausible = prefix.length < 3 || rawLower.includes(prefix);
+                if (!rawIsCompoundSuffixOfToken && prefixPlausible && (rawLower.endsWith(suffix) || rawLower.includes(suffix + ' ') || new RegExp(`\\b${suffix}\\b`).test(rawLower))) {
                     const score = 40;
                     if (score > bestScore) { bestScore = score; bestOriginal = raw; }
                 }
@@ -4219,12 +4246,28 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.30');
+    dbg('VERSION: v12.54');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
     // obwohl das gleichwertige Alias 'Vitamin H' korrekt funktioniert. Früh ersetzen, um das Problem zu umgehen.
     inputText = inputText.replace(/\bbiotin\b/gi, 'Vitamin H');
+    // OCR-Artefakt: ").8 %" statt "), 8 %" — fehlendes Trennzeichen zwischen Klammer-Ende
+    // und der nächsten Prozent-Zutat (z.B. "...Eiweiß).8 % Hühnerfleisch" → zwei Zutaten!)
+    inputText = inputText.replace(/\)\s*\.(\d+(?:[.,]\d+)?\s*%)/g, '), $1');
+    // Pragmatischer Fix: "Das Produkt kann Spuren von X enthalten"-Sätze werden von der
+    // späteren Disclaimer-Filter-Logik aus unbekanntem Grund nicht vollständig entfernt
+    // (Text bricht vorher an "Das Produkt" ab). Ganz früh entfernen, um das zu umgehen.
+    inputText = inputText.replace(/[.,]?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '');
+    inputText = inputText.replace(/%\s*-\s*(?=\()/g, '% ');
+    // Gleiches pragmatisches Muster: 'Reisgrieß' und 'Sojaeiweißerzeugnis' werden von ihren
+    // eigentlich vorhandenen NORMALIZE-Regeln aus unbekanntem Grund nicht erfasst. Früh ersetzen.
+    inputText = inputText.replace(/\breisgrieß(?![a-zäöü])/gi, 'Reis');
+    inputText = inputText.replace(/\breisgriess\b/gi, 'Reis');
+    inputText = inputText.replace(/\bsojaeiweiß?erzeugnis\b|\bsojaeiweisserzeugnis\b|\bsojaproteinerzeugnis\b/gi, 'Soja');
+    inputText = inputText.replace(/\bfärbendes?\s+lebensmittel\b\s*/gi, '');
+    inputText = inputText.replace(/\bmit\s+anderen\s+natürlichen\s+aromen?\b/gi, '');
+    inputText = inputText.replace(/\bz\.\s*t\.\s*/gi, '');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
     inputText = inputText.replace(/[\u00ad\u2013\u2014\u2212\u2010\u2011]/g, '-');
     // Aufzählungszeichen/Bullet-Trenner als Komma behandeln — kopierte Webseiten-Listen
@@ -4302,8 +4345,10 @@ function parseIngredients(inputText) {
             const parts = inner.split(',').map(p => p.trim());
             if (parts.every(p => DESCRIPTOR_WORDS.test(p))) return pre.trim();
             // Bekannte Compound-Produkte: Namen behalten + Sub-Zutaten expandieren
-            const preTrimmed = pre.trim().replace(/^\d+[\s%]*|[\s%\d]+$/g, '').trim();
-            const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir|curry|pfeffer|chili|habanero|paprika|gewürz|gewürzmischung|senf|soße|sauce|marinade|paste|würze|thunfisch|lachs|hering|makrele|sardine|sardellen?|anchovis|hühnerbrühe|rinderbrühe|gemüsebrühe|brühe|bouillon|rindfleisch|schweinefleisch|hähnchen|pute|lamm|kalb|fischöl|lebertran|omega)\b/i;
+            const preTrimmed = pre.trim().replace(/^\d+[\s%]*|[\s%\d-]+$/g, '').trim();
+            const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir|curry|pfeffer|chili|habanero|paprika|gewürz|gewürzmischung|senf|soße|sauce|marinade|paste|würze|thunfisch|lachs|hering|makrele|sardine|sardellen?|anchovis|hühnerbrühe|rinderbrühe|gemüsebrühe|brühe|bouillon|rindfleisch|schweinefleisch|hähnchen|pute|lamm|kalb|fischöl|lebertran|omega|\w*fleischextrakt|\w*extrakt)\b/i;
+            const EXTRAKT_ONLY = /^\w*extrakt$/i;
+            if (EXTRAKT_ONLY.test(preTrimmed)) return preTrimmed;  // Zusammensetzung offengelegt, aber Prozess = Risiko, nicht Rohstoffe
             if (KEEP_NAME.test(preTrimmed)) return preTrimmed + ', ' + inner;
             // Einzel-Deskriptor-Phrasen: Hauptwort behalten, Klammer verwerfen
             const KEEP_PHRASES = /^(?:in\s+wasser|in\s+öl|in\s+eigenem\s+saft|in\s+lake|in\s+salzlake|selbst\w*|hausgemacht|mit\s+hefeextrakt|mit\s+kräutern|mit\s+gewürzen|mit\s+\w+)$/i;
@@ -4367,6 +4412,11 @@ function parseIngredients(inputText) {
     let text = inputText;
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
+        [/\bbeetest\b/gi, 'rote beete'],  // OCR-Verstümmelung von "Beetesaft" (saft→st), Muster wie Apfelsaft/Zitronensaft
+        [/\b(?:jasmin|basmati|vollkorn|wild)reismischung\b/gi, 'reis'],
+        [/\bbasmati-,\s*(?=\w+reismischung)/gi, ''],  // Ellipse "Basmati-, Jasminreismischung" = "Basmati-Reismischung, Jasminreismischung"
+        [/\bsojaeiweiß?erzeugnis\b|\bsojaproteinerzeugnis\b/gi, 'soja'],
+        [/\breisgrieß\b/gi, 'reis'],
         [/\bgemüsemais\b/gi, 'mais'],
         [/\bcitric\s*acid\b/gi, 'zitronensäure'],
         [/\bcolagetr‰nke\b/gi, 'colagetränke'],
@@ -4549,9 +4599,7 @@ function parseIngredients(inputText) {
         // Liberator-Fruchtaromen → als Frucht klassifizieren
         [/\bnatürliches?\s+(?:erdbeer|himbeer|kirsch|johannisbeer)en?\s*aroma\b/gi, 'erdbeere'],
         [/\bnatürliches?\s+(?:zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],  // Zitronen-/Limettenaro
-        [/\bnatürliches?\s+(?:zitrus|orangen?)\s*aroma\b/gi, 'orange'],  // Orangenaroma → orange
         [/\bzitronenaroma\b/gi, 'zitrone'],  // Zitronenaroma → zitrone
-        [/\borangen?aroma\b/gi, 'orange'],   // Orangenaroma → orange (nicht zitrone!)
         [/\bhimbeer(?:en)?aroma\b|\berdbeer(?:en)?aroma\b/gi, 'erdbeere'],  // fused compounds
         [/\bkirscharoma\b|\bkirsch(?:en)?aroma\b/gi, 'erdbeere'],  // Kirsche = Liberator S2
         [/\bbananen?aroma\b/gi, 'banane'],  // Banane = Liberator S2
@@ -5062,6 +5110,7 @@ function parseIngredients(inputText) {
         [/\bhafergrütze\b|\bhaferbrüh?\b|\bhafer(?:schrot|korn)\b/gi, 'hafer'],   // Hafergrütze → hafer → safe
         [/\bmilchserum\b|\bwhey\s*serum\b/gi, 'molke'],                            // Milchserum = Molke → safe
         [/\bdicalciumphosphat\b|\be341\s*ii\b/gi, 'e341'],                         // Calcium-Phosphat → safe
+        [/\btricalciumphosphat\b|\be341\s*iii\b/gi, 'e341'],
         [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'vitamine'],      // E304 Antioxidans → safe
         [/\bsäuerungskulture?n?\b/gi, 'kulturen'],                                 // = Milchsäurebakterienkulturen → safe
         [/\bhaferhalmfasern?\b|\boat\s*straw\s*fi(?:ber|bre)s?\b/gi, 'hafer'],    // Haferhalmfaser = Ballaststoff aus Hafer S0
@@ -5095,6 +5144,7 @@ function parseIngredients(inputText) {
         [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
         // ── Vitamine / Mineralstoffe (Anreicherung) ──
         [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b/gi, 'vitamine'],
+        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitamine'],
         [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitamine'],
         [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitamine'],
         [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitamine'],
@@ -5313,6 +5363,7 @@ function parseIngredients(inputText) {
         [/\bdinkelgrieß?\w*/gi, 'dinkelmehl'],
         [/\bbackteig\b|\bfrittierteig\b|\bpanierteig\b/gi, 'mehl'],                   // Backteig = Mehlbasis → safe
         [/\bhafervollkorn(?:flocken?|mehl|grütze)?\b/gi, 'hafer'],                    // Hafervollkorn-Komposita
+        [/\bguavenpüree\b/gi, 'guave'],  // Verbindungs-n: Guave+n+püree
         [/\b(\w+)püree\b/gi, '$1'],                                                    // Bananenpüree → Banane, Heidelbeerpüree → Heidelbeere
         [/\bentrahmte?\b\s*/gi, ''],                                                   // Adjektiv "entrahmt" → strip
         [/\bmilchprotein(?:erzeugnis|konzentrat|isolat)?\b/gi, 'milchprotein'],        // Komposita
@@ -5985,7 +6036,7 @@ function parseIngredients(inputText) {
         [/phenylalanin\b/gi,              ''],
         [/glyzerin?\w*/gi,                 ''],
         [/weißmischung\b/gi,               ''],
-        [/maltit\b/gi,                     'maltitol'],
+        [/maltit\b(?!-[A-ZÄÖÜ])/gi,                     'maltitol'],
         [/fruchtsaft(?:\s+aus\s+\w+)?(?:konzentrat)\b\s*:?/gi,  ''],
         [/aus\s*:\s*/gi,  ''],   // Reste wie 'aus :' entfernen
 
@@ -6630,7 +6681,7 @@ function parseIngredients(inputText) {
         [/\bglukose\b(?!\s*sirup)/gi, 'zucker'],
         [/\bagavendicksaft\s+\w*stärke\b|\bagavensirup\s+\w*stärke\b/gi, 'zucker, stärke'],
         // Agavendicksaft/-sirup NICHT zu 'zucker' generalisieren — eigener S0-Eintrag mit spezifischem Hint (Fruktoseanteil!)
-        [/\btagatose\b|\berythrit\b|\bxylit\b|\bisomalt\b|\bsorbit\b|\bmannitol\b|\blactit\b|\bmaltit\b/gi, 'süßungsmittel'],  // Zuckeralkohole S0
+        [/\btagatose\b|\berythrit\b|\bxylit\b|\bisomalt\b|\bsorbit\b|\bmannitol\b|\blactit\b|\bmaltit\b(?!-[A-ZÄÖÜ])/gi, 'süßungsmittel'],  // Zuckeralkohole S0
         [/\bstevioglycoside\b|\bstevia\b|\bsteviolglycosid\b/gi, 'stevia'],
         [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b|\bsucralose\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, nicht süßungsmittel!
         [/\bethyl[- ]?vanillin\b/gi, 'vanillin'],  // Ethylvanillin stärker als Vanillin, S1-2   // stärker als Vanillin, gleiches Problem S1
@@ -7721,7 +7772,7 @@ function parseIngredients(inputText) {
     // WICHTIG: auf 'text' anwenden (nicht inputText) — text ist die Arbeitsvariable!
     text = text
         // Alles ab "Kann Spuren" / "Kann ... enthalten" bis Satzende entfernen
-        .replace(/\.?\s*[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
+        .replace(/\.?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+(?:[Ss]puren\s+(?:von\s+)?)?[\s\S]*?(?:enthalten|beinhalten)\s*\.?/gs, '')
         // ". Kann ..." am Satzanfang (nach Punkt ohne vorherigem Komma)
         .replace(/\.\s*[Kk]ann\s+[\s\S]*/g, '')
         // Verwaiste leere Klammern nach Disclaimer-Entfernung: "Salz ()" → "Salz"
@@ -7803,7 +7854,7 @@ function parseIngredients(inputText) {
         // "(Kann Spuren von Sesamsamen, ... enthalten.)" → ''
         .replace(/\([^)]*kann\s+spuren[^)]*\)/gi, '')
         // "Kann (Spuren von) X, Y und Z enthalten." → komplett entfernen (inkl. Komma-Liste bis Satzende)
-        .replace(/[,.]?\s*[Kk]ann\s+(?:Spuren\s+von\s+)?[A-ZÄÖÜ][\s\S]*?enthalten\.?/g, '')
+        .replace(/[,.]?\s*(?:Das\s+Produkt\s+)?[Kk]ann\s+(?:Spuren\s+von\s+)?[A-ZÄÖÜ][\s\S]*?enthalten\.?/g, '')
         // "Enthält eine Phenylalaninquelle." → entfernen
         .replace(/[,.]?\s*[Ee]nthält\s+eine\s+Phenylalaninquelle\.?/g, '')
         // "Enthält: Senf, Sellerie." (Allergenliste ohne Spurenhinweis) → entfernen
@@ -7819,8 +7870,16 @@ function parseIngredients(inputText) {
         .replace(/\b\w+\s*:\s*\d+[,.]?\d*\s*%[^,.;]*[.,]?/gi, ',')
         // "Glutenfrei.", "Laktosefrei." als Satzfragmente → leer
         .replace(/\b(?:glutenfrei|laktosefrei|vegan|bio)\.?\s*/gi, '')
+        // "färbendes Lebensmittel X" — EU-Kategoriebezeichnung vor der eigentlichen Substanz, Kategoriewort entfernen
+        .replace(/\bfärbendes?\s+lebensmittel\b\s*/gi, '')
         // Satz-Punkt der als Trenner fungiert (Wort. Großbuchstabe) → Komma
         .replace(/\.\s+(?=[A-ZÄÖÜ])/g, ', ')
+        // Satz-Punkt direkt vor einer Prozentangabe ("...).8 % Hühnerfleisch") → Komma
+        // (häufiger Tippfehler: Punkt statt Komma vor einer neuen mengenangegebenen Zutat)
+        .replace(/\.\s*(?=\d+[,.]?\d*\s*%)/g, ', ')
+        // "Das Produkt kann Spuren von X enthalten" — Spuren-Warnhinweis, keine Zutat
+        .replace(/\bdas\s+produkt\s+kann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '')
+        .replace(/\bkann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '')
         // "aus der Mühle" etc. am Ende
         .replace(/\s+aus\s+der\s+\w+/gi, '')
         .replace(/\bglatt\b/gi, '')
@@ -7988,7 +8047,7 @@ function parseIngredients(inputText) {
             clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+-(?:dip|sauce|soße|creme|crème|topping|dressing|glasur|marinade)\s*:\s*/gi, '$1');
             // Zusammengesetzte Komponenten-Überschrift ohne Bindestrich, auch mit Prozentangabe in Klammern davor:
             // "Weizenkleingebäck:", "Knoblauch-Butterzubereitung (20 %):" etc.
-            clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+(?:zubereitung|gebäck|gebäckstücke|mischung|masse|brät|teig|paste|creme|süßware)(?:\s*\(\s*\d+([.,]\d+)?\s*%\s*\))?\s*:\s*/gi, '$1');
+            clean = clean.replace(/(^|[.,;]\s*)[\wäöüßÄÖÜ-]+(?:zubereitung|gebäck|gebäckstücke|mischung|masse|brät|teig|paste|creme|süßware|eiweisskäse|eiweißkäse)(?:\s*\(\s*\d+([.,]\d+)?\s*%\s*\))?\s*:\s*/gi, '$1');
 
             // "Hühnerbrühe : Wasser" (Leerzeichen vor Doppelpunkt = Zutat-Aufschlüsselung, keine Kategorie)
             // → Komma, damit beide Seiten als eigene Tokens erhalten bleiben
@@ -8579,7 +8638,7 @@ function findFuzzyMatch(term) {
     // Ab 4 Zeichen sinnvoll (kritische kurze Trigger: hefe/soja/wein/bier/käse);
     // bei 4 Zeichen nur Distanz 1 erlaubt, sonst zu viele Fehltreffer
     if (term.length < 4) return null;
-    const maxDist = term.length === 4 ? 1 : (term.length <= 7 ? 1 : 2);
+    const maxDist = term.length === 4 ? 1 : (term.length <= 5 ? 1 : 2);
     let bestMatch = null, bestDist = Infinity, bestCat = null;
     const catMap = [
         ['high', DB.high], ['liberator', DB.liberator], ['dao_blocker', DB.dao_blocker], ['safe', DB.safe_hints]
@@ -9292,6 +9351,15 @@ function getSIGHI(name) {
     if (n.includes('alkoholfrei') && n.includes('bier')) return 2;
     if (/^milder?\s+cheddar$/.test(n)) return 2;
     if ((n.includes('alkoholfrei') && !n.includes('bier')) || n === 'alkoholfreier wein') return 0;
+    // Qualifier-Eskalation VOR dem generischen SIGHI_DB-Lookup prüfen: sonst würde z.B.
+    // "geräuchertes salz" bereits über die bare "salz"-Registrierung (S0) matchen, bevor
+    // der bedeutsame Qualifier "geräuchert" berücksichtigt wird.
+    if (/\b(eingelegt|geräuchert|gepökelt|mariniert|getrocknet|konzentriert|überreif|reif)e?[rns]?\b/i.test(n)) {
+        for (const level of [3, 2]) {
+            if (SIGHI_DB[level].some(k => sighiKeyMatch(k, n))) return level;
+        }
+        return 1;
+    }
     for (const level of [3, 2, 1, 0]) {
         if (SIGHI_DB[level].some(k => sighiKeyMatch(k, n))) return level;
     }
@@ -9684,7 +9752,7 @@ if (cat === 'high') {
             return 'Getrocknete, gehobelte Bonitoflocken. Der monatelange Fermentationsprozess macht sie extrem histaminreich.';
         if (n.match(/^kippers$/i))
             return 'Gesalzener und kalt geräucherter Hering. Traditionelle Haltbarmachung führt zu extremer Histaminlast.';
-        if (n.match(/^jodat$|^jodtabletten$|^kaliumjodat$|^kaliumiodid$/i))
+        if (n.match(/^jodat$|^jodtabletten$|^kaliumjodat$|^kaliumiodid$|^kaliumjodid$/i))
             return 'Jodquelle/-verbindung. Laut SIGHI gilt Jod als Liberator — kann bei Empfindlichkeit Reaktionen auslösen, trotz wichtiger Funktion für die Schilddrüse.';
         if (n.match(/^joghurtdrink$/i))
             return 'Fermentiertes Milchprodukt. Durch die bakterielle Reifung können geringe Mengen Histamin entstehen.';
@@ -11250,7 +11318,7 @@ if (cat === 'high') {
         if (n.match(/^kräuter$/i))
             return 'Sammelbegriff für Wildkräuter. Meist histaminarm.';
         if (n.match(/^reis$/i))
-            return 'Wassergras-Samen (Wildreis). Histaminarm.';
+            return 'Reis (weiß, braun oder ähnlich). Histaminarm und eines der verträglichsten Grundnahrungsmittel bei HIT.';
         if (n.match(/^wolfsbarsch$/i))
             return 'Fischart. Fangfrisch oder schockgefroren histaminarm.';
         if (n.match(/^ysop$/i))
@@ -11540,7 +11608,7 @@ if (cat === 'high') {
         if (n.match(/^ribisel$/i))
             return 'Österreichisch für Rote Johannisbeere. Histaminarm.';
         if (n.match(/^sahne$/i))
-            return 'Ersatzprodukt für Sahne/Butter (z.B. Pflanzencrème). Verträglichkeit hängt von Ölen und Stabilisatoren ab — Zutatenliste prüfen.';
+            return 'Süße Sahne/Rahm aus Kuhmilch. Histaminarm, praktisch proteinfrei im Fett.';
         if (n.match(/^pgpr$/i))
             return 'Künstlicher Emulgator (E476), oft in Schokolade. Histaminneutral, kann bei sehr empfindlichem Darm leicht reizen.';
         if (n.match(/^physalis$/i))
@@ -11656,7 +11724,7 @@ if (cat === 'high') {
         if (n.match(/^moringatee$/i))
             return 'Aufguss aus Moringablättern. Meist gut verträglich, sofern ohne künstliche Aromastoffe.';
         if (n.match(/^mozzarella$/i))
-            return 'Panierte/frittierte Käsestäbchen (Mozzarella Sticks). Frischer Mozzarella wäre okay — Panade und Frittieren machen es oft unverträglich.';
+            return 'Frischkäse ohne Reifezeit. Histaminarm — eine der verträglichsten Käsesorten bei HIT.';
         if (n.match(/^mulberry$/i))
             return 'Englisch für Maulbeere. Im Vergleich zu anderen Beeren überwiegend histaminarm.';
         if (n.match(/^müsli$|^müsliüsli$/i))
@@ -11956,7 +12024,7 @@ if (cat === 'high') {
         if (n.match(/^flussbarsch$/i))
             return 'Süßwasserfisch. Frisch gefangen oder schockgefroren histaminarm.';
         if (n.match(/^vitamine$/i))
-            return 'B-Vitamin (z.B. Folat/Folsäure). Histaminneutral.';
+            return 'Sammelbegriff für verschiedene B-Vitamine (z.B. Niacin, Riboflavin/B2, B6, B12, Folsäure, Pantothensäure, Biotin). Alle histaminneutral.';
         if (n.match(/^zucker$/i))
             return 'Reine Zuckermasse (z.B. Fondant). Histaminfrei, hoher Zuckeranteil kann die Darmflora belasten.';
         if (n.match(/^fructose$/i))
@@ -13324,10 +13392,11 @@ function displayIngredientName(rawName, originalName) {
     if (originalName) {
         const orig = typeof originalName === 'object' ? originalName.original : originalName;
         const parent = typeof originalName === 'object' ? originalName.parent : null;
-        if (parent) {
+        const hasSpecificOrig = orig && orig.toLowerCase().trim() !== rawName.toLowerCase().trim();
+        if (parent && !hasSpecificOrig) {
             displayName += ` <span style="font-size:0.75em;opacity:0.5;font-style:italic">aus ${parent}</span>`;
         }
-        if (orig && orig.toLowerCase().trim() !== rawName.toLowerCase().trim()) {
+        if (hasSpecificOrig) {
             displayName += ` <span style="font-size:0.75em;opacity:0.5;font-style:italic">← ${cap(orig)}</span>`;
         }
     }
