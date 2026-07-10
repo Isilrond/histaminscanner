@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.67<br>
+                Histaminscanner v12.68<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1784,6 +1784,7 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'salsola stocksii','haradsamen',  // Traditionelle Kala-Namak-Herstellungskomponenten
         'schutzkultur','schutzkulturen',  // Bakterienkultur zur Haltbarmachung, gezielt dosiert (nicht Fermentation)
         'säuerungsmittel',  // S0 Kategorie-Label, konkrete Säure oft in Klammern — siehe Hint-Text-Warnung
         'xantangummi','xanthan',  // S0 SIGHI (Kategorie-Registrierung, siehe auch SIGHI_DB[0])
@@ -4247,7 +4248,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.67');
+    dbg('VERSION: v12.68');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -11488,6 +11489,10 @@ function showHistoryDetail(entry) {
         
 function getIngredientInfo(name, cat, aiGuess) {
  const n = name.toLowerCase();
+        if (n === 'salsola stocksii')
+            return 'Wüstenpflanze, deren Asche traditionell zur Herstellung von Kala Namak (Schwarzsalz) verwendet wird. Kommt nur in Spuren im fertigen Salz vor — histaminisch unbedenklich.';
+        if (n === 'haradsamen')
+            return 'Samen der Myrobalane (Terminalia chebula), traditionell Teil der Kala-Namak-Herstellung (verantwortlich für den schwefligen Geruch). Kommt nur in Spuren im fertigen Salz vor — histaminisch unbedenklich.';
         if (_extractAromaFruit(n)) {
             const fruit = _extractAromaFruit(n);
             const fruitCat = classifyIngredient(fruit);
