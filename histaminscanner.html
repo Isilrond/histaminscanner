@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.59<br>
+                Histaminscanner v12.60<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4247,7 +4247,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.59');
+    dbg('VERSION: v12.60');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4602,11 +4602,11 @@ function parseIngredients(inputText) {
         // Aromaextrakt = konzentrierter Lösungsmittel-Auszug → dao_blocker-Verdacht
         [/\b[\wäöüß]*aromaextrakt\b|\bflavour\s*extract\b/gi, 'hefeextrakt'],  // auch "Fruchtaromaextrakt"/"Käsearomaextrakt" etc. → S3-Sicherung
         // Liberator-Fruchtaromen → als Frucht klassifizieren
-        [/\bnatürliches?\s+(?:erdbeer|himbeer|kirsch|johannisbeer)en?\s*aroma\b/gi, 'erdbeere'],
-        [/\bnatürliches?\s+(?:zitronen?|limetten?)\s*aroma\b/gi, 'zitrone'],  // Zitronen-/Limettenaro
-        [/\bzitronenaroma\b/gi, 'zitrone'],  // Zitronenaroma → zitrone
-        [/\bhimbeer(?:en)?aroma\b|\berdbeer(?:en)?aroma\b/gi, 'erdbeere'],  // fused compounds
-        [/\bkirscharoma\b|\bkirsch(?:en)?aroma\b/gi, 'erdbeere'],  // Kirsche = Liberator S2
+        // Erdbeer-/Himbeer-/Kirsch-/Johannisbeeraroma: siehe generische Aroma-Behandlung weiter unten
+        // Zitronen-/Limettenaroma: siehe generische Aroma-Behandlung weiter unten (konsistent mit Orangenaroma-Fix)
+        // Zitronenaroma: siehe generische Aroma-Behandlung weiter unten
+        // Himbeer-/Erdbeeraroma (fused compounds): siehe generische Aroma-Behandlung weiter unten
+        // Kirscharoma: siehe generische Aroma-Behandlung weiter unten
         [/\bbananen?aroma\b/gi, 'banane'],  // Banane = Liberator S2
         [/\bvanille(?:extrakt|aroma|essenz)\b/gi, 'vanillearoma'],  // Vanillearoma → S0
         // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
@@ -5259,7 +5259,7 @@ function parseIngredients(inputText) {
         [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
         [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
-        [/\blimetten(?:saft|schale|aroma|öl)?\b|\blimettenöl\b/gi, 'limette'],
+        [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
         [/\be?503\b|\bnatriumsesquicarbonat\b|\bammoniumcarbonat\b/gi, 'e503'],
@@ -6471,10 +6471,7 @@ function parseIngredients(inputText) {
         [/\borangenaroma\b/gi, 'aroma'],
         [/\bvanillearoma\b/gi, 'vanillin'],
         [/\bhimbeераroma\b/gi, 'aroma'],
-        [/\b(?:erdbeer|himbeer|kirsch|johannisbeer|zitrus|orangen?|zitronen?|limetten?)aroma\b/gi, (m) => {
-            if (/erdbeer|himbeer|kirsch|johannisbeer/i.test(m)) return 'erdbeere';
-            return 'zitrone';
-        }],  // Liberator-Fruchtaromen → als Frucht klassifizieren
+        [/\b(?:erdbeer|himbeer|kirsch|johannisbeer|zitrus|orangen?|zitronen?|limetten?)aroma\b/gi, 'aroma'],  // Fruchtaromen → generisches Aroma (Extrakt ≠ Frucht selbst)
         [/\b(?!nelken)(\w{4,})aroma\b/gi, 'aroma'],       // generisch: XYZaroma → aroma (außer nelkenaroma)
         // ── Backzutaten ──
         [/vanillepuddingpulver\b|puddingpulver\b/gi, 'stärke'],   // = Maisstärke + Vanillin
@@ -6821,7 +6818,7 @@ function parseIngredients(inputText) {
         [/\bhühnerei-trockeneiweiß\b|\bhühnerei-trockeneiwei[sß]+\b/gi, 'ei'],       // Hühnerei-Trockeneiweiss → ei
         [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis\b|\bhühnerei(?:ei)?weiß(?![a-zäöü])/gi, 'ei'],  // Hühnereieiweiß ohne Bindestrich
         [/\blösliche\s+maisfaser\b|\bmaisfaser\b|\bcorn\s*fi(?:ber|bre)\b/gi, ''],   // Maisfaser = Ballaststoff → safe
-        [/\bnatürliches?\s+limetten?-?aroma\b|\blimetten?-aroma\b/gi, 'limette'],    // Limetten-Aroma → limette
+        // Limetten-Aroma: siehe generische Aroma-Behandlung weiter oben
         [/\bpilzpulver\b|\bpilzextrakt\b|\bgetrocknete\s+pilze\b/gi, 'pilze'],      // Pilzpulver als Würze → Liberator S1
         [/\bextrakt\s+(?:von|aus)\s+rosmarin\b|\brosmarinpflanzen?extrakt\b/gi, 'kräuter'], // "Extrakt von Rosmarin" → safe
         [/\bgemüsemischung\b|\bgemüsepulver\b/gi, 'gemüse'],
