@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.54<br>
+                Histaminscanner v12.58<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1784,6 +1784,7 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'schutzkultur','schutzkulturen',  // Bakterienkultur zur Haltbarmachung, gezielt dosiert (nicht Fermentation)
         'säuerungsmittel',  // S0 Kategorie-Label, konkrete Säure oft in Klammern — siehe Hint-Text-Warnung
         'xantangummi','xanthan',  // S0 SIGHI (Kategorie-Registrierung, siehe auch SIGHI_DB[0])
         'aufstrich','braten',  // S0 — Nachtrag (generische, aber übliche Bezeichnungen)
@@ -4246,7 +4247,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.54');
+    dbg('VERSION: v12.58');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4260,12 +4261,13 @@ function parseIngredients(inputText) {
     // (Text bricht vorher an "Das Produkt" ab). Ganz früh entfernen, um das zu umgehen.
     inputText = inputText.replace(/[.,]?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '');
     inputText = inputText.replace(/%\s*-\s*(?=\()/g, '% ');
+    inputText = inputText.replace(/\)\s+(?=[A-ZÄÖÜ])/g, '), ');
     // Gleiches pragmatisches Muster: 'Reisgrieß' und 'Sojaeiweißerzeugnis' werden von ihren
     // eigentlich vorhandenen NORMALIZE-Regeln aus unbekanntem Grund nicht erfasst. Früh ersetzen.
     inputText = inputText.replace(/\breisgrieß(?![a-zäöü])/gi, 'Reis');
     inputText = inputText.replace(/\breisgriess\b/gi, 'Reis');
     inputText = inputText.replace(/\bsojaeiweiß?erzeugnis\b|\bsojaeiweisserzeugnis\b|\bsojaproteinerzeugnis\b/gi, 'Soja');
-    inputText = inputText.replace(/\bfärbendes?\s+lebensmittel\b\s*/gi, '');
+    inputText = inputText.replace(/\bfärbendes?\s+lebensmittel\b\s*:?\s*/gi, 'Farbstoff ');
     inputText = inputText.replace(/\bmit\s+anderen\s+natürlichen\s+aromen?\b/gi, '');
     inputText = inputText.replace(/\bz\.\s*t\.\s*/gi, '');
     // Unicode-Bindestriche normalisieren (OCR: En-Dash –, Em-Dash —, Minus −, Weiches Trennzeichen ­)
@@ -4278,6 +4280,9 @@ function parseIngredients(inputText) {
     inputText = inputText.replace(/([¹²³⁴⁵⁶⁷⁸⁹⁰]+)\s+(?=[A-ZÄÖÜ])/g, '$1, ');
     // Reine Fußnoten-Ziffern ohne Trennfunktion (am Wortende vor Komma/Punkt) einfach entfernen
     inputText = inputText.replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]+/g, '');
+    inputText = inputText.replace(/\bkonzentrate?\s+aus\s+/gi, '');
+    // Caret-Fußnoten (^), übliche Markierung z.B. für nachhaltigen Anbau, ebenfalls entfernen
+    inputText = inputText.replace(/\^+/g, '');
     // Fehlendes Komma zwischen zwei Zutaten erkennen: Wort endet auf -extrakt/-mittel/-pulver/-konzentrat,
     // direkt gefolgt von einem weiteren großgeschriebenen Wort ohne Komma dazwischen.
     // Häufiger Fehler in echten Zutatenlisten: "Rindfleischextrakt Kartoffelstärke" oder
@@ -6024,6 +6029,10 @@ function parseIngredients(inputText) {
         [/\bcrispies?\b/gi, ''],  // Crispies-Suffix (technischer Begriff)
         [/\btomatenmark(?:konzentrat|konzentriert)e?\b/gi, 'tomatenmark'],  // vor Deletion!
         [/\bfruchtmark(?:konzentrat)?\b/gi, 'fruchtmark'],  // vor Deletion!
+        [/\bkarottenkonzentrat\b|\bmöhrenkonzentrat\b/gi, 'karotte'],  // vor Deletion!
+        [/\brettichkonzentrat\b/gi, 'rettich'],  // vor Deletion!
+        [/\bselleriekonzentrat\b/gi, 'sellerie'],  // vor Deletion!
+        [/\brotkohlkonzentrat\b/gi, 'rotkohl'],  // vor Deletion!
         [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
@@ -9524,6 +9533,8 @@ function showHistoryDetail(entry) {
         
 function getIngredientInfo(name, cat, aiGuess) {
  const n = name.toLowerCase();
+        if (n === 'schutzkultur' || n === 'schutzkulturen')
+            return 'Gezielt ausgewählte Bakterienkultur zur natürlichen Haltbarmachung (hemmt Verderb-Keime) — anders als Fermentationskulturen nicht auf Aromabildung ausgelegt, meist in geringer Menge dosiert. Histaminbildung ist hier unwahrscheinlich, aber nicht wissenschaftlich vollständig ausgeschlossen.';
         if (n === 'säuerungsmittel')
             return '⚠️ Keine Einschätzung möglich: "Säuerungsmittel" ohne Angabe der konkreten Säure kann von unbedenklich (z.B. Citronensäure) bis reizend variieren. Zutatenliste auf die konkrete Säure in Klammern prüfen.';
         if (n === 'stärke' || n === 'starch')
