@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.64<br>
+                Histaminscanner v12.67<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4247,7 +4247,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.64');
+    dbg('VERSION: v12.67');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4261,6 +4261,7 @@ function parseIngredients(inputText) {
     // (Text bricht vorher an "Das Produkt" ab). Ganz früh entfernen, um das zu umgehen.
     inputText = inputText.replace(/[.,]?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '');
     inputText = inputText.replace(/%\s*-\s*(?=\()/g, '% ');
+    inputText = inputText.replace(/\bbeta-carotin\s*\(\s*provitamin\s*a\s*\)/gi, 'Beta-Carotin');
     inputText = inputText.replace(/\)\s+(?=[A-ZÄÖÜ])/g, '), ');
     // Gleiches pragmatisches Muster: 'Reisgrieß' und 'Sojaeiweißerzeugnis' werden von ihren
     // eigentlich vorhandenen NORMALIZE-Regeln aus unbekanntem Grund nicht erfasst. Früh ersetzen.
@@ -4281,6 +4282,23 @@ function parseIngredients(inputText) {
     // Reine Fußnoten-Ziffern ohne Trennfunktion (am Wortende vor Komma/Punkt) einfach entfernen
     inputText = inputText.replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]+/g, '');
     inputText = inputText.replace(/\bkonzentrate?\s+aus\s+/gi, '');
+    // Ellipsen-Aufzählung mit geteiltem Präfix-Qualifikativ und Suffix:
+    // "konzentrierter Orangen-, Apfel-, Ananas- und Maracujasaft" →
+    // "konzentrierter Orangensaft, konzentrierter Apfelsaft, konzentrierter Ananassaft, konzentrierter Maracujasaft"
+    inputText = inputText.replace(
+        /\b((?:eingelegt|geräuchert|gepökelt|mariniert|getrocknet|konzentriert)e[rs]?)\s+((?:[\wäöü]+-,?\s*){2,}und\s+[\wäöü]+)/gi,
+        (m, qualifier, list) => {
+            const lastWordMatch = list.match(/und\s+([\wäöü]+)$/i);
+            if (!lastWordMatch) return m;
+            const lastWord = lastWordMatch[1];
+            const suffixMatch = lastWord.match(/(saft|aroma|extrakt|mark|püree|pulver|öl|mehl)$/i);
+            if (!suffixMatch) return m;
+            const suffix = suffixMatch[1];
+            const parts = list.replace(/\s+und\s+[\wäöü]+$/i, '').split(/,\s*/).map(p => p.replace(/-$/, ''));
+            parts.push(lastWord.slice(0, -suffix.length));
+            return parts.map(p => `${qualifier} ${p}${suffix}`).join(', ');
+        }
+    );
     // Caret-Fußnoten (^), übliche Markierung z.B. für nachhaltigen Anbau, ebenfalls entfernen
     inputText = inputText.replace(/\^+/g, '');
     // Fehlendes Komma zwischen zwei Zutaten erkennen: Wort endet auf -extrakt/-mittel/-pulver/-konzentrat,
@@ -4346,7 +4364,7 @@ function parseIngredients(inputText) {
         (m, pre, inner) => {
             if ((pre+inner).toLowerCase().includes("curry") || (pre+inner).toLowerCase().includes("pfeffer") || (pre+inner).toLowerCase().includes("habanero")) { if(window._histDebug) { const _m = "[HIT] LIB_BRACKET: "+JSON.stringify(pre.slice(0,50))+" INNER: "+JSON.stringify(inner.slice(0,50)); console.log(_m); window._hlog(_m); } }
             // Wenn alle Komma-Teile reine Deskriptoren sind → pre behalten, inner verwerfen
-            const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut(?:e[mnrs]?)?|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei|laktosefrei|vegan|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w|selbst(?:gemacht|gekocht|zubereitet)e?r?s?|hausgemacht|in\\s+wasser|in\\s+öl|in\\s+eigenem\\s+saft|in\\s+lake|mit\\s+hefeextrakt|mit\\s+kräutern|unverarbeitet|hefefrei+)\b/i;
+            const DESCRIPTOR_WORDS = /^(?:geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|gereift|hell|dunkel|mild|scharf|fein|grob|bio|frisch|roh|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|locker|konzentriert|aufgetaut(?:e[mnrs]?)?|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|blanchiert|gedämpft|zerkleinert|püriert|ganz|getrocknet|pur|natur|naturell|ungesüßt|gesüßt|gesalzen|ungesalzen|kaltgepresst|raffiniert|unraffiniert|pasteurisiert|homogenisiert|ultrahocherhitzt|uht|granuliert|entkernt|geschnitten|gehobelt|gespalten|geraspelt|geformt|gerollt|gepresst|extrudiert|expandiert|gemahlen|grob\s+gemahlen|fein\s+gemahlen|ganz\s+gelassen|am\s+stück|in\s+scheiben|in\s+stücken?|ohne\s+\w+|mit\s+schale|ohne\s+schale|gelb|weiß|braun|grün|rot|blau|schwarz|glutenfrei(?:e[rs]?)?|laktosefrei(?:e[rs]?)?|vegan(?:e[rs]?)?|bio|dreifach\s+konzentriert|zweifach\s+konzentriert|dreifach|einfach|zweifach|doppelrahm\w*|rahmstufe\w*|doppelrahmstufe|fettgehalt\s+\d+|\d+[,.]?\d*\s*%\s*fett|\d+%|halbbitter|zartbitter|vollmilch|kalt\s+gepresst|nativ\s+extra|extra\s+nativ|kbA|demeter|fairtrade|naturtrüb|unfiltriert|geklärt|geschwefelt|ungeschwefelt|gegart|getrocknet|gefriergetrocknet|gefroren|aufgetaut|vakuumverpackt|luftgetrocknet|sonnengetrocknet|ofengetrocknet|schonend\s+\w+|traditionell\s+\w|selbst(?:gemacht|gekocht|zubereitet)e?r?s?|hausgemacht|in\\s+wasser|in\\s+öl|in\\s+eigenem\\s+saft|in\\s+lake|mit\\s+hefeextrakt|mit\\s+kräutern|unverarbeitet|hefefrei+)\b/i;
             const parts = inner.split(',').map(p => p.trim());
             if (parts.every(p => DESCRIPTOR_WORDS.test(p))) return pre.trim();
             // Bekannte Compound-Produkte: Namen behalten + Sub-Zutaten expandieren
@@ -4366,7 +4384,7 @@ function parseIngredients(inputText) {
     const liberateSingleBrackets = (text) => text.replace(
         /([a-zA-ZäöüÄÖÜß][\w\säöüÄÖÜß%*]{3,})\s*[*]?\s*\((?!\s*(?:enthält|kann|spuren|allergen|\d+[.,]?\d*\s*%?\)))([a-zA-ZäöüÄÖÜß][\wäöüÄÖÜß\s-]{2,60})\)/gi,
         (m, pre, inner) => {
-            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|fresh|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei|laktosefrei|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
+            const DESCRIPTOR_ONLY = /^(?:nativ|extra|vergine|fraktioniert|frisch|fresh|roh|pasteurisiert|ultrahocherhitzt|uht|granuliert|gelbe?|weiße?|braune?|grüne?|rote?|blau|schwarze?|hell|dunkel|glutenfrei(?:e[rs]?)?|laktosefrei(?:e[rs]?)?|doppelrahmstufe|doppelrahm\w*|dreifach\s+konzentriert|zweifach\s+konzentriert|einfach\s+konzentriert|dreifach|zartbitter|halbbitter|naturtrüb|unfiltriert|geklärt|gefriergetrocknet|homogenisiert|geschält|gehackt|gewürfelt|gerieben|getrocknet|geröstet|geräuchert|gepökelt|tiefgekühlt|hitzebehandelt|entölt|fettarm|vollfett|mager|jung|alt|lang gereift|sehr gereift|hell|dunkel|mild|scharf|fein|grob|bio|organic|naturell|natur|pure?|kaltgepresst|raffiniert|unraffiniert|gesalzen|ungesalzen|gesüßt|ungesüßt|teilentrahmte?|entrahmte?|ultrahocherhitzt|uht|homogen|konzentriert|aufgetaut|gegart|gekocht|gebacken|gegrillt|paniert|mariniert|gewürzt|vorgekocht|vorgegart|blanchiert|gedämpft|zerkleinert|püriert|stückig|cremig|flüssig|fest|weich|hart|zart|saftig|knusprig|krosse?|locker|luftig|dicht|kompakt|fein|mittel|grob|unverarbeitet|hefefrei|sehr(?:\s+\w+)?|konserve|dose|glas|eingelegt|eingedost|fermentiert|alkoholfrei|überreif|reif|gemischt(?:e[nsr]?)?|geschmolzen|tiefgefroren|gestreift|gehärtet|gekörnt|geraspelt|gefüllt|getrennt(?:e[mnrs]?)?|gewaschen(?:e[mnrs]?)?|abgezogen(?:e[mnrs]?)?|feinherb|vollkorn|mittlere?|groß|klein|kalt|lauwarm|doppelt|mittelscharfer?|warm|edelsüß|trocken|pflanzlich|natürlich|dünn|dick|tk|kühlregal|streifen|würfeln?|scheiben?|ersatzweise|röllchen?|gut|kräftig|daumengroß|eingeweicht|alternative?|gemahlen|halb|voll|modifiziert)|pulver\b|extrakt\b|\bun\b$/i;
             // Lecithin-Quelle: 'Lecithine (Sonnenblume)' → e322
             if (/lecithin/i.test(pre.trim()) && /^(?:sonnenblume|soja|raps|sonnenblumen|sunflower)$/i.test(inner.trim())) return 'e322';
             // Emulgator mit Lecithin-Quelle: 'Emulgator (Lecithine' + '(Sonnenblume)' 
@@ -6033,6 +6051,13 @@ function parseIngredients(inputText) {
         [/\brettichkonzentrat\b/gi, 'rettich'],  // vor Deletion!
         [/\bselleriekonzentrat\b/gi, 'sellerie'],  // vor Deletion!
         [/\brotkohlkonzentrat\b/gi, 'rotkohl'],  // vor Deletion!
+        [/\btraubensaftkonzentrat\b/gi, 'traube'],  // vor Deletion!
+        [/\bpassionsfruchtsaftkonzentrat\b/gi, 'maracuja'],  // vor Deletion!
+        [/\bnektarinenmark\b/gi, 'nektarine'],  // vor Deletion!
+        [/\bbananenmark\b/gi, 'banane'],  // vor Deletion!
+        [/\bguavenmark\b/gi, 'guave'],  // vor Deletion!
+        [/\bpapayamark\b/gi, 'papaya'],  // vor Deletion!
+        [/\bbirne?saftkonzentrat\b/gi, 'birne'],  // vor Deletion! (auch ohne Verbindungs-n)
         [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
   // texturiertes Weizenprotein
         // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
@@ -9795,7 +9820,7 @@ function parseIngredients(inputText) {
         // Nährwert-Deklarationen: "Kakao: 23% mindestens."
         .replace(/\b\w+\s*:\s*\d+[,.]?\d*\s*%[^,.;]*[.,]?/gi, ',')
         // "Glutenfrei.", "Laktosefrei." als Satzfragmente → leer
-        .replace(/\b(?:glutenfrei|laktosefrei|vegan|bio)\.?\s*/gi, '')
+        .replace(/\b(?:glutenfrei|laktosefrei|vegan|bio)(?:e[rs]?)?\.?\s*/gi, '')
         // "färbendes Lebensmittel X" — EU-Kategoriebezeichnung vor der eigentlichen Substanz, Kategoriewort entfernen
         .replace(/\bfärbendes?\s+lebensmittel\b\s*/gi, '')
         // Satz-Punkt der als Trenner fungiert (Wort. Großbuchstabe) → Komma
@@ -9915,7 +9940,7 @@ function parseIngredients(inputText) {
         // Herkunft/Prozent-Tags: (nicht-EU), (EU), (23% mindestens)
         p = p.replace(/\s*\((?:nicht-)?eu\b[^)]*\)/gi, '').trim();
         // 'Glutenfrei.', 'mindestens.' direkt im Text
-        p = p.replace(/\b(?:glutenfrei|laktosefrei|vegan|bio)\.?\b/gi, '').trim();
+        p = p.replace(/\b(?:glutenfrei|laktosefrei|vegan|bio)(?:e[rs]?)?\.?\b/gi, '').trim();
         p = p.replace(/\(\s*([A-ZÄÖÜ]{3,})\s*\)/g, '$1');
         // Trailing Bindestrich in Compound-Listen: 'orangen-' → 'orange'
         p = p.replace(/-$/, '').trim();
