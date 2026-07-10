@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.60<br>
+                Histaminscanner v12.64<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4247,7 +4247,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.60');
+    dbg('VERSION: v12.64');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4607,7 +4607,7 @@ function parseIngredients(inputText) {
         // Zitronenaroma: siehe generische Aroma-Behandlung weiter unten
         // Himbeer-/Erdbeeraroma (fused compounds): siehe generische Aroma-Behandlung weiter unten
         // Kirscharoma: siehe generische Aroma-Behandlung weiter unten
-        [/\bbananen?aroma\b/gi, 'banane'],  // Banane = Liberator S2
+        // bananenaroma: siehe generischer Fruchtaroma-Mechanismus
         [/\bvanille(?:extrakt|aroma|essenz)\b/gi, 'vanillearoma'],  // Vanillearoma → S0
         // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
         [/\b(?:käse|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
@@ -5972,7 +5972,7 @@ function parseIngredients(inputText) {
         [/dinatriumdiphosphat\b/gi, 'e450'],
         [/natriumacetat[e]?\b/gi, 'e262'],
         [/calciumacetat\b/gi, 'e263'],
-        [/apfelsinenaroma\b/gi, 'orangenaroma'],
+        [/apfelsinenaroma\b/gi, 'orangearoma'],
         [/natürliches butteraroma\b/gi, 'butteraroma'],
         [/butter.{0,3}aroma\b/gi, 'butteraroma'],
         // sojalecithin/lecithin → consolidated to e322 above
@@ -6468,11 +6468,1931 @@ function parseIngredients(inputText) {
         // ── Glukose-Fruktosesirup ──
         [/glukose-?fruktose-?sirup\b|fruktose-?glukose-?sirup\b/gi, 'glukosesirup'],
         // ── Aromazusätze ohne Klammer ──
-        [/\borangenaroma\b/gi, 'aroma'],
+        [/\b([\wäöü]{3,})aroma\b/gi, (m, fruit, offset, fullString) => {
+            const FRUIT_MAP = {
+                'zitronen':'zitrone','zitrone':'zitrone','limetten':'limette','limette':'limette',
+                'orangen':'orange','orange':'orange','zitrus':'orange',
+                'kirsch':'kirsche','kirschen':'kirsche',
+                'erdbeer':'erdbeere','erdbeeren':'erdbeere','himbeer':'himbeere','himbeeren':'himbeere',
+                'johannisbeer':'johannisbeere','johannisbeeren':'johannisbeere',
+                'apfel':'apfel','äpfel':'apfel','banane':'banane','bananen':'banane',
+                'pfirsich':'pfirsich','aprikose':'aprikose','aprikosen':'aprikose',
+                'ananas':'ananas','mango':'mango','birne':'birne','birnen':'birne',
+                'pflaume':'pflaume','pflaumen':'pflaume','traube':'traube','trauben':'traube',
+                'holunder':'holunderbeere','preiselbeer':'preiselbeere','cranberry':'cranberry',
+                'granatapfel':'granatapfel','maracuja':'maracuja','papaya':'papaya',
+            };
+            const key = fruit.toLowerCase();
+            const target = FRUIT_MAP[key];
+            if (!target) return 'aroma';
+            // EU-Kennzeichnungsrecht: "natürliches Aroma" darf nur stehen, wenn es echt aus der
+            // Frucht stammt. Fehlt dieser Zusatz (künstlich oder unbezeichnet), ist es meist
+            // synthetisch — ohne die biologische Matrix der Frucht. Nur bei "natürlich" die
+            // fruchtspezifische Einstufung übernehmen, sonst generisches (sicheres) Aroma.
+            const before = fullString.slice(Math.max(0, offset - 20), offset).toLowerCase();
+            if (/natürlich\w*\s*$/.test(before)) return target + 'aroma';
+            return 'aroma';
+        }],
         [/\bvanillearoma\b/gi, 'vanillin'],
-        [/\bhimbeераroma\b/gi, 'aroma'],
-        [/\b(?:erdbeer|himbeer|kirsch|johannisbeer|zitrus|orangen?|zitronen?|limetten?)aroma\b/gi, 'aroma'],  // Fruchtaromen → generisches Aroma (Extrakt ≠ Frucht selbst)
-        [/\b(?!nelken)(\w{4,})aroma\b/gi, 'aroma'],       // generisch: XYZaroma → aroma (außer nelkenaroma)
+        // ── Backzutaten ──
+        [/\bweinsteinpulver\b|\bweinsteinbackpulver\b|\bkremertartar\b|\bcream\s+of\s+tartar\b/gi, 'e334'],
+        [/\bagar-?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
+        // ── Getreide / Malz ──
+        [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
+        [/\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token S0
+        [/\bweizenkörner?\b|\bweizenbeeren?\b/gi, 'weizen'],
+        // ── Kulturen (Fermentierung) ──
+        [/\bkefirknollen?\b|\bkefirkristalle?\b|\bscoby\b|\bkombucha-?kulturen?\b/gi, 'kulturen'],
+        // ── Kakaoprodukte ──
+        [/\bkakaobohnen?\b(?!\s*(?:extrakt|pulver))/gi, 'kakao'],
+        [/\bkakaonibs?\b|\bkakao\s*nibs?\b/gi, 'kakao'],
+        // ── Superfoods / Exotic ──
+        [/\blucuma(?:frucht|pulver|extrakt)?\b/gi, 'lucuma'],  // Fruchtpulver S0
+        [/\bmaca(?:wurzel|pulver|extrakt|root)?\b/gi, 'maca'],  // Adaptogen S0
+        [/\baschwagandha(?:wurzel)?(?:extrakt|pulver)?\b|\bashwagandha\b/gi, 'kräuter'],
+        [/\bspirulina\b|\bchlorella\b/gi, 'kräuter'],  // Algen S0
+        [/\bmoringa\b/gi, 'kräuter'],  // Moringa S0
+        [/\bgerstengras\b/gi, 'gerstengras'],  // Graspulver S0
+        [/\bweizengras\b/gi, 'weizengras'],  // Graspulver S0
+        [/\bmatcha\b(?!\s*latte)/gi, 'grüntee'],
+        // ── Kokos-Varianten ──
+        [/\bkokosblütensaft\b/gi, 'zucker'],  // reiner Saft = Zucker
+        // kokosblütenzucker/sirup → eigener Token (nicht zucker!)
+        [/\bkokosbutter\b|\bkokoscreme\b(?!\s+\w)/gi, 'kokos'],
+        [/\bmct-?öl\b|\bmct\s+öl\b|\bmittelkettige?\s+triglyceride?\b/gi, 'mctöl'],  // S0
+        [/\bhanföl\b|\bhemp\s*oil\b/gi, 'hanföl'],  // S1
+        [/\bhanfsamen?\b|\bhemp\s*seeds?\b/gi, 'hanfsamen'],
+        [/\bavocadoöl\b|\bavocado\s*öl\b/gi, 'avocadoöl'],  // S1 eigener Token
+        [/\btrüffelaroma\b|\btrüffelextrakt\b/gi, 'aroma'],
+        // ── Aroma-Differenzierung nach HIT-Relevanz ─────────────────────
+        // Aromaextrakt = konzentrierter Lösungsmittel-Auszug → dao_blocker-Verdacht
+        [/\b[\wäöüß]*aromaextrakt\b|\bflavour\s*extract\b/gi, 'hefeextrakt'],  // auch "Fruchtaromaextrakt"/"Käsearomaextrakt" etc. → S3-Sicherung
+        // Liberator-Fruchtaromen → als Frucht klassifizieren
+        // Erdbeer-/Himbeer-/Kirsch-/Johannisbeeraroma: siehe generische Aroma-Behandlung weiter unten
+        // Zitronen-/Limettenaroma: siehe generische Aroma-Behandlung weiter unten (konsistent mit Orangenaroma-Fix)
+        // Zitronenaroma: siehe generische Aroma-Behandlung weiter unten
+        // Himbeer-/Erdbeeraroma (fused compounds): siehe generische Aroma-Behandlung weiter unten
+        // Kirscharoma: siehe generische Aroma-Behandlung weiter unten
+        // bananenaroma: siehe generischer Fruchtaroma-Mechanismus
+        [/\bvanille(?:extrakt|aroma|essenz)\b/gi, 'vanillearoma'],  // Vanillearoma → S0
+        // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
+        [/\b(?:käse|fleisch|sahne|champignon|pilz|zwiebel|knoblauch|obst|frucht)aroma\b/gi, 'aroma'],
+        [/\bnelken?aroma\b/gi, 'nelkenaroma'],  // Nelke = S2 Liberator, aber als Aroma stark verdünnt → eigenes Token S1
+        // ── Käse-Spezifisch ──
+        [/\bminze\b|\bpfefferminze?\b|\bminzblätter?\b/gi, 'minze'],  // S0
+        [/\blabneh\b/gi, 'joghurt'],
+        [/\bhallumi\b/gi, 'halloumi'],  // typo correction
+        // ── Malz / Brauzutaten ──
+        [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
+        [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
+        [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
+        [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
+        [/\bmono-?\s*und\s+diacetylweinsäureester\b|\bdiacetylweinsäureester\b/gi, 'e472e'],
+        [/^mono-?$|^di-?$|^tri-?$|^und$|^von$|^speisefettsäuren?$/gi, ''],  // Splitting-Artefakte
+        [/\bdi-\s+(?=und|oder|\w)/gi, ''],                           // "Di- und" → strip "di-"
+        [/\bpolyphosphate?\b|\be452\b/gi, 'e452'],  // E452 → safe S0
+        [/\btriphosphate?\b/gi, 'e451'],
+        // e452/polyphosphate → safe_hints (S0)
+        [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
+        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitamine'],  // B12 → safe (kein supplement)
+        [/\bvitamin\s*[ab]\d?\b/gi, 'vitamine'],                      // Vitamin A, B (NICHT C, B12!)
+        [/\bvitamin\s*c\b|e300\b/gi, 'e300'],                         // Vitamin C = E300 S0 (NICHT vitamine!)
+        // ── Multi-Wort Ausdrücke VOR dem \s+aus\s+-Strip! ───────────────
+        [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],
+        [/\s+aus\s+/gi, ' '],                                          // "Pfirsichsaft aus Konzentrat" → space
+        [/\.?\s*oder\s*:/gi, ' '],                                     // "oder:" Produkt-Varianten-Trenner
+        [/\bzutaten\s*:/gi, ''],                                        // Label "Zutaten:"
+        [/\bgersten\s*-\s*\d+/gi, 'gerste'],                           // "Gersten - 8%" → gerste
+        [/\bgersten\b/gi, 'gerste'],                                    // Plural → gerste → safe
+        [/\bweizenvollkornmehi\b/gi, 'mehl'],                          // OCR-Tippfehler mehi→mehl
+        [/\bdinatriume(\d+)\b/gi, 'e$1'],                              // "DinatriumE450" → e450
+        [/^ganz[eaos]?\s*$/gi, ''],                                    // Adjektiv "ganze" allein
+        [/\bglukose-?fruktose-?sirup\b|\bfruktose-?glukose-?sirup\b|\bhoch-?fruktose-?sirup\b/gi, 'zucker'], // VOR sirup-norm!
+        [/(?<!ahorn-)(?<!ahorn)\bsirup\b(?!\s*\w{4,})/gi, 'zucker'],                       // "Sirup" allein → zucker (nicht Ahornsirup!)
+        [/\bextrakt\b(?!\s*\w{3,})/gi, ''],                           // "Extrakt" allein → strip
+        [/\bcreme\b(?!\s*(?:fraîche|fresh|de|brûlée|caramel|brulee))/gi, 'sahne'], // Creme allein → sahne
+        // ── Maßangaben (Rezepte / manuelle Eingabe) ──────────────────────
+        [/^(?:\d+\s*)?(?:½|¼|¾|⅓|⅔)?\s*(?:el|tl|g|kg|ml|l|cl|dl|prise[n]?|stk|stück|scheibe[n]?|zehe[n]?|bund|priese|essl|teel|stangen?|kapseln?|körner?|zweige?|blätter?|blatt)\.?\s+/gi, ''],  // "½ TL", "2 EL", "50 g" etc.
+        [/^(?:½|¼|¾|⅓|⅔|\d+[,.]?\d*)\s*/gi, ''],                   // führende Bruchzahl/Zahl allein
+        [/\s+\d+[,.]\d*\s*%/gi, ''],                                   // "curry 0,4%" → "curry" (Dezimalzahl mit %)
+        [/\s+\d+\s*%/gi, ''],                                           // "dattel 2%" → "dattel"
+        [/\bsaft\s+von\b/gi, ''],                                     // "Saft von ½ Zitrone" → "½ Zitrone"
+        // ── Mandel-Komposita ─────────────────────────────────────────────
+        [/\bmandelsplitter\b|\bmandelblätter\b|\bmandelstücke\b|\bmandelmehl\b/gi, 'mandel'],
+        [/\bausternextrakt\b|\bausternsauce\b/gi, 'garnele'],  // S3!
+        [/\bfischsauce\b|\bnam\s+pla\b|\bnuoc\s+mam\b/gi, 'fischsosse'],
+        [/\btamarindenfrucht\b|\btamarindenpaste\b|\btamarinden?\b/gi, 'tamarinde'],
+        // ── Glutenfrei-Produkte ──
+        [/\bweizeneiwei(?:ss|ß|s)(?:\w+)?/gi, 'weizenprotein'],  // eigener Token, nicht mehl (würde dedupen)
+        [/\bweizenproteinhydrolysat\b|\bweizen(?:protein)?hydrolys\w+\b/gi, 'milchprotein'],
+        [/\bflohsamenschalen?\b|\bpsyllium\b/gi, 'flohsamenschalen'],   // Ballaststoff S0
+        [/^mono$|^di$|^triglyceride$|^und$/gi, ''],  // Artefakte aus E471-Parsing
+        // ── Früchte fehlend ──
+        [/\bheidelbeeren?\b|\bblaubeeren?\b|\bblueberries?\b/gi, 'heidelbeere'],
+        [/\b(?:wild)?preiselbeeren?\b|\bcowberries?\b/gi, 'preiselbeere'],
+        [/\bapfeldicksaft\b|\bapfelmark\b|\bapfelkonzentrat\b/gi, 'apfel'],
+        [/\bpfirsichnektar\b|\bpfirsichmark\b|\bpfirsichsaft(?:aus)?\b/gi, 'pfirsich'],  // "saftaus" Artefakt
+        [/\bweizen(?:roggen|dinkel)?sauerteig\b|\bsauerteig(?:brot|starter|weizen|kulturen)?\b/gi, 'sauerteig'], // Komposita
+        [/\bkirschnektar\b|\bkirschmark\b|\bkirschsaft\b/gi, 'kirsche'],
+        [/\bkirsch\b(?!en?\b|extrakt|likör|wasser)/gi, 'kirsche'],     // "Kirsch" allein → kirsche
+        [/\bbirnensaft\b|\bbirnenmark\b/gi, 'birne'],
+        [/\bbirnen?\b(?!\s*(?:saft|mark|nektar))/gi, 'birne'],
+        // ── Käse-Schmelzsalze ──
+        [/\bschmelzsalze?\b|\bschmelzkäsezubereitung\b/gi, 'e450'],
+        [/\bmilcheiweiß\b|\bmilcheiweis\b|\bmilcheiweib\b|\bmilchprotein\b(?!\s+\w)/gi, 'milchprotein'],
+        // ── Bärlauch ──
+        [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'bärlauch'],  // S1 L
+        // schnittlauch → eigener Token (nicht kräuter!)
+        [/\bfrühlingszwiebeln?\b|\blauchzwiebeln?\b/gi, 'lauch'],
+        // ── Süß-Saure Chili ──
+        [/\be1422\b|\bacetylierte\s+distärkeadipate?\b/gi, 'e1422'],
+        // ── Fischsauce → HIGH ──
+        [/\bauternextrakt\b/gi, 'garnele'],
+        [/\bziegenmilch\b/gi, 'milch'],  // S0
+        [/\bziegenjoghurt\b/gi, 'joghurt'],  // S1
+        [/\bziegenkäse\b(?!\s+\w)/gi, 'käse'],
+        [/\blaktase\b/gi, 'lactase'],  // Enzym für laktosefreie Milch
+        [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
+        // ── Sportlernahrung ──
+        [/\bcreatin(?:-monohydrat)?\b|\bkreatin\b/gi, 'kreatin'],
+        [/\bl-leucin\b|\bl-isoleucin\b|\bl-valin\b|\bbcaa\b/gi, 'vitamine'],
+        [/\bl-glutamin\b|\bl-arginin\b|\bl-lysin\b|\bl-\w+\b/gi, 'vitamine'],  // Aminosäuren
+        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'vitamine'],              // S0 – Stoffwechselprodukt
+        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'vitamine'], // S0 – Aminosäurederivat
+        [/\bzitronenzellen\b|\blemon\s*cells?\b/gi, 'zitrone'],                 // Trübungsmittel aus Zitrone → liberator
+        [/\bzitronenfruchtfleisch\b|\blemon\s*flesh\b|\bzitronenmark\b/gi, 'zitrone'],  // Fruchtfleisch → zitrone S1
+        [/\bkonzentrierter?\s+zitronensaft\b|\bkonzentrierter?\s+limettensaft\b/gi, 'zitrone'], // "konzentrierter Zitronensaft"
+        [/\bschwarzes?\s+karottensaft(?:konzentrat)?\b/gi, 'karotte'],          // "schwarzes Karottensaftkonzentrat"
+        [/\bmaltodextri[n]?\b(?:\s+aus\s+\w+)?\b/gi, 'maltodextrin'],       // eigener Token (nicht zucker — würde dedupen)
+        [/\bcollagen(?:peptide?|protein)?\b|\bkollagen\b/gi, 'molke'],
+        // ── Gewürze Spezifisch ──
+        [/\bwasabipulver\b|\bwasabi(?:paste|pulver|extrakt)?\b/gi, 'wasabi'],  // S1-2 Liberator — NICHT gewürze!
+        [/\bpiment\b|\bpimentkörner?\b|\bneugewürz\b/gi, 'piment'],  // S0
+        [/\brosmarin(?:extrakt|öl|zweige?)?\b/gi, 'rosmarin'],  // S0
+        [/\bsalbei\b|\bsage\b/gi, 'salbei'],  // S0
+        [/\bestragon\b|\btarragon\b/gi, 'estragon'],  // S0
+        [/\bkerbel\b/gi, 'kräuter'],
+        // ── Couscous / Bulgur / Polenta ──
+        [/\bcouscous\b/gi, 'couscous'],
+        [/\bbulgur\b/gi, 'bulgur'],  // Bulgur = vorgekochter Hartweizen, eigener Token
+        [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
+        // ── Weitere Backzutaten ──
+        [/\bascorbinsäure\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
+        [/\bascorbin(?:säure)?\b/gi, 'vitamine'],  // Mehlbehandlungsmittel (ohne e300/vitamin c!)
+        [/\breismilch(?:pulver)?\b/gi, 'reismilch'],  // eigener Token S0
+        // ── Baharat / Dukkah ──
+        [/\ballspice\b/gi, 'piment'],  // allspice = piment
+        [/\bdukkah\b/gi, 'gewürze'],
+        [/\bbaharat\b/gi, 'gewürze'],
+        [/\bbüffelmozzarella\b/gi, 'mozzarella'],  // → mozzarella S0
+        [/\bbüffelmilch\b/gi, 'milch'],
+        [/\brohmilch\b|\bunpasteurisierte?\s+milch\b/gi, 'rohmilch'],  // → liberator S1 H! (sehr verderblich)
+        // ── Meeresfrüchte fehlend ──
+        [/\bkrabben(?:fleisch|schwänze?|extrakt)?\b|\bcrab\b/gi, 'garnele'],
+        [/\bjakobs(?:muscheln?)?\b|\bscallop\b/gi, 'garnele'],
+        [/\bhummer\b|\blocster\b|\blobster\b/gi, 'garnele'],
+        [/\blanguste\b|\bshrimp\b|\bprawns?\b/gi, 'garnele'],
+        [/\bmuscheln?\b(?!\s*(?:suppe|fond|extrakt))/gi, 'garnele'],
+        [/\baustern?\b|\boysters?\b/gi, 'garnele'],
+        [/\btintenfisch(?:ringe?)?\b|\bcalamari\b/gi, 'tintenfisch'],
+        // ── Alkoholfreie Getränke (VOR alkohol-Regeln!) ──────────────────────
+        [/alkoholfreier?\s+(?:\w+\s+)?(?:wein|sekt|prosecco|champagner|schaumwein|dessertwein|obstwein|apfelwein|fruchtwein)\b/gi, 'alkoholfreier wein'],
+        [/\b(?:wein|sekt|prosecco)\s+(?:ohne\s+alkohol|alkoholfrei)\b/gi, 'alkoholfreier wein'],
+        // ── Alkohol in Saucen ──
+        [/\bweinbrand\b|\bbrandy\b|\bcognac\b|\barmagnac\b/gi, 'alkohol'],
+        [/\brotwein\b|red wine|spätburgunder|merlot|cabernet|shiraz/gi, 'rotwein'],
+        [/\bsekt\b|\bchampagner\b|\bprosecco\b|\bcava\b|\bcrémant\b|sparkling wine/gi, 'sekt'],
+        [/\bweißwein\b|\bweißer wein\b|white wine|riesling|chardonnay|pinot grigio/gi, 'weißwein'],
+        [/\brosé\b|\bprosecco\b/gi, 'alkohol'],
+        [/\bport(?:wein)?\b|\bsherry\b|\bmarsala\b|\bvermouth\b/gi, 'alkohol'],
+        [/\brum\b|\bwhisky\b|\bschnaps\b|\blikör\b|\bvodka\b/gi, 'alkohol'],
+        // ── Fleisch-Cuts ──
+        [/\bschweineprotein\b|\bschweine?fleischprotein\b/gi, 'schweinefleisch'],  // S0
+        [/\bschweinkekeule\b|\bschweines?keule\b|\bschweinebein\b/gi, 'schweinefleisch'],
+        [/\bhähnchen(?:keule|schenkel|flügel|brust)?\b/gi, 'hähnchen'],
+        [/\benten(?:brust|keule|filet)?\b|\bente\b(?!\s*r)/gi, 'geflügel'],
+        [/\bgänse(?:brust|keule|filet|schmalz)?\b|\bgans\b/gi, 'geflügel'],
+        [/\bputen(?:brust|filet|keule|schnitzel)?\b/gi, 'pute'],
+        [/\btrüffelöl\b/gi, 'trüffelöl'],
+        [/\btrüffel\b|\bsommertrüffel\b|\bschwarztrüffel\b/gi, 'pilze'],
+        // ── Getreide-Varianten ──
+        [/\bdinkelkorn\b|\bdinkel(?:körner|graupen|grieß)?\b/gi, 'dinkel'],
+        [/\bquinoa(?:flocken|korn|gepufft)?\b/gi, 'quinoa'],
+        [/\broggenkorn\b|\broggen(?:körner|graupen|schrot)?\b(?!\s*mehl)/gi, 'roggen'],
+        [/\bbuchweizen(?:korn|körner|graupen)?\b(?!\s*mehl)/gi, 'buchweizen'],
+        [/\bgefriergetrocknet\b\s*/gi, ''],
+        // 'getrocknet' NICHT mehr löschen — Trocknung konzentriert biogene Amine (histaminrelevant)
+        [/\bhalbiert\b\s*/gi, ''],
+        [/\bgehackt\b\s*/gi, ''],
+        [/\bgeröstet\b\s*/gi, ''],
+        [/\bgehobelt\b\s*/gi, ''],
+        [/\bblanchiert[e]?\b\s*/gi, ''],
+        // 'geräuchert' NICHT mehr pauschal löschen — histaminrelevant, siehe DESCRIPTOR_RE-Ausnahme + Qualifier-Fallback
+        [/\bstark\s+entölt(?:es?)?\b\s*/gi, ''],                                // "stark entöltes Kakaopulver" → "Kakaopulver"
+        [/\bentölt(?:es?)?\b\s*/gi, ''],                                         // "entöltes" allein
+        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine'], // Vit-E-Extrakt → safe
+        // ── Eisen-II Varianten ──
+        [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
+        [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
+        [/\beisen-?iii-?\w+\b/gi, 'mineralstoffe'],
+        // ── Spurenelemente / Mineralien ──────────────────────────────────
+        [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mineralstoffe'],          // Mangan → safe
+        [/\bchrom(?:chlorid|picolinat|iii)?\b/gi, 'mineralstoffe'],             // Chrom → safe
+        [/\bmolybdän(?:\w+)?\b/gi, 'mineralstoffe'],                            // Molybdän → safe
+        [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'mineralstoffe'],       // Zink → safe
+        [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'mineralstoffe'],                  // Kupfer → safe
+        // 'Jod' bleibt eigenständig — SIGHI stuft Jod als Liberator ein (siehe DB-Registrierung, wie Iod/Iodine)
+        [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'sauerkirsche'],
+        [/\beisen\s*\(?ii\)?\s*-?gluconat\b|\beisen\s*ii\s*gluconat\b|e579\b/gi, 'e579'],
+        [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'mineralstoffe'],  // andere Eisenverbindungen
+        [/\bpflaumenmus\b|\btrockenpflaumen?\b|\bpflaumensaft\b/gi, 'pflaume'],
+        [/\bpflaumen?\b(?!\s*(?:likör))/gi, 'pflaume'],
+        [/\bfeigenmus\b|\btrockenfeigen?\b|\bfeigensaft\b/gi, 'feige'],
+        [/\bfeigen?\b(?!\s*(?:konfitüre|likör))/gi, 'feige'],
+        [/\bsauerkirschen?\b|\bsauere?\s+kirschen?\b/gi, 'sauerkirsche'],
+        [/\bacai(?:-beere)?(?:\s+gefriergetrocknet)?\b/gi, 'acai'],
+        [/\bgoji(?:-beeren?)?\b(?:\s+getrocknet)?\b/gi, 'goji'],
+        // ── Oliven / Konservierung ──
+        [/\be579\b|\beisen\s*\(ii\)-?gluconat\b|\beisen\s*ii\s*gluconat\b/gi, 'e579'],
+        [/\bglucono(?:delta)?lacton\b|\bglucono-delta-lacton\b|e575\b/gi, 'e575'],
+        // ── Gase / Treibmittel ──
+        [/\bstickstoffmonoxid\b|\bdistickstoffmonoxid\b|\blachgas\b|e942\b/gi, 'e942'],
+        [/\bstickstoff\b|e941\b/gi, 'e941'],
+        [/\bkohlendioxid\b|\bco2\b|e290\b/gi, 'e290'],
+        // ── Fermentiertes Spezifisch ──
+        [/\bkoji(?:-schimmel)?\b|\baspergillus\s+\w+\b/gi, 'kulturen'],
+        // ── E435 ──
+        // Funktionsklasse + INCI-Name (nach Klammerauflösung ohne Komma)
+        [/\bemulgator(?:en)?\s+polyoxyethylen(?:-?20)?-?sorbitan-?monostearat\b/gi, 'e435'],
+        [/\bemulgator(?:en)?\s+polyoxyethylensorbitanmonostearat\b/gi, 'e435'],
+        [/\bemulgator(?:en)?\s+polyoxyethylensorbitanmonooleat\b/gi, 'e433'],
+        [/\bpolyoxyethylen(?:-?20)?-?sorbitan-?monostearat\b|\bpolyoxyethylensorbitanmonostearat\b|\bpolysorbat\s*60\b|\be435\b/gi, 'e435'],  // Polysorbat 60
+        [/\bpolyoxyethylensorbitanmonooleat\b|\bpolysorbat\s*80\b|\be433\b/gi, 'e433'],  // Polysorbat 80
+        // ── Nüsse-Varianten — SIGHI 2024 differenziert! ──
+        [/\bmacadamia(?:-nüsse?)?(?:nuss|nüsse)?\b/gi, 'macadamia'],  // S0 (SIGHI)
+        [/\bpinien(?:kerne?|nüsse?)?\b/gi, 'pinienkern'],  // S1 (SIGHI)
+        [/\bpara(?:nüsse?|nuss)?\b|\bparanüsse?\b/gi, 'paranuss'],  // S0 (SIGHI)
+        [/\bwalnüsse?\b|\bwalnusskerne?\b/gi, 'walnuss'],  // S3 HIGH! (SIGHI)
+        [/\bpistazien?\b/gi, 'pistazie'],  // S0 (SIGHI)
+        [/\bkokoschips?\b|\bkokosraspeln?\b|\bkokosflakes?\b/gi, 'kokos'],
+        // ── Samen ──
+        [/\bchia[\s-]?samem?\b|\bchia[\s-]?samen?\b|\bchia\b/gi, 'chiasamen'],
+        [/\bmohn(?:samen?|körner?|pulver)?\b/gi, 'mohn'],
+        [/\bsesamkörner?\b|\bsesamöl\b|\bsesam\b/gi, 'sesam'],
+        // ── Mehl-Typen ──
+        [/\bdinkelmehl\b|\bdinkel(?:vollkorn)?mehl\b/gi, 'dinkelmehl'],
+        [/\bbuchweizenmehl\b|\bbuchweizen(?:grieß|flocken|körner)?\b/gi, 'buchweizenmehl'],
+        [/\bkokosmehl\b|\bcoconut\s*flour\b/gi, 'kokosmehl'],
+        [/\bmaniokmehl\b|\bcassavamehl\b|\bkassavamehl\b/gi, 'maniokmehl'],
+        [/\bbananenmehl\b|\bkochbananenmehl\b/gi, 'bananenmehl'],
+        [/\bkonjakmehl\b|\bglucomann?an\b|\bkonjak(?:wurzel)?\b/gi, 'konjakmehl'],
+        [/\berdmandelmehl\b|\bchufa\b|\btigernut\b/gi, 'erdmandelmehl'],
+        [/\bteffmehl\b|\bteff\b/gi, 'teffmehl'],
+        [/\\bhirsemehl\\b|\\bhirseflocken\\b/gi, 'hirsemehl'],  // bare 'hirse' bleibt hirse
+        [/\bsojamehl\b|\bsoya?\s*flour\b/gi, 'sojamehl'],
+        [/\bkichererbsenmehl\b|\bbesan\b|\bgram(?:mehl)?\b/gi, 'kichererbsenmehl'],
+        [/\blinsenmehl\b|\blentil\s*flour\b/gi, 'linsenmehl'],
+        [/\blupinenmehl\b|\blupine?\s*flour\b/gi, 'lupinenmehl'],
+        [/\bmandelmehl\b|\balmond\s*flour\b/gi, 'mandelmehl'],
+        [/\bleinsamenmehl\b|\bleinmehl\b/gi, 'leinsamenmehl'],
+        [/\bhanfmehl\b|\bhemp\s*flour\b/gi, 'hanfmehl'],
+        [/\breissirup\b|\brice(?:\s*(?:malt\s*))?syrup\b/gi, 'reissirup'],
+        [/\ballulose\b|\bd-allulose\b/gi, 'allulose'],
+        [/\berythrit(?:ol)?\b|\be968\b/gi, 'erythrit'],
+        [/\bxylit(?:ol)?\b|\bbirkenzucker\b|\be967\b/gi, 'xylit'],
+        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\be960\b/gi, 'stevia'],
+        [/\baspartam(?:e)?\b|\be951\b/gi, 'aspartam'],
+        [/\bsucralose\b|\be955\b/gi, 'sucralose'],
+        [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltit'],
+        [/\bsorbit(?:ol)?\b|\be420\b/gi, 'sorbit'],
+        [/\byacon\s*syrup\b|\byacon(?:sirup)?\b|\byakon(?:sirup)?\b/gi, 'yakonsirup'],
+        [/\bkokosblütensirup\b|\bkokosblütenzucker\b|\bcoconut(?:\s*(?:blossom\s*))?sugar\b/gi, 'kokosblütenzucker'],
+        [/\bdattelsirup\b|\bdattelzucker\b|\bdate\s*(?:syrup|sugar)\b/gi, 'dattelsirup'],
+        [/\bagavendicksaft\b|\bagavensirup\b|\bagave(?:\s*(?:syrup|nectar|sirup))?\b/gi, 'agavendicksaft'],
+        [/\bahorn-?sirup\b|\bmaple\s*syrup\b/gi, 'ahornsirup'],
+        [/\bessigessenz\b|\breine\s*essigsäure\b/gi, 'essigessenz'],
+        [/\bbranntweinessig\s+(?=[a-zäöüß])/gi, 'branntweinessig, '],  // Komma-Split
+        [/\bbranntweinessig\b|\balkoholessig\b|\bdestillierter\s*essig\b/gi, 'branntweinessig'],
+        // reisessig → dao_blocker (via NORMALIZE)
+        [/\bkokosessig\b|\bcoconut\s*vinegar\b/gi, 'kokosessig'],
+        [/\bsherryessig\b|\bsherry\s*vinegar\b|\bjerez\s*essig\b/gi, 'sherryessig'],
+        [/\bumeessig\b|\bumeboshi\s*(?:würze|essig)\b/gi, 'umeessig'],
+        [/\bkombuchaessig\b|\bkombucha\s*essig\b/gi, 'kombuchaessig'],
+        [/\bhibiskus(?:tee|blüten?)?\b|\bhibiscus\b|\bmalventee\b/gi, 'hibiskustee'],
+        [/\bfrüchtetee\b|\bfrucht(?:iger)?\s*tee\b/gi, 'früchtetee'],
+        [/\bbrennnessel(?:tee|blätter?)?\b|\bnettle\s*tea?\b/gi, 'brennnessel'],
+        [/\bfencheltee\b|\bfennel\s*tea\b/gi, 'fencheltee'],
+        // salbeitee S0 — in safe_hints + SIGHI_DB[0]
+        // ingwertee S0 — in safe_hints
+        [/\bsencha\b|\bgunpowder\s*tee?\b/gi, 'grüntee'],
+        [/\boolongtee\b|\boolong\s*tee?\b/gi, 'oolongtee'],
+        [/\bweißtee\b|\bweißer\s+tee\b|\bwhite\s+tea\b/gi, 'weißtee'],  // compound → DESCRIPTOR_RE-sicher
+        [/\bmatetee\b|\bmate\s+tee\b|\byerba\s+mate\b/gi, 'matetee'],
+        [/\bgranatapfelessig\b|\bpomegranate\s*vinegar\b/gi, 'granatapfelessig'],
+        [/\bpaneer\b|\bqueso\s*blanco\b/gi, 'paneer'],
+        [/\bhalloumi\b|\bgrillkäse\b/gi, 'halloumi'],
+        [/\bharzer(?:\s*(?:roller|käse))?\b|\bhandkäse\b|\bmainzer\s*käse\b/gi, 'harzer roller'],
+        [/\bgerstenmalzextrakt\b|\bmalzextrakt\b|\bmalt\s*extract\b/gi, 'gerstenmalzextrakt'],
+        [/\breiskeimoel\b|\breiskeimöl\b|\brice\s*bran\s*oil\b/gi, 'reiskeimöl'],
+        [/\bdisteloel\b|\bdistelöl\b|\bsafloröl\b|\bsafloroel\b|\bsafflower\s*oil\b/gi, 'distelöl'],
+        [/\barganoel\b|\barganöl\b|\bargan\s*oil\b/gi, 'arganöl'],
+        [/\bschwarzkuemmeloel\b|\bschwarzkümmelöl\b|\bnigella\s*oil\b|\bblack\s*seed\s*oil\b/gi, 'schwarzkümmelöl'],
+        [/\bweizenkeimoel\b|\bweizenkeimöl\b|\bwheat\s*germ\s*oil\b/gi, 'weizenkeimöl'],
+        [/\bfischoel\b|\bfischöl\b|\blachsoel\b|\blachsöl\b|\bfish\s*oil\b|\bomega-?3\s*öl\b/gi, 'fischöl'],
+
+        [/\bkichererbsenmehl\b|\bgram(?:mehl)?\b|\bbesan\b/gi, 'kichererbsenmehl'],
+        [/\bmandelmehl\b|\bmandelgrieß\b/gi, 'mandel'],
+        [/\bkokosmehl\b|\bkokosgrieß\b/gi, 'kokos'],
+        // ── Schwefel / Konservierung getrocknete Früchte ──
+        [/\bschwefeldiox?id\b|\bschweflige\s+säure\b|e220\b/gi, 'e220'],
+        [/\bnatriumsulfit\b|e221\b/gi, 'e221'],                            // E221 = Natriumsulfit
+        [/\bnatriumhydrogensulfit\b|\bnatriumbisulfit\b|\bnatriumhydrogensulfid\b|e222\b/gi, 'e222'],  // E222 + OCR-Fehler
+        [/\bnatriummetabisulfit\b|\bnatriumdisulfit\b|e223\b/gi, 'e223'],  // E223 = Natriummetabisulfit
+        [/\bkaliummetabisulfit\b|\bkaliumdisulfit\b|e224\b/gi, 'e224'],    // E224 = Kaliummetabisulfit
+        [/\bkaliumsulfit\b|e225\b/gi, 'e225'],                             // E225 = Kaliumsulfit
+        [/\bcalciumsulfit\b|e226\b/gi, 'e226'],                            // E226 = Calciumsulfit
+        [/\bcalciumhydrogensulfit\b|e227\b/gi, 'e227'],                    // E227 = Calciumhydrogensulfit
+        [/\bkaliumhydrogensulfit\b|e228\b/gi, 'e228'],                     // E228 = Kaliumhydrogensulfit
+        [/\bbiphenyl\b|\bdiphenyl\b|e230\b/gi, 'e231'],                     // E230 → SIGHI-mäßig wie E231/232 behandelt
+        [/\borthophenylphenol\b|e231\b/gi, 'e231'],
+        [/\bnatriumorthophenylphenol\b|\bsopp\b|e232\b/gi, 'e232'],
+        [/\bsorbitsirup\b/gi, 'süßungsmittel'],
+        [/\binulin\b|\bchicorée-?inulin\b|\bfrukto-?inulin\b/gi, 'inulin'],   // Explizit S0
+        [/\bkaffee?extrakt\b|\bkaffee?konzentrat\b|\bcoffein\b|\bkaffeeextrakt\b|\bkaffee-extrakt\b/gi, 'kaffee'],
+        [/\bröstkaffee\b|\bröstkaffeeextrakt\b|\bgerösteter?\s+kaffee\b|\bkaffeeöl\b|\bkaffeepulver\b|\binstantkaffee\b/gi, 'kaffee'],
+        [/\barabica(?:-kaffeebohnen?|-bohnen?)?\b|\brobusta(?:-bohnen?)?\b/gi, 'kaffee'],
+        // ── Tee-Zutaten ──
+        [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'kräuter'],
+        [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'kräuter'],
+        [/\bzitronengras\b|\bzitronenverbene\b/gi, 'kräuter'],
+        [/\bzitronenmelisse\b/gi, 'melisse'],
+        [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'zimt'],  // Liberator S1-2 — NICHT zu gewürze!
+        [/\borgangen?schale\b|\blimettenschale\b/gi, 'kräuter'],
+        [/\bbergamotte(?:öl|extrakt|schale)?\b/gi, 'bergamotteöl'],
+        [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'süßholz'],  // DAO-Hemmer — NICHT kräuter!
+        // ── Schokolade Spezifika ──
+        [/\brosenwasser\b|\brose\s*water\b/gi, 'kräuter'],       // S0
+        [/\bmandelaroma\b|\bnatürliches?\s+mandelaroma\b/gi, 'aroma'],
+        [/\bmarzipan(?:masse|rohmasse|füllung)?\b/gi, 'marzipan'],
+        // ── Kulturen weitere ──
+        [/\bbifidobacterium\s+\w+\b|\bbifidus\b|\bLactobacillus\s+\w+\b/gi, 'kulturen'],
+        [/\breifungskulture?n?\b|\breifekulturen?\b|\bstarterkulturen?\b/gi, 'kulturen'],  // Wurst-Reifekulturen → safe
+        [/\brote-bete-saftpulver\b|\brote?\s*bete?\s*saftpulver\b/gi, 'rote bete'],
+        [/\d+\s*%\s*rote-bete-saft\s+aus\s+rote-bete-saftkonzentrat\b/gi, 'rote bete'],
+        [/rote-bete-saft\s+aus\s+rote-bete-saftkonzentrat\b/gi, 'rote bete'],
+        [/rote-bete-saftkonzentrat\b/gi, 'rote bete'],  // Konzentrat-Rest → rote bete
+        [/\brote-bete-saft(?:konzentrat)?\b|\brote?\s*bete?\s*saft\b/gi, 'rote bete'],
+        [/\brote\s+bete\s+rote\s+bete\b/gi, 'rote bete'],  // Dedup-Artefakt
+        [/\bfärbendes?\s+lebensmittel\s*:?\s*/gi, ''],  // "färbendes Lebensmittel: X" → "X" (muss zuerst!)
+        // Generisch: "Beschreibung ... : Natrium-/Calcium-/E-Zusatzstoff" → nur den Zusatzstoff behalten
+        // z.B. "essbare Wursthülle aus Alginat hergestellt: Natriumalginat" → "Natriumalginat"
+        [/^.*?:\s*((?:natrium|kalium|calcium|magnesium)\w*|e\d{3}\w*)\s*$/i, '$1'],
+        [/\brote-?bete-?pulver\b|\brote\s+bete\s+pulver\b/gi, 'rote bete'],  // Rote-Bete-Pulver → Liberator S1
+        [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
+        [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
+        [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
+        [/\binulin\b|\bchicorée-inulin\b|\bfrukto(?:oligosaccharide)?\b/gi, 'inulin'],
+        // ── Brot ──
+        [/\broggenschrot\b/gi, 'roggenmehl'],  // Schrot = grob gemahlenes Getreide
+        [/\bgrobsalz\b|\bmeersalz(?:flocken)?\b|\bfleur\s+de\s+sel\b/gi, 'salz'],
+        [/\brübensirup\b|\bzuckerrübensirup\b|\brübenkraut\b|\bzuckerrübensaft\b/gi, 'zucker'],
+        [/\bblanchierte?\s+(\w+)\b/gi, '$1'],   // "blanchierte Mandeln" → "Mandeln"
+        [/\bmandelmus\b|\bmandelmark\b/gi, 'mandel'],
+        // ── Früchte weitere ──
+        [/\bbananen?\b(?!\s*(?:chips|flocken|brot|kuchen))/gi, 'banane'],
+        [/\bkiwi\b(?!\s*(?:stücke|getrocknet))/gi, 'kiwi'],
+        [/\bpapaya\b(?!\s*(?:stücke|getrocknet))/gi, 'papaya'],
+        [/\bmaracuja\b|\bpassionsfrucht\b/gi, 'maracuja'],
+        // ── E466 ──
+        [/\bcarboxymethylcellulose\b|\bcmc\b|\bcellulosegummi\b|e466\b/gi, 'e466'],
+        [/\bhydroxypropylcellulose\b|e463\b/gi, 'e463'],
+        // ── Agavendicksaft ──
+        [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'agavendicksaft'],  // S0 — eigener Token (Kommentar war falsch: S2→S0)
+        [/\bgummibase\b|\bkaumasse\b/gi, 'stärke'],         // S0 technische Basis
+        [/\bfüllstoff\s*(?:\([^)]+\))?\b/gi, ''],           // Kategorienwort → strip
+        [/\bgummi\s*arabicum\b|\barabisc?hes?\s*gummi\b|e414\b/gi, 'e414'],
+        [/\bweinsäure\b|\bl-?weinsäure\b|e334\b/gi, 'e334'],
+        [/\bmagnesiumstearat\b|e470\b/gi, 'e470'],
+        // ── Gemüse-Spezifika ──
+        [/(?<!essig)(?<!essig-)(?<!essig\s)\bgurken?\b(?!\s*(?:salat|kraut|wasser|pick))/gi, 'gurke'],  // nur frische Gurke → gurke; Essiggurken/Pickles bleiben eigenständig (S2 statt S0!)
+        [/\bschokoladen?stücke?\b|\bschokoladen?chips?\b|\bschokostücke?\b/gi, 'schokolade'],
+        [/\bchocolate\s*chips?\b|\bchoc\s*chips?\b/gi, 'schokolade'],
+        // ── Carob (E410) ── bereits als e410 genormt, aber Variante
+        [/\bjohannis(?:brot-)?extrakt\b|\bcarob\b|e410\b/gi, 'e410'],
+        // ── Sake / Mirin (Asiatische Würzmittel) ──
+        [/\bsake\b|\breiswein\b/gi, 'alkohol'],              // S3!
+        [/\bmirin\b|\brei?swein\s*(?:würze)?\b/gi, 'alkohol'],  // S3!
+        [/\bfermentierte?\s+(?:rote\s+)?bohnen?\b/gi, 'soja'],  // S2-3 (fermentiert)
+        [/\bxanthan(?:gummi)?\b|e415\b/gi, 'e415'],
+        [/\bhefeflocken\b|\bnährhefeflocken\b/gi, 'hefeflocken'],  // Lib S2 — NICHT hefe!
+        // ── Farbstoffe weitere ──
+        [/\be100\b|\bkurkumin\b/gi, 'e100'],
+        [/\be140\b|\bchlorophyll(?:e)?\b/gi, 'e140'],
+        [/\be141\b|\bkupferchlorophyll(?:in)?\b/gi, 'e141'],
+        [/\be163\b|\banthoc?[yz][ya]?[a]?n(?:e|in)?\b/gi, 'e163'],
+        [/\be171\b|\btitandioxid\b/gi, 'e171'],
+        [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'paprikaextrakt'],
+        // ── Süßwarenzutaten ──
+        [/\bfruchtgummi\b|\bfruchtsaft\s+[\wäöüßÄÖÜ]+\b/gi, 'frucht'],
+        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'kräuter'],
+        // ── Onion / Zwiebel-Compound ──
+        [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
+        [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
+                [/\beigel[bp]\b|\beidotter\b|\begg\s*yolk\b/gi, 'eigelb'],  // S0!
+[/\beiweißgewürze?\b|\beiweißwürze\b/gi, 'hefeextrakt'],
+[/hühneiweiß|\beiklar\b|\bes?iweiss\b|\beiweiß\b(?!\s*\w{4})/gi, 'eiklar'],
+        [/\bhühnereieiweiß(?![a-zäöü])|\bhühnereieiweis{1,2}\b|\bhühnerei-eiweis{1,2}\b|\bhühnerei-eiweiß(?![a-zäöü])|\bhühnerei(?:ei)?wei[sß]{1,2}(?![a-zäöü])/gi, 'ei'],  // VOR hühnerei-Regel!
+        [/\belgelb\b|\bel-?gelb\b/gi, 'eigelb'],        // OCR-Fehler: El statt Ei
+        [/\belwei[sß]\b|\bel-?wei[sß]\b/gi, 'ei'],      // OCR-Fehler: Elweiß → ei (Liberator S1)
+        [/\bethylalkohol\b|\bethanol\b|e1510\b/gi, 'e1510'],  // Ethylalkohol/Ethanol = E1510 (DAO-Hemmer S3)
+        [/\balkohol\s+\d/gi, 'alkohol'],
+        [/\bdikaliumphosphat\b|\bdipotassiumphosphat\b|\bdipotassium\s*phosphat\b|e340ii\b/gi, 'e340'],
+        [/\bguarkernmehl\b|\bguargummi\b|\bguar\b|e412\b/gi, 'e412'],
+        [/\be491\b|\bsorbitanmonostearat\b/gi, 'e491'],
+        [/\bsumach\b|\bsumak\b/gi, 'sumach'],  // S1-2 Zitrusnote → liberator (kommt später nochmal)
+        [/\bcayennepfeffer\b|\bcayenne\b/gi, 'chili'],  // S1-2 Mastzellen-Trigger → chili
+        [/\bfenchel(?:knolle|strunk|salat)?\b/gi, 'fenchel'],
+        [/\bamaranth\b(?!\s*(?:farbstoff|e123))/gi, 'amarant'],  // Amaranth-Getreide S0 (nicht verwechseln mit Amaranth-Farbstoff E123!)
+        [/\bpuffweizen\b/gi, 'weizen'],
+        [/\bpuffreis\b/gi, 'reis'],
+        [/\bpuffkorn\b|\bgepuffter\s+(?!amaranth?\b|dinkel\b|weizen\b|reis\b)\w+\b/gi, 'hafer'],
+        [/\b\w+\s+gepufft\b|\bgepufftes?\s+\w+\b/gi, 'getreide'],             // generisch gepufftes Getreide → safe
+        [/\bdinkel\s+gepufft\b|\bgepuffter?\s+dinkel\b/gi, 'dinkel'],          // Dinkel gepufft → dinkel (nicht hafer!)
+        [/\bweizen\s+gepufft\b|\bgepuffter?\s+weizen\b/gi, 'puffweizen'],      // Weizen gepufft → puffweizen
+        [/\breis\s+gepufft\b|\bgepuffter?\s+reis\b/gi, 'puffreis'],            // Reis gepufft → puffreis
+        [/\bsubmolkenpulver\b/gi, 'molke'],                                    // Submolkenpulver → molke S0
+        [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'branntweinessig'],  // → safe S0 (kein Weinessig!)
+        [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
+        [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
+        [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
+        [/\btaurin\b/gi, 'taurin'],  // Aminosäure, S0 — bleibt als taurin (safe)
+        [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],  // guarana-auszug etc.
+        [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'matetee'],
+        [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],  // Farbextrakt → Zutat
+        [/\binosit(?:ol)?\b/gi, 'vitamine'],
+        [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
+        // ── Süßungsmittel-Kombinationen ──
+        [/\bacesulfam-k\b|\bacesulfam\s+k\b|\bacesulfam-kalium\b|\be950\b/gi, 'acesulfam'],  // → safe S0
+        [/\bsüßungsmittel-k\b/gi, 'süßungsmittel'],  // Artefakt: "Acesulfam-K" → "süßungsmittel-k"
+        // ── Proteinprodukte ──
+        [/\bwedhy\s*\w*\b|\bmolken(?:protein)?(?:isolat|konzentrat|hydrolysat)?\b/gi, 'molke'],
+        [/\bisomalto-?oligosaccharide?\b|\bimos\b/gi, 'süßungsmittel'],  // Ballaststoff-Süßer S0
+        [/\bvitamin\s*c\b/gi, 'vitamine'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
+        [/\btocopherol(?:e|ol)?\b|\balpha-tocopherol\b|\bgamma-tocopherol\b|\bdelta-tocopherol\b/gi, 'e306'],  // Vitamin E → E306 (S0, kein supplement!)
+        [/\bvitamin\s+e\b(?!\w)|\be306\b|\be307\b/gi, 'e306'],  // Vitamin E Schreibweisen (Leerzeichen nötig — sonst Kollision mit "Vitamine")
+        [/\bnatriumbicarbonat\b|\bnatriumhydrogencarbonat\b|e500\b/gi, 'e500'],
+        // Magnesiumcarbonat siehe eigene E504-Regel weiter unten (nicht E500!)
+        [/\bkaliumchlorid\b|e508\b/gi, 'e508'],
+        [/\bnatriumchlorid\b/gi, 'salz'],
+        // ── Keks-/Backwaren-spezifisch ──
+        [/\bhirschhornsalz\b|\bammoniumcarbonat\b|\bbackammoniak\b|e503\b/gi, 'e503'],
+        [/\bpottasche\b|\bkaliumcarbonate?\b|e501\b/gi, 'e501'],
+        [/\bzitronat\b|\bcitronat\b|\bzedernzucker\b/gi, 'zitronat'],  // eingelegte Zitronenschale S1
+        [/\borangeat\b/gi, 'orangeat'],        // eingelegte Orangenschale S1
+        [/\banis(?:samen?|pulver|korn)?\b/gi, 'anis'],  // S0
+        [/\bnelken?\b|\bgewürznelken?\b/gi, 'nelke'],  // Liberator S1-2 — NICHT zu gewürze!
+        [/\bkardamom(?:pulver|samen?|kapseln?)?\b/gi, 'kardamom'],  // S1 Liberator — NICHT gewürze!
+        // pistazie bereits oben korrekt auf 'pistazie' normiert
+        // ── Funktionelle Zutaten Energy Drinks ──
+        [/\baminosäure\s+taurin\b/gi, 'taurin'],
+        [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
+        // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
+        [/\be101\b|\briboflavin\b/gi, 'vitamine'],
+        // tocopherol/vitamin e → e306 (already handled above)
+        [/\bgelierzucker\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
+        [/\bpektin\b|e440\b/gi, 'e440'],                       // Pektin allein = E440 S0
+        [/\bbienenhonig\b|\bwildhonig\b|\bblutenhoig\b|\bakazienhonig\b/gi, 'honig'],
+        [/\baprikosen?\b(?!\s*(?:saft|geschmack|öl))/gi, 'aprikose'],  // Aprikose als Frucht
+        // ── Gewürz-Norms ──
+        [/\bbockshornklee(?:samen?|extrakt|pulver)?\b/gi, 'bockshornklee'],  // Liberator S2 — NICHT zu gewürze!
+        // koriander NICHT → gewürze (würde deduped!) — bleibt als 'koriander' (S0 safe_hints)
+        [/\bpaprika\s+(?:edelsüß|rosenscharf|scharf|süß)(?![a-zäöüßA-ZÄÖÜ])/gi, 'paprika'],
+        [/\bedelsüß(?![a-zäöüß])/gi, ''],  // Descriptor-Strip
+        [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b/gi, 'paprika'],  // S0
+        [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'rauchextrakt'],  // S1-2 Liberator
+        // ── Öle (spezifisch) ──
+        [/\bleinöl\b|\blein(?:samen)?öl\b|\bflachsöl\b/gi, 'leinöl'],  // S0-1 eigener Token
+        [/\bwalnussöl\b|\bnussöl\b/gi, 'walnussöl'],  // S1 eigener Token
+        [/\bsesamöl\b(?:\s+geröstet)?\b/gi, 'sesamöl'],  // S1 eigener Token
+        [/\bkürbiskernöl\b/gi, 'kürbiskernöl'],  // S0
+        [/\bhaselnussöl\b/gi, 'haselnussöl'],  // S2
+        [/\bmandelöl\b/gi, 'mandelöl'],  // S1
+        // ── Weitere E-Nummern Dessert ──
+        [/\bgelatine\b|\btiergelatine\b|\bgelatine\s+(?:rind|schwein|fisch)\b/gi, 'gelatine'],
+        [/\be407\b|\bcarrageen(?:an)?\b|\baraghan\b/gi, 'e407'],
+        [/\be120\b|\bkarmin\b|\bkocheniille\b/gi, 'e120'],
+        [/\be133\b|\bbrilliiantblau\b|\bbrillant\s+blau\b/gi, 'e133'],
+        [/\be440\b|\bapfelpektin\b|\bzitrusp(?:ektin)?\b/gi, 'e440'],
+        // ── Chips-Würzungen ──
+        [/\bbbq-?würzung\b|\bbbq-?gewürz\b/gi, 'gewürze'],
+        [/\bsauerrahmwürzung\b|\bsauerrahm-?gewürz\b/gi, 'gewürze'],
+        [/\bpaprikawürzung\b|\bpaprika-?gewürz\b/gi, 'gewürze'],
+        // buttermilchpulver → milchpulver (siehe unten, konsolidiert)
+        [/\bmalzextrakt\b(?!\s*(?:gerste|weizen))/gi, 'gerstenmalz'],
+        // ── Obst-Konserven ──
+        [/\bpfirsiche?\s*(?:in\s+\w+|halb(?:früchte?)?|scheiben|stücke?)?\b/gi, 'pfirsich'],
+        [/\bmandarinen?\s*(?:in\s+\w+|segmente?|scheiben)?\b/gi, 'mandarine'],
+        [/(?<![a-zäöüß])kirschen?\s*(?:in\s+\w+|sauer|süß|morello)?\b(?!\s*\w+kranz)/gi, 'kirsche'],
+        // ── Plant-Based Spezifika ──
+        [/\bmethylcellulose\b|\bmethylcellulose\b|e461\b/gi, 'e461'],
+        [/\bkartoffelfasern?\b|\bkartoffelzellstoff\b/gi, 'stärke'],
+        [/\bflüssigrauch\b|\brauchextrakt\b|\brauchgeschmack\b/gi, 'rauchextrakt'],  // S1-2 Rauch
+        [/\braucharomen?\b|\brauch(?:würz)?aroma\b/gi, 'rauchextrakt'],  // S1-2 Liberator → rauchextrakt
+        [/\bweizenröstmalz(?:mehl)?\b|\bröstmalzmehl\b/gi, 'malz'],             // Weizenröstmalzmehl → malz → high S2
+        [/\be262\s*\(i\)\b|\be262i\b/gi, 'e262'],                               // E262(i) Natriumacetat → safe
+        [/\borangenextrakt\b|\borangen(?:schalen)?öl\b|\bzitrusfruchtextrakt\b/gi, 'orange'], // orange → liberator
+        [/\bkokosnussöl\b|\bkokosöl\b/gi, 'kokos'],
+        [/\brhizopus\s+\w+\b/gi, 'kulturen'],   // Tempeh-Schimmelkulturen
+        [/\bcalciumsulfat\b|e516\b/gi, 'e516'],
+        [/\bmagnesiumchlorid\b|e511\b/gi, 'e511'],
+        [/\bcalciumchlorid\b|e509\b/gi, 'e509'],
+        [/\bcalciumcarbonat\b|e170\b/gi, 'e170'],
+        [/\bkaliumphosphat\b|e340\b/gi, 'e340'],
+        // ── Vitaminformen in Getränken ──
+        [/\bvitamin\s*b12\b|\bcyanocobalamin\b|\bmethylcobalamin\b/gi, 'vitamine'],
+        [/\bvitamin\s*d2\b|\bergocalciferol\b/gi, 'vitamine'],
+        [/\bvitamin\s*d3\b|\bcholecalciferol\b/gi, 'vitamine'],
+        [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitamine'],
+        [/\bb12\b|\bd2\b|\bd3\b|\bb6\b|\bb2\b|\bb1\b/gi, 'vitamine'],  // kurze Vitamin-Bezeichnung
+        // ── Hühnerpulver / Instant-Brühen ──
+        [/\brind\b(?!fleisch|\w)/gi, 'rindfleisch'],  // 'Rind' standalone → rindfleisch S0
+
+        // ── Nudeln-Spezifika ──
+        [/\bweizengrieß\b|\bweizenvollkorngrieß\b|\bsemolina\b/gi, 'weizenmehl'],
+        [/\bmungobohnenstärke\b|\bbohnenstärke\b/gi, 'mungobohnenstärke'],
+        [/\btapiokastärke\b|\bkassavastärke\b/gi, 'tapiokastärke'],
+        [/\breis(?:nudeln?|mehl|stärke)\b/gi, 'reis'],
+        // ── Weitere E-Nummern ──
+        [/\be461\b|\bmethylzellulose\b/gi, 'e461'],
+        [/\be516\b/gi, 'e516'],   // Calciumsulfat (Tofu-Koagulant)
+        [/\be511\b/gi, 'e511'],   // Magnesiumchlorid (Nigari für Tofu)
+        [/\be509\b/gi, 'e509'],   // Calciumchlorid
+        [/\be170\b/gi, 'e170'],   // Calciumcarbonat
+        [/\be340\b/gi, 'e340'],   // Kaliumphosphate
+        // ── Lorbeer ──
+        [/\blorbeer(?:blatt|blätter)?\b|\bbay\s*leaf\b/gi, 'lorbeer'],  // S0 SIGHI
+        // ── Milchsäure ──
+        [/\bmilchsäure\b|e270\b/gi, 'e270'],  // S0 (Säuerungsmittel)
+        [/\bzwiebelextrakt\b|\bzwiebelkonzentrat\b|\bzwiebelpulver\b/gi, 'zwiebel'],
+        [/\broggen(?:vollkorn)?mehl\b/gi, 'roggenmehl'],
+        [/\bdinkelvollkornmehl\b|\bdinkelvollkorn\b/gi, 'dinkelmehl'],
+        [/\bdinkelflocken\b|\bdinkelkleie\b/gi, 'dinkelflocken'],
+        [/\bhaferkleie\b/gi, 'hafer'],
+        [/\bhafergrütze\b|\bhaferbrüh?\b|\bhafer(?:schrot|korn)\b/gi, 'hafer'],   // Hafergrütze → hafer → safe
+        [/\bmilchserum\b|\bwhey\s*serum\b/gi, 'molke'],                            // Milchserum = Molke → safe
+        [/\bdicalciumphosphat\b|\be341\s*ii\b/gi, 'e341'],                         // Calcium-Phosphat → safe
+        [/\btricalciumphosphat\b|\be341\s*iii\b/gi, 'e341'],
+        [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'vitamine'],      // E304 Antioxidans → safe
+        [/\bsäuerungskulture?n?\b/gi, 'kulturen'],                                 // = Milchsäurebakterienkulturen → safe
+        [/\bhaferhalmfasern?\b|\boat\s*straw\s*fi(?:ber|bre)s?\b/gi, 'hafer'],    // Haferhalmfaser = Ballaststoff aus Hafer S0
+        [/\bmilchkaramell\b|\bkaramell(?:creme|füllung|sauce)?\s*(?:mit)?\s*milch\b/gi, 'zucker'],  // Milchkaramell → zucker (Zuckerprodukt S0)
+        [/\bhaferspelzfaser\b|\bhaferspelz(?:flocken|mehl)?\b|\bspelzfaser\b/gi, 'hafer'],   // Ballaststoff S0
+        [/\beisendiphosphat\b|\biron\s*diphosphat\b/gi, 'e450'],                              // Eisenverbindung Mineral → safe
+        [/\bweizenmalzmehl\b|\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token
+        [/\bmehlbehandlungsmittel\b(?:\s*\([^)]+\))?/gi, 'mehlbehandlungsmittel'],
+        // ── Backmittel ──
+        [/\bascorbinsäure\b|\bascorbin\b|e300\b/gi, 'e300'],
+        [/\bnatronlauge\b|\blauge\b(?!\s*\w{4})/gi, 'salz'],  // Natronlauge in Brezeln = nur Oberfläche
+        // ── Saucen / Gewürzmittel ──
+        [/\bsenföl\b|\bsenfsaat(?:öl)?\b/gi, 'senf'],
+        [/\bjalapeño(?:paste|scheiben|extract)?\b|\bjalapeñopaste\b/gi, 'chili'],
+        // essigsäure/E260 als ISOLIERTER Zusatzstoff bleibt S0 (SIGHI 2024) — NICHT zu 'essig' normieren!
+        [/\bglaciale?\s+essigsäure\b/gi, 'essig'],  // "Essigsäure 100%/glazial" als Lebensmittelzutat = konzentrierter Essig, S2-3
+        // Kritische Wein-/Balsamico-Essige → 'weinessig' (S3, bleibt HIGH)
+        [/\b(?:rotwein|weißwein|wein|sherry|gemüse|bier)essig\b|\bapfelweinessig\b/gi, 'weinessig'],
+        // Apfelessig separat (S1, milder als Weinessig — aber bleibt sichtbar als eigenes Token)
+        [/\b(?:obst|frucht)essig\b/gi, 'apfelessig'],
+        // Branntweinessig/Tafelessig/Weingeistessig: destilliert, proteinfrei → S0 (SIGHI)
+        [/\b(?:branntwein|tafel|weingeist|spirit)essig\b/gi, 'branntweinessig'],
+        // natriumbenzoat stays as natriumbenzoat (in liberator[] directly)
+        [/\be211\b/gi, 'natriumbenzoat'],  // E211 → ausgeschriebener Name               // Konservierungsstoff
+        [/\btamarinde(?:paste|extrakt|konzentrat)?\b/gi, 'essig'],  // S2-3 — hoher Säure-/Histamingehalt → essig-Kategorie
+        [/\banchovis(?:paste|extrakt|filet|öl)?\b/gi, 'sardelle'],  // S3!
+        [/\bpassionsfrucht(?:saft|mark|konzentrat|aroma)?\b/gi, 'maracuja'],
+        [/\bananassaft(?:konzentrat)?\b|\bananas\s+(?:saft|konzentrat)\b/gi, 'ananas'],
+        [/\bkaffee(?:extrakt|konzentrat)?\b(?!\s*sahne)/gi, 'kaffee'],  // koffeinhaltiger Extrakt
+        [/\bkohlensäure\b|\bco2\b/gi, 'e290'],               // Kohlensäure = CO2, S0 — eigenes Token statt irreführend 'salz'
+        [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
+        // ── Vitamine / Mineralstoffe (Anreicherung) ──
+        [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b/gi, 'vitamine'],
+        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitamine'],
+        [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitamine'],
+        [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitamine'],
+        [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitamine'],
+        [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitamine'],
+        [/\bvitamin\s*[a-e]\d?\b|\bvitamin[a-e]\d?\b/gi, 'vitamine'],
+        [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
+        [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
+        [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        // ── Glasnudeln / Asiatische Zutaten ──
+        [/\bglasnudeln?\b|\bcellophannudeln?\b|\breisvermicelli\b/gi, 'nudeln'],
+        [/\bedamame\b/gi, 'edamame'],                                // Edamame (geschält/grün) → S1
+        [/\bsojabohnen?\b(?:\s*in hülsen\b)?/gi, 'soja'],             // rohe Sojabohnen → Tofu-Basis → soja S0-1
+        // Compound-Gewürznamen MIT Bindestrich-Suffix: VOR generischen
+        [/\bhabanero(?:-chili)?(?:-gewürze?|-pulver|-schote)\b/gi, 'chili'],  // nur mit Suffix!
+        [/\bcurry[-\s]+(?:gewürz(?:mischung)?|würzmischung|mischung|pulver)\b/gi, 'curry'],  // mit und ohne Bindestrich
+        [/\bcurry-$/gi, 'curry'],  // 'Curry-' trailing hyphen artefact
+        [/\bpfeffer-$/gi, 'pfeffer'],  // 'Pfeffer-' trailing hyphen
+        [/\bpfeffer-(?:gewürz|mischung|pulver)\b/gi, 'pfeffer'],
+        [/\bchili-(?:pulver|flocken|gewürz|extrakt|faden)\b/gi, 'chili'],
+        [/\bchilie?samen(?:öl)?\b|\brotes?\s*chili(?:e?samen)?-?öl\b/gi, 'chiliöl'],
+        [/\bjalapeño\b|\bchili(?:schoten?|ringe?|pulver|paste)?\b(?!öl|samen|esamen)/gi, 'chili'],  // nicht chiliöl!  // öl entfernt - chiliöl ist eigener Token!
+        [/\bcumin\b|\bkreuzkümmel\b|\bkümmelkreuz\b/gi, 'kreuzkümmel'],  // S2 SIGHI!
+        [/\bkuhmilch\b|\bschafsmilch\b|\bziegenmilch\b|\bstutenmilch\b/gi, 'milch'],
+        [/\bpasteurisierte\s+(?:voll|mager|but|kuh|schaf|ziegen)?milch\b/gi, 'milch'],
+        [/\bvollmilch\b(?!pulver)/gi, 'milch'],  // nur Flüssigmilch, nicht Pulver
+        // ── Kulturen / Reifungsmittel ──
+        [/\bmilchsäurebakterien(?:kulturen?)?\b|\blactobacillus\s+\w+\b|\bstreptococcus\s+\w+\b/gi, 'kulturen'],
+        [/\bjoghurtkulturen?\b|\bkefirkulturen?\b|\bstarterkulturen?\b|\bbifterkulturen?\b/gi, 'kulturen'],
+        [/\bpenicillium\s+\w+\b|\bschimmelkulturen?\b|\bkäsekulturen?\b/gi, 'kulturen'],
+        // [/\btierisches?\s+lab\b|/gi, 'kulturen'],  // DEAKTIVIERT — lab bleibt als 'lab'
+        [/\btierisches?\s+lab\b|\bkälberlab\b|\blammlabb?\b|\bmikrobielles?\s+lab\b/gi, 'lab'],
+        // ── Konservierungs-/Hilfsstoffe Fleisch ──
+        [/\bnatriumascorbat\b|\bnatriumascorbinat\b|e301\b/gi, 'e301'],
+        [/\bnatriumnitrit\b|\bnatriumnitrat\b|e250\b|e252\b/gi, 'e250'],
+        [/\bnatriumpolyphosphat\b|\bnatriumtripolyphosphat\b|e451\b/gi, 'e451'],
+        [/\bcarob(?:a-)?extrakt\b|\bjohannisbrot(?:kern)?(?:mehl|gummi|extrakt)?\b|e410\b/gi, 'e410'],
+
+        // ── Lebensmittelzusatzstoffe Wurst/Käse ──
+        [/\bsojalecithin\b|\bsonnenblumenlecithine?\b|\brapsöllecithin\b|e322\b/gi, 'e322'],
+        [/\blecithin\b(?!\s*\w)/gi, 'e322'],  // generisches Lecithin → E322
+        [/\bvanille(?:extrakt|aroma|schote|pulver)\b/gi, 'vanille'],  // nur MIT Suffix!
+        [/\bvanillin\b|\bvanilin\b/gi, 'vanillin'],  // synthetisch → eigener Token S0
+        [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'kräuter'],
+        [/\bbeta-?carotin\b|e160a\b/gi, 'e160a'],
+        [/\bbutterreinfett\b|\bbutterreinfett\b|\bklarbutterreinfett\b|\bghee\b/gi, 'butter'],
+        [/\bmolkenpulver\b|\bmolkenproteinpulver\b|\bwheypulver\b/gi, 'molke'],
+        [/\bsojamehl\b|\bsojaprotein(?:isolat|konzentrat)?\b/gi, 'soja'],
+        [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 — eigene Klassifizierung!
+        [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
+        [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
+        [/\bkaramellfarbstoff\b|\bkaramellsirup\b|e150\w?\b/gi, 'e150'],
+        [/\bkaramellzuckersirup\b|\bkaramellisierter\s+zucker\b/gi, 'e150'],  // → dao_blocker!
+        // ── Waffelblätter / Süßwaren-Spezifika ──
+        [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
+        [/\bhaselnusscreme?\b|\bnougatcreme?\b|\bhaselnusspaste?\b/gi, 'schokolade'],
+        [/\bhaselnussmasse\b|\bhaselnuss(?:mus|öl)\b/gi, 'haselnuss'],              // Haselnussmasse → haselnuss → Liberator
+        [/\bhaselnuss(?:stücke?|splitter|blätter|mehl|chips|granulat)\b/gi, 'haselnuss'],
+        [/\borg?angen?granulat\b|\borangen?(?:pulver|stücke?|chips|schalen?pulver)\b/gi, 'orange'],  // → high S3
+        [/\bzitronengranualt\b|\bzitronengranualt\b|\bzitronenpulver\b/gi, 'zitrone'],  // Komposita
+        [/\bkaliumhydrogencarbonat\b|\bkaliumbicarbonat\b/gi, 'e501'],              // Backtriebmittel → safe
+        [/\bammoniumchlorid\b|e510\b/gi, 'e510'],
+        [/\bschwefelsäure\b|e513\b/gi, 'e513'],
+        [/\bnatriumsulfat[e]?\b|e514\b/gi, 'e514'],
+        [/\bkaliumsulfat[e]?\b|e515\b/gi, 'e515'],
+        [/\bammoniumsulfat\b|e517\b/gi, 'e517'],
+        [/\bmagnesiumsulfat\b|e518\b/gi, 'e518'],
+        [/\balaun\b|\baluminiumkaliumsulfat\b|e522\b/gi, 'e522'],
+        [/\baluminiumammoniumsulfat\b|e523\b/gi, 'e523'],
+        [/\bcalciumhydroxid\b|\bkalkwasser\b|e526\b/gi, 'e526'],
+        [/\bammoniumhydroxid\b|e527\b/gi, 'e527'],
+        [/\bmagnesiumhydroxid\b|e528\b/gi, 'e528'],
+        [/\bcalciumoxid\b|\bbranntkalk\b|e529\b/gi, 'e529'],
+        [/\bmagnesiumoxid\b|e530\b/gi, 'e530'],
+        [/\bnatriumferrocyanid\b|e535\b/gi, 'e535'],
+        [/\bcalciumferrocyanid\b|e538\b/gi, 'e538'],
+        [/\bnatriumaluminiumphosphat\b|e541\b/gi, 'e541'],
+        [/\bknochenphosphat\b|e542\b/gi, 'e542'],
+        [/\bnatriumsilicat[e]?\b|e550\b/gi, 'e550'],
+        [/\bcalciumaluminiumsilicat\b|e556\b/gi, 'e556'],
+        [/\bbentonit\b|e558\b/gi, 'e558'],
+        [/\bkaliumsilicat\b|e560\b/gi, 'e560'],
+        [/\bnatriumgluconat\b|e576\b/gi, 'e576'],
+        [/\bkaliumgluconat\b|e577\b/gi, 'e577'],
+        [/\bcalciumgluconat\b|e578\b/gi, 'e578'],
+        [/\beisen\(?ii\)?-?gluconat\b|\beisengluconat\b|e579\b/gi, 'e579'],
+        [/\beisen\(?ii\)?-?lactat\b|\beisenlactat\b/gi, 'eisenlactat'],  // → safe S0 (E385 nicht E585!)
+        [/\beisen-?ii-?gluconat\b|e585\b/gi, 'e585'],  // E585 = Eisengluconat
+        [/\b4-hexylresorcin\b|\bhexylresorcin\b|e586\b/gi, 'e586'],
+        [/\btalkum\b|e553b\b/gi, 'e553b'],
+        [/\bmagnesiumsilicat\b|e553a\b/gi, 'e553a'],
+        [/\bglaubersalz\b|\bnatriumsulfat\b|e514i?\b/gi, 'e514'],
+        [/\bnatriumhydrogensulfat\b|e514ii\b/gi, 'e514'],
+        [/\bkaliumhydrogensulfat\b|e515ii\b/gi, 'e515'],
+        [/\bhirschhornsalz\b|\bammoniumhydrogencarbonat\b|e503ii\b/gi, 'e503'],
+        [/\bspeisenatron\b|\bbacknatron\b|\bnatriumhydrogencarbonat\b|e500ii\b/gi, 'e500'],
+        [/\bpottasche\b|\bkaliumcarbonat\b|e501i?\b/gi, 'e501'],
+        [/\bätznatron\b|\bnatriumhydroxid\b|e524\b/gi, 'e524'],
+        [/\bätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],
+        [/\bschokoladenpulver\b|\bschokogeschmack\b|\bschokoladengeschmack\b/gi, 'kakao'], // → kakao → Liberator
+        [/\binvertzuckersirup\b|\binvertsirup\b|\binvertzucker\b/gi, 'zucker'],
+        [/\bfruktosesirup\b|\bfructosesirup\b/gi, 'fructose'],  // S1 — eigener Token
+        [/\btraubenzucker\b|\bdextrose\b|\bglukose\b/gi, 'traubenzucker'],  // S0 eigener Token
+        // [/\bgerstenmalzextrakt\b|\bgerstenmalzsirup\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
+        [/\bgerstenmalz\b(?!extrakt|sirup)/gi, 'malz'],              // Gerstenmalz standalone → S2
+        [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
+        [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
+        [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
+        [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
+        // koriander NICHT → kräuter — bleibt als 'koriander'
+        [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
+        [/\be?503\b|\bnatriumsesquicarbonat\b|\bammoniumcarbonat\b/gi, 'e503'],
+        [/\bbabymais\b|\bjungmais\b|\bmaiskölbchen\b/gi, 'mais'],
+        [/\bzuckerschoten?\b|\bsugarsnap\b|\bmangetout\b/gi, 'erbsen'],
+        [/\bbambus(?:sprossen?)?\b/gi, 'gemüse'],
+        [/\bwasserkastanien?\b/gi, 'gemüse'],
+        [/\bsojasprossen?\b|\bmungobohnensprossen?\b|\bsprossen?\b/gi, 'gemüse'],
+        [/\bsesamöl\b|\bsesamöl\s+geröstet\b/gi, 'sesamöl'],
+        // ── Fleisch/Brühen ──
+        [/\bkochschinken\b|\bpresschinken\b/gi, 'kochschinken'],
+        [/\bnitritpökelsalz\b|\bpökelsalz\b|\bnitrit(?:salz)?\b/gi, 'pökelsalz'],
+        [/\bpaprikaextrakt\b|\bpaprikaoleoresin\b|e160c\b/gi, 'paprikaextrakt'],  // S2 Liberator — Konzentrat ≠ Pulver!
+        [/\bpaprikakonzentrat\b|\bpaprika(?:saft|püree)?konzentrat\b/gi, 'paprika'],   // Paprikakonzentrat → safe
+        [/\berdbeergranulat\b|\berdbeerpulver\b|\berdbeer(?:flocken|chips)\b/gi, 'erdbeere'], // → Liberator S1-2
+        // ── Früchte & Säfte ──
+        [/\borangen?\b|\bblutorangen?\b|\bnavel\s+orange\b/gi, 'orange'],
+        // ── Brühe-Normalisierung ──
+
+
+
+
+
+
+
+
+
+
+
+
+        // ── Thunfisch-Normalisierung ──
+
+
+        // ── Miso-Normalisierung ──
+        [/\bmiso(?:paste|suppe|soße)?\b/gi, 'miso'],
+        // ── Hefeextrakt-Normalisierung ──
+        [/\bmit\s+hefeextrakt\b/gi, 'hefeextrakt'],  // 'mit Hefeextrakt' aus Klammer
+        [/\bhefeextrakt\b|\bhefe-?extrakt\b/gi, 'hefeextrakt'],
+        [/\bhefeextrakt\b|\bhefepaste\b|\bhefewürze\b|\bhefeautolysat\b/gi, 'hefeextrakt'],
+        [/\bgemüsehefeextrakt\b|\bgemüse\s+hefeextrakt\b/gi, 'hefeextrakt'],
+        [/\bshio\s+koji\b|\bkoji\b/gi, 'hefeextrakt'],
+
+        [/\bkamillentee\b|\bchamomile\s+tea\b|\bchamomile\s+tee\b/gi, 'kamillentee'],  // eigener Token S0
+        [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kräuter'],  // standalone → kräuter, aber nicht chamomile tea!
+        [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
+        [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
+        [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
+        // ── Getreidezutaten ──
+        [/\bweizenquellmehl\b|\bquellmehl\b/gi, 'mehl'],  // Quellmehl S0
+        [/\bweizenprotein\b/gi, 'gluten'],  // S0
+        [/\bweizenfasern?\b/gi, 'weizen'],
+        [/\bhafer(?:kleie|fasern?)\b/gi, 'hafer'],
+        [/\bvollkornreis\b|\bvollkornreismehl\b/gi, 'reis'],
+        [/\bvollkornweizenmehl\b/gi, 'weizenmehl'],
+        [/\bvollkorndinkelmehl\b/gi, 'dinkelmehl'],
+        // ── Würzmittel ──
+        [/\bkaramellisierter\s+zucker\b|\bkaramellsirup\b/gi, 'karamell'],  // karamellzucker → eigener Token
+        // [/\bkaramellzucker\b/gi, 'zucker'],  // DEAKTIVIERT — würde mit zucker dedupen
+        [/\breissirup\b|\breis(?:saft)?sirup\b|\breismalzsirup\b/gi, 'reissirup'],  // S0 eigener Token
+        [/\bmuskat(?:nuss)?\b|\bmace\b/gi, 'muskatnuss'],  // S1-2 Liberator — NICHT gewürze!
+        // schwarzer/weißer Pfeffer → pfeffer S1 Liberator (NICHT gewürze!)
+        // [/\bschwarz(?:er)?\s+pfeffer\b|\bweißer\s+pfeffer\b/gi, 'pfeffer'],  // ENTFERNT v6.56
+        [/\bdiglyceriden?\s+von\s+speisefettsäuren?\b/gi, 'e471'],  // Endteil des E472e-Namens
+        [/\bmono\s*-?\s*und\s*diglyceriden?\b/gi, 'e471'],
+        [/\bfrittierte?\s+zwiebeln?\b|\bröstzwiebeln?\b/gi, 'zwiebel'],
+
+        [/\bgemüsekonzentrat\b|\bgemüseextrakt\b|\bgemüsefond\b/gi, 'gemüse'],
+        // ── Zuckerverbindungen ──
+        [/\bglukose-?fruktose-?sirup\b|\bfruktose-?glukose-?sirup\b/gi, 'zucker'],
+        [/\bglukosesirup\b|\bdextrosesirup\b|\bmaissirup\b/gi, 'zucker'],
+        // ── Milch-Derivate ──
+        [/\bmolken(?:erzeugnis(?:se)?|pulver|protein|konzentrat|serum)?\b/gi, 'molke'],  // inkl. Plural -se
+        [/\btype\s+\d+\w*\b/gi, ''],  // Mehltype 'Type 550' → leer (Mehl bereits als eigener Token)
+        [/\bpfeffer\s+schwarz\b/gi, 'pfeffer'],
+        [/\bparadieskörner?\b|\bmelegueta\b|\baframomum\b/gi, 'paradieskörner'],  // S1
+        [/\bamchur\b|\bamchoor\b|\bmango(?:pulver|powder)\b/gi, 'amchur'],  // S2
+        [/\bselleriesamen?\b|\bsellerie\s+samen?\b|\bcelery\s+seeds?\b/gi, 'selleriesamen'],  // S2
+        [/\bsternanis\b|\bstar\s*anise\b|\billicium\b/gi, 'sternanis'],  // S1 — eigener Token
+        [/\blorbeer(?:blatt|blätter)?\b|\bbay\s+lea(?:f|ves)\b/gi, 'lorbeer'],  // S1 — eigener Token
+        [/\bwacholder(?:beeren?)?\b|\bjuniper(?:\s+berries?)?\b/gi, 'wacholder'],  // S1
+        [/\btonkabohne?n?\b|\btonka\s*bohne?n?\b/gi, 'tonkabohne'],  // S2
+        [/\bsumach?\b|\bsumak\b/gi, 'sumach'],  // S1
+        [/\bsahne\s+ultrahocherhitzt\b/gi, 'sahne'],  // UHT-Sahne → sahne
+        [/\bmilch\s+ultrahocherhitzt\b/gi, 'milch'],  // UHT-Milch → milch
+        [/\s+ultrahocherhitzt\b/gi, ''],  // generisch: UHT-Suffix entfernen
+        [/\s+fraktioniert\b/gi, ''],       // 'Palmöl fraktioniert' → 'palmöl'
+        [/^fraktioniert$/gi, ''],            // standalone 'fraktioniert' → leer
+        [/\bpaprika\s+edelsüß\b/gi, 'paprika'],  // 'Paprika edelsüß' → 'paprika'
+        [/\btomatenmark\s+(?:dreifach\s+)?(?:konzentriert)?\b/gi, 'tomatenmark'],  // dreifach konzentriert → tomatenmark
+        [/\bpaprika\s+scharf\b/gi, 'paprika'],  // 'Paprika scharf' → 'paprika'
+        [/\s+\b(?:der|die|das|des|dem|den|aus|mit|von|durch|für|in|an)\b\s+/gi, ' '],   // Artikel/Präpositionen → Leerzeichen
+        [/\benthalten(?:d|e|en)?\b\s*/gi, ''],                                            // "enthält SOJA" → strip
+        [/\bvollmilch\b(?!pulver)|\bfrischmilch\b/gi, 'milch'],  // nicht Vollmilchpulver!
+        [/\bspeisequark\b|\bmagerquark\b|\bquarkzubereitung\b|\bspeisequarkzubereitung\b/gi, 'quark'],
+        [/\bedamer(?:käse)?\b|\bedammer\b/gi, 'milchkäse'],  // S1-2 Liberator wie junger Gouda — NICHT Hartkäse!
+        [/\bemmentaler(?:käse)?\b|\bemmental\b/gi, 'emmentaler'],
+        [/\bjunge[rm]?\s+gouda\b|\bgouda\s+jung\b/gi, 'gouda jung'],  // S0
+        [/\bgouda(?:\s*(?:käse))?\s*\(alt\)/gi, 'parmesan'],  // alter Gouda → gereifter Käse
+        [/\bgouda(?:\s*(?:käse))?\s*\(jung\)/gi, 'käse jung'],  // junger Gouda → junger Käse
+        [/\bgouda(?:käse)?\b(?!\s+(?:jung|alt))/gi, 'parmesan'],  // gereifter gouda → high via parmesan
+        [/\bgouda\s+alt\b|\baltgouda\b/gi, 'parmesan'],
+        [/\bmilchfett\b|\bbutterfett\b/gi, 'butter'],
+        // ── Hartweizengrieß / Semola ──
+        [/\bhartweizengrieß\b|\bsemola\b|\bdurum\b|\bhartweizenmehl\b/gi, 'weizenmehl'],
+        [/\bweizengrieß?\w*|\bweizengrie[sß]\w*/gi, 'weizenmehl'],
+        [/\bdinkelgrieß?\w*/gi, 'dinkelmehl'],
+        [/\bbackteig\b|\bfrittierteig\b|\bpanierteig\b/gi, 'mehl'],                   // Backteig = Mehlbasis → safe
+        [/\bhafervollkorn(?:flocken?|mehl|grütze)?\b/gi, 'hafer'],                    // Hafervollkorn-Komposita
+        [/\bguavenpüree\b/gi, 'guave'],  // Verbindungs-n: Guave+n+püree
+        [/\b(\w+)püree\b/gi, '$1'],                                                    // Bananenpüree → Banane, Heidelbeerpüree → Heidelbeere
+        [/\bentrahmte?\b\s*/gi, ''],                                                   // Adjektiv "entrahmt" → strip
+        [/\bmilchprotein(?:erzeugnis|konzentrat|isolat)?\b/gi, 'milchprotein'],        // Komposita
+        // ── Spezielle Fleisch-Zutaten ──
+        [/\brinderhackfleisch\b|\brinder-?hackfleisch\b/gi, 'hackfleisch'],
+        [/\bschweinehackfleisch\b|\bschweine-?hackfleisch\b/gi, 'hackfleisch'],
+        [/\bgegartes?\s+(?:rinder|schweine|hähnchen|puten)?hackfleisch\b/gi, 'hackfleisch'],
+        [/\brindfleisch\s+gereift\b|\bgereiftes?\s+rindfleisch\b/gi, 'rindfleisch gereift'],  // S2!
+        // ── Champignons (plural fix) ──
+        [/\bchampignons?\b|\bweiße\s+champignons?\b/gi, 'champignon'],
+        [/\bporree\b|\blauchzwiebeln?\b|\bfrühlingszwiebeln?\b/gi, 'lauch'],
+        // ── Stärkevarianten ──
+        [/\bweizenstärke\b/gi, 'weizenstärke'],  // Weizenstärke bleibt Weizenstärke
+        [/\bmaizena\b|\bmaismehl\b|\bmaisstärke\b/gi, 'maisstärke'],  // Maizena = Maisstärke  // eigener Token
+        [/\bkartoffelstärke\b/gi, 'kartoffelstärke'],
+        [/\barrowroot\s*starch\b|\bpfeilwurzelstärke\b|\barrowroot\b/gi, 'pfeilwurzelstärke'],
+        [/^s(?:äure)?regulator(?:en?)?\s*$/gi, ''],       // isoliertes Kategoriewort
+        [/^backtrieb\s*mittel\s*$/gi, ''],
+        // 'Emulgator' isoliert bleibt erhalten (S0-Kategorie-Label mit Vorsichtshinweis, siehe DB-Registrierung)
+        [/^stabilisator(?:en?)?\s*$/gi, ''],
+        [/^verdickungsmittel\s*$/gi, ''],
+        // 'Feuchthaltemittel' isoliert bleibt erhalten (S0-Kategorie-Label, siehe DB-Registrierung)
+        [/^konservierungsstoff\s*(?:en?)?\s*$/gi, ''],
+        [/^farbstoff\s*$/gi, ''],
+        [/^antioxidationsmittel\s*$/gi, ''],
+        [/^trennmittel\s*$/gi, ''],
+        // [/^süßungsmittel\s*$/gi, '']  // deaktiviert — würde standalone löschen,                      // isoliert → nicht als Inhalt
+        [/^geschmacksverstärker\s*$/gi, ''],
+        // ── aber wenn mit Inhalt: Kategorie-Prefix strippen ──
+        [/\bemulgator(?:en?)?\s*\(([^)]+)\)/gi, '$1'],    // "Emulgator (E471)" → "E471"
+        [/\bstabilisator(?:en?)?\s*\(([^)]+)\)/gi, '$1'],
+        [/\bsäureregulator(?:en?)?\s*\(([^)]+)\)/gi, '$1'],
+        [/\bkonservierungsstoff\s*\(([^)]+)\)/gi, '$1'],
+        [/\bantioxidationsmittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\bfarbstoff\s*\(([^)]+)\)/gi, '$1'],
+        [/\bverdickungsmittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\bsüßungsmittel\s*\(([^)]+)\)/gi, '$1'],        // "Süßungsmittel (Stevia)" → "Stevia"
+        [/\bfeuchthaltemittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\bgeschmacksverstärker\s*\(([^)]+)\)/gi, '$1'],
+        [/\btrennmittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\bbacktrieb\s*mittel\s*\(([^)]+)\)/gi, '$1'],
+        [/\balaska(?:\s*(?:see))?lachs(?:-filet)?\b/gi, 'fischfilet'],
+        [/\bfisch\s*-\s*filet\b|\bfischfilet\s*filet\b|\bfischfilet\s*-\s*filet\b/gi, 'fischfilet'],  // Fisch-Filet, fischfiletfilet
+        [/\bseelachs(?:-filet)?\b|\balaska\s*pollock\b|\bpollock\b/gi, 'fischfilet'],
+        [/\bkabeljau(?:-filet)?\b|\bdorsch(?:-filet)?\b|\bcod\b/gi, 'fischfilet'],
+        [/\bpangasius(?:-filet)?\b|\bwels(?:-filet)?\b/gi, 'fischfilet'],
+        [/\bscholle(?:-filet)?\b|\bplaice\b/gi, 'fischfilet'],
+        [/\bforelle(?:-filet)?\b|\btrout\b/gi, 'fischfilet'],
+        [/\btilapia(?:-filet)?\b/gi, 'fischfilet'],
+        [/\bzander(?:-filet)?\b|\bpike-?perch\b/gi, 'fischfilet'],
+        [/\bherings?(?:filets?|dose|konserve|salat|stücke?)?(?:filet)?\b/gi, 'hering'],  // Heringsfilets, Hering etc.
+        [/\bsardelle(?:n-paste|nextrakt|n)?\b/gi, 'sardelle'],  // S3
+        [/\bfischfilet-filet\b/gi, 'fischfilet'],  // Artefakt-Fix
+        // ── E-Nummern und Zusatzstoffe (reale Produkte) ──
+        [/\bcalciumphosphat(?:e)?\b|e341\b/gi, 'e341'],
+        [/\bcalciumcitrat(?:e)?\b/gi, 'e333'],
+        [/\bnatriumhydrogencarbonat\b|\bnatriumcarbonat\b|e500\b/gi, 'e500'],
+        [/\bdiphosphat(?:e)?\b|\bdiphosphate\b|e450\b/gi, 'e450'],
+        [/\bmono-?\s*und\s*diacetylweins(?:äure)?ester\b|\bdiacetylweinsäure\b|e472e\b/gi, 'e472e'],
+        [/\bmono\s*-?\s*und\s*diglyceride\b|\bmonoglyceride\b|\bdiglyceride\b|\bglyceride\b|e471\b/gi, 'e471'],
+        [/\bglycerinmonooleat\b|\bglycerylmonostearat\b/gi, 'e471'],
+        // magermilchpulver bleibt als eigener Token (verhindert Dedup mit Vollmilchpulver)
+        // [/\bmagermilchpulver\b/gi, 'milchpulver'],  // DEAKTIVIERT — eigener Token
+        [/\btrockenmilcherzeugnisse?\b/gi, 'milch'],  // S0 — Sammelbegriff für Milchpulver
+        [/\bmagermilch\b(?!pulver)/gi, 'milch'],  // flüssige Magermilch → milch S0
+        [/\bteilweise\s+gehärtet\b|\bgehärtetes?\s+\w+\b/gi, 'pflanzenöl'],  // 'teilweise gehärtet' → pflanzenöl
+        [/\bteilweise\b(?!\s+gehärtet)/gi, 'pflanzenöl'],  // 'teilweise' standalone → pflanzenöl S0
+        [/\bhering(?:\s*(?:in\s+soße|in\s+sahne|in\s+senf))?\b/gi, 'hering'],  // hering+variants (mariniert/eingelegt/sauer bleiben erhalten — histaminrelevant!)
+        [/\bsenf(?:sauce|soße|dip|dressing)?\b/gi, 'senf'],  // Senfsauce → senf S1
+        [/\btafelsenf\b|\bmittelscharfer?\s+senf\b|\bscharfer?\s+senf\b|\bmilder?\s+senf\b/gi, 'senf'],  // Tafelsenf-Varianten → senf S1
+        [/\bsenfsaat\b|\bsenfsamen\b|\bsenf(?:mehl|pulver|extrakt)?\b/gi, 'senf'],
+        [/\bmodifizierte\s+stärke\b|\bmodifiziertes?\s+\w+stärke\b/gi, 'stärke'],
+        [/\btriebmittel\b/gi, 'backtriebmittel'],  // nur generisches "Triebmittel" umbenennen, NICHT "Backpulver" (eigener DB-Eintrag!)
+        [/\bjodiertes?\s+speisesalz\b|\bjodiertes?\s+salz\b|\bjodsalz\b|\biodsalz\b/gi, 'jodsalz'],  // → liberator S2 L (SIGHI!)
+        [/\bspeisesalz\b|\btafelsalz\b|\bmeeressalz\b|\bmeersalz\b/gi, 'salz'],
+        [/\bnatives?\s+olivenöl\s+extra\b|\bextra\s+vergine\b|\bnativ\s+extra\b/gi, 'olivenöl'],
+        [/\bpflanzliche[sr]?\s+öl(?:e)?\b|\bpflanzliches?\s+fett\b/gi, 'pflanzenöl'],
+        [/\bpflanzenöl\s*\([^)]+\)\b/gi, 'pflanzenöl'],   // "Pflanzenöl (Raps, Sonnenblume)"
+        // sonnenblumenöl → eigener Token S0 (nicht pflanzenöl)
+        // rapsöl → eigener Token S0 (nicht pflanzenöl)
+        [/\bhärtetes?\s+fett\b|\bgehärtetes?\s+pflanzenöl\b/gi, 'pflanzenöl'],
+        [/\bbackhefe\b|\binstanthefe\b|\btrockenhefe\b/gi, 'hefe'],   // nur reguläre Hefe → safe
+        [/\bwürze\b(?!\s*[a-zäöü])/gi, 'gewürze'],  // "Würze" allein
+        [/\bgewürze?\b(?:\s*\([^)]*\))?\b/gi, 'gewürze'],  // "Gewürze (Paprika, Kurkuma)"
+        [/\bgewürzextrakt\b|\bgewürzauszug\b/gi, 'gewürze'],
+        [/\bgarnelen?\s*roh\b/gi, 'garnele'],
+        [/\bbremerhavener?\s+\w+\b/gi, 'fischfilet'],  // Bremerhavener = Backfisch
+        [/\bstäbchen\b(?!\s*\w{4})/gi, 'fischstäbchen'],  // "Stäbchen" allein = vermutlich Fischstäbchen (mehrdeutig, siehe Bereinigungsliste)
+        [/\bfischfilet\s+in\s+\w+\b|\bfischfilet\s+\w+teig\b/gi, 'fischfilet'],
+        [/\bfischgratin\b/gi, 'fischfilet'],
+        // ── TK Geflügel / Fleisch ──
+        [/\bhähnchen(?:spieße?|satay)\b/gi, 'hähnchen'],
+        [/\bhähnchen-?nuggets?\s*\w*\b/gi, 'hähnchen'],
+        [/\bputen(?:gulasch|ragout|geschnetzeltes?)\b/gi, 'pute'],
+        [/\brindersteak\b|\brinderfilet(?:steak)?\b|\bribeye\b|\bentrecôte\b/gi, 'rindfleisch'],
+        [/\bcevapcici\b|\bcevap\b/gi, 'hackfleisch'],  // Hackfleisch-Röllchen S1
+        // ── Vegetarisch/Vegan TK ──
+        [/\bfalafel\b/gi, 'kichererbsen'],
+        [/\bveggie-?burger\b|\bvegane?\s+burger\b/gi, 'fleischalternative'],
+        [/\bquinoa-?bratlinge?\b|\blinsen-?bratlinge?\b|\bgemüse-?bratlinge?\b/gi, 'kichererbsen'],
+        [/\bsamosa\b/gi, 'gemüse'],                    // S0 Teigtasche
+        [/\bfrühlingsrolle?\b|\bspring\s*rolls?\b/gi, 'gemüse'],   // S0-1
+        [/\bwan-?tan\b|\bwonton\b/gi, 'fleischalternative'],       // S1 (Hackfleisch-Teigtasche)
+        [/\bgyoza\b|\bpotstickers?\b/gi, 'fleischalternative'],    // S1
+        [/\bmaisbrot\b|\bmaize\s*bread\b/gi, 'brot'],              // S0
+        // ── TK Desserts ──
+        [/\bpain\s+au\s+chocolat\b/gi, 'schokolade'],
+        [/\bbeerenauflauf\b|\bfruchtauflauf\b/gi, 'kuchen'],
+        [/\bkirschgrütze\b|\bfruchtkompott\b/gi, 'kirsche'],  // S1 Kirsche
+        [/\bmangocreme\b|\bmangosorbet\b|\bmango\s*creme\b/gi, 'mango'],
+        [/\bkokoscreme\b|\bkokospudding\b|\bkokos\s*creme\b/gi, 'kokos'],
+        [/\bhimbeertiramisù?\b|\bhimbeer-?tiramisu\b/gi, 'tiramisu'],  // S3 Tiramisu+Himbeere
+        [/\b(\w+)-mix\b/gi, '$1'],              // "Paprika-Mix" → "Paprika"
+        [/\b(\w+)-sticks?\b/gi, '$1'],           // "Mozzarella-Sticks" → "Mozzarella"
+        [/\bsüßkartoffel-\w+\b/gi, 'süßkartoffel'],  // "Süßkartoffel-Pommes" → "Süßkartoffel"
+        [/\blasagne\b|\blasagna\b/gi, 'nudeln'], // Lasagne = Nudelgericht S0
+        [/\baufback-?(\w+)\b/gi, '$1'],          // "Aufback-Baguette" → "Baguette"
+        [/\baufback\b/gi, ''],                    // "Aufback " prefix → entfernen
+        [/\btiefkühl-/gi, ''],               // "Tiefkühl-Brokkoli" → "Brokkoli"
+        [/\btk-/gi, ''],                     // "TK-Brokkoli" → "Brokkoli"
+        // ── TK-spezifische Gerichte / Produkte ──
+        [/\bwedges?\b|\bpotato\s+wedges?\b/gi, 'kartoffel'],
+        [/\bkroketten?\b|\bcroquettes?\b/gi, 'kartoffel'],
+        [/\brösti\b/gi, 'kartoffel'],
+        [/\bcannel(?:l)?oni\b/gi, 'nudeln'],
+        [/\bmed(?:iterrane?)\s+gemüse\b/gi, 'gemüse'],
+        [/\bkäsespätzle\b|\bkäse-?spätzle\b/gi, 'nudeln'],
+        [/\brahmspinat\b/gi, 'spinat'],       // S0 (Sahne + Spinat)
+        [/\bsuppengrün\b/gi, 'gemüse'],
+        [/\bgemüsemischung\b/gi, 'gemüse'],
+        [/\bmorcheln?\b/gi, 'champignon'],
+        [/\bpfifferlinge?\b/gi, 'champignon'],
+        [/\bsteinpilze?\b/gi, 'steinpilz'],
+        // ── Paniertes / Fritiertes ──
+        [/\bzwiebelringe?\s*(?:paniert)?\b/gi, 'zwiebel'],
+        [/\bmozzarella\s*sticks?\b/gi, 'mozzarella'],
+        [/\bcamembert(?:\s*(?:paniert))?\b/gi, 'camembert'],
+        [/\bbackfisch\b/gi, 'fischfilet'],
+        [/\bfisch\s*stäbchen\b/gi, 'fischstäbchen'],
+        [/\bfischfilet(?:\s*(?:paniert|gebacken))?\b/gi, 'fischfilet'],
+        [/\bgarnelen(?:\s*(?:paniert|gebacken|tempura))?\b/gi, 'garnele'],
+        [/\bcalamari\b|\btintenfischringe?\b/gi, 'tintenfisch'],
+        // ── TK-Desserts / Torten ──
+        [/\beis(?:creme|becher|torte|kuchen|dessert)?\b/gi, 'eis'],
+        [/\bvanilleeis\b|\bschokoladeneis\b|\bstrawberry\s*ice\b/gi, 'eis'],
+        [/\bsorbet\b|\bsherbet\b/gi, 'sorbet'],
+        [/\bfrozen\s+yoghurt\b|\bgefrorener\s+joghurt\b/gi, 'joghurt'],
+        [/\bpanna\s+cotta\b/gi, 'sahne'],
+        [/\btiramisu\b/gi, 'tiramisu'],       // S2-3 (Kaffee+Mascarpone)
+        [/\bcreme\s+brulee\b|\bcrème\s+brûlée\b/gi, 'sahne'],
+        [/\bprofiteroles?\b|\bwindbeutel\b/gi, 'kuchen'],
+        [/\bcheesecake(?:\s*(?:gefroren))?\b|\bkäsekuchen(?:\s*(?:tiefkühl))?\b/gi, 'kuchen'],
+        [/\bschokoladen(?:kuchen|torte|mousse|fondant)\b/gi, 'schokolade'],
+        [/\bstrawberry\s+cake\b|\berdbeer(?:torte|kuchen)\b/gi, 'kuchen'],
+        [/\bhimbeertorte\b|\bhimbeerkuchen\b/gi, 'kuchen'],
+        [/\bsacher(?:torte)?\b|\bdomino(?:steine?)?\b/gi, 'kuchen'],
+        // ── TK-Fleisch & Geflügel ──
+        [/\bhühnerschenkel\b|\bhähnchenkeule\b|\bhähnchenflügel\b/gi, 'hähnchen'],
+        [/\bhähnchen(?:brust|filet|nuggets?|strips?|schnitzel)?\b/gi, 'hähnchen'],
+        [/\bchicken(?:\s*(?:nuggets?|strips?|wings?|burger))?\b/gi, 'hähnchen'],
+        [/\bputengeschnetzeltes?\b|\bputenfilet\b|\bputenbrust\b/gi, 'pute'],
+        [/\bschweinefilet\b|\bschweine(?:kotelett|schnitzel|medaillon)\b/gi, 'schweinefleisch'],
+        [/\brinder(?:roulade|filet|steak|gulasch|schnitzel)\b/gi, 'rindfleisch'],
+        [/\blammkotelett\b|\blammfilet\b/gi, 'lamm'],
+        [/\bhack(?:fleisch|bällchen|braten|burger|steak)\b/gi, 'hackfleisch'],
+        [/\bfleischbällchen\b|\bköttbullar\b/gi, 'hackfleisch'],
+        [/\bwiener\s+schnitzel\b|\bschnitzel\s+(?:wiener\s+art|natur)\b/gi, 'schweinefleisch'],
+        // ── Aufbackbrötchen ──
+        [/\baufback(?:brötchen?|brot|baguette)?\b/gi, 'brot'],
+        [/\bbrötchen\s*(?:zum\s+aufbacken|tiefkühl|tk)\b/gi, 'brot'],
+        [/\bciabatta(?:\s*(?:aufback|tiefkühl))?\b/gi, 'brot'],
+        [/\bbaguette(?:\s*(?:aufback|tiefkühl))?\b/gi, 'brot'],
+        [/\blaugen(?:brötchen|stange|brezel)\s*(?:tiefkühl|tk)?\b/gi, 'brot'],
+        [/\bcalciumkaseinat\b|\bnatriumkaseinat\b|\bkaseinat\b/gi, 'milchprotein'],
+        [/\bcasein(?:at)?\b(?!\s*protein|\s*pulver)/gi, 'milchprotein'],
+        [/\bcasein\s*(?:protein|pulver|isolat|konzentrat)\b/gi, 'milchprotein'],
+        [/\bfruktose\b|\bfructose\b/gi, 'fructose'],  // S1 — eigener Token
+        [/\bfrukto(?:oligosaccharide?)\b|\bfos\b/gi, 'fructose'],  // FOS S1
+        [/\baspartam-acesulfam\b/gi, 'süßungsmittel'],
+        [/\bnatriumsaccharin\b/gi, 'süßungsmittel'],
+        [/\bkokosblüten(?:zucker|nektar|sirup)?\b/gi, 'kokosblütenzucker'],  // S1 eigener Token
+        [/\bzitronensäure\b/gi, 'citronensäure'],   // → E330 (citronensäure = korrekt)
+        [/\bgrüntee(?:-aroma|-extrakt|-pulver)?\b|\bgrüner?\s+tee\s*-?extrakt\b/gi, 'grüntee'],
+        [/\bschwarz?tee-?extrakt\b|\bschwarz?er?\s+tee\s*-?extrakt\b/gi, 'schwarztee'],
+        [/\bhibiskus(?:tee)?-?extrakt\b/gi, 'hibiskustee'],
+        [/\btee-?extrakt\b/gi, 'tee'],  // generisch
+        [/\bstevioglyceride?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],  // Stevia-Extrakt = Süßungsmittel S0
+        // e331 → S0 safe_hints only
+        [/\bschwarz(?:er)?tee-?extrakt\b/gi, 'schwarztee'],  // Extrakt → spezifischer Token
+        [/\bhibiskustee-?extrakt\b/gi, 'hibiskustee'],
+        [/\bstevioglyceride?\b|\bstevioglycoside?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],
+        [/\btrinatrium(?:citrat)?(?:dihydrat)?\b|\bnatriumcitrat\b|e331\b/gi, 'e331'],
+        [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
+        [/\btulsi(?:extrakt)?\b|\bholy\s+basil(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bhopfen(?:extrakt|blüten)?\b/gi, 'hopfen'],
+        [/\bgeschmacksgebender?\s+blend\b|\bgeschmacks(?:mischung|blend)\b/gi, 'aroma'],
+        [/\bacerola(?:saft)?(?:pulver|extrakt)?\b/gi, 'acerola'],
+        [/\blay[''']?s?\b(?:\s+\w+)?\b/gi, 'chips'],   // Lay's alle Sorten → chips
+        [/\bwasa\b(?:\s+\w+)?\b/gi, 'knäckebrot'],
+        [/\bfinn\s+crisp\b|\bryvita\b|\brybar\b/gi, 'knäckebrot'],
+        [/\bknaeckebrot\b|\bknäckebrot\b(?:\s+\w+)?\b/gi, 'knäckebrot'],
+        [/\bcrackers?\s+(?:meersalz|salz|vollkorn|natur)\b/gi, 'keks'],
+        // ── Riegel-Komposita ──
+        [/\berdnussriegel\b/gi, 'erdnuss'],
+        [/\bnussriegel\s+\w+\b/gi, 'nussmix'],
+        [/\bmüsliriegel\s+\w+\b/gi, 'müsli'],
+        [/\bfruchtriegel\s+\w+\b/gi, 'frucht'],
+        // ── Nakd-Marke ──
+        [/\bnakd\b(?:\s+\w+)?\b/gi, 'dattel'],  // Nakd = Datteln+Nüsse-Basis
+        // ── Trek Energy Ball ──
+        [/\btrek\b(?:\s+\w+)?\b/gi, 'proteinriegel'],
+        // ── Bifi / Jerky → Wurst/Fleischtrockenwaren ──
+        [/\bbifi\b(?:\s+\w+)?\b/gi, 'wurst'],       // S2-3 gepökeltes Fleisch
+        [/\bbeef\s+jerky\b(?:\s+\w+)?\b/gi, 'wurst'],
+        [/\bjack\s+links?\b(?:\s+\w+)?\b/gi, 'wurst'],
+        [/\bturkey\s+jerky\b/gi, 'wurst'],
+        [/\bvegan(?:es)?\s+jerky\b/gi, 'fleischalternative'],
+        [/\bsoja\s+jerky\b|\bseitan\s+jerky\b/gi, 'fleischalternative'],
+        [/\bjerky\b(?:\s+\w+)?\b/gi, 'wurst'],      // alle jerky-Arten → gepökelt S3
+        // ── Chips-Marken ──
+        [/\blay[''s]?\s+\w+\b/gi, 'chips'],
+        [/\bruffles?\b/gi, 'chips'],
+        [/\bchio\s+chips?\b/gi, 'chips'],
+        [/\bfunny.?frisch\b(?:\s+\w+)?\b/gi, 'chips'],
+        [/\blorenz\s+\w+\b/gi, 'chips'],
+        [/\bterra\s+chips?\b/gi, 'chips'],           // Gemüsechips-Mix
+        // ── Süßkartoffel ──
+        [/\bsüßkartoffel(?:chips?|stücke?|püree|flocken)?\b/gi, 'süßkartoffel'],
+        [/\bsüßkartoffelstärke\b/gi, 'süßkartoffel'],
+        // ── Spezial-Chips ──
+        [/\blinsen(?:chips?|crisps?)\b/gi, 'linsen'],
+        [/\blinsenmehl\b|\blinsenprotein\b|\blinsenpüree\b/gi, 'linsen'],             // Linsenmehl → linsen (safe S0)
+        [/\btrockenmilcherzeugnis\b|\bmilcherzeugnis\b/gi, 'milch'],                  // Trockenmilcherzeugnis → milch
+        [/\bkichererbsen(?:chips?|crisps?|snacks?)\b/gi, 'kichererbsen'],
+        [/\bedamame(?:chips?|crisps?)\b/gi, 'edamame'],
+        // ── Getrocknete Früchte ──
+        [/\bkiwi\s+getrocknet\b|\bkiwi\s+chips?\b/gi, 'kiwi'],
+        [/\bananas?\s+getrocknet\b|\bananasscheiben?\b|\bananasringe?\b/gi, 'ananas'],
+        [/\bcranberry\s+(?:getrocknet|gesüßt)\b/gi, 'cranberries'],
+        [/\bdattel-?walnuss\s*mix\b/gi, 'nussmix'],
+        [/\bmüsli(?:riegel|bar|stange|snack)\b/gi, 'müsli'],  // müsliriegel → müsli
+        [/\bnori\s+reiscracker\b/gi, 'keks'],          // specific match before nori→kräuter
+        [/\bmüller(?:riegel|milch|eckchen)?\b/gi, 'müsli'],  // Müller-Riegel → müsli S0-1
+        [/\bcorny(?:\s+\w+){0,3}\b/gi, 'müsli'],       // Corny alle Sorten → müsli
+        [/\bmüsliriegel\b|\bmüslibar\b/gi, 'müsli'],    // generic müsliriegel
+        [/\bkettle\s+chips?\b/gi, 'chips'],
+        [/\bwellen(?:chips?|kartoffeln?)?\b/gi, 'chips'],
+        [/\bdoritos?\b|\bcheetos?\b|\bfritos?\b|\bfrunch?\b/gi, 'chips'],    // Mais-Chips S0
+        [/\bflips?\b(?!\s+\w{4,})/gi, 'keks'],     // Erdnussflips S0 (kurze Form)
+        // ── Cracker ──
+        [/\breis(?:waffeln?|cracker|chips?)\b/gi, 'keks'],
+        [/\bnori\s+reiscracker\b|\bseetang\s+cracker\b/gi, 'keks'],
+        [/\bmais-?cracker\b|\bmaiskeks\b/gi, 'keks'],
+        [/\bquinoa-?cracker\b/gi, 'keks'],
+        // ── Gebäck / Salziges ──
+        [/\bkäsegebäck\b|\bkäsestangen?\b|\bkäsekräcker\b/gi, 'keks'],      // Käse = S2 → lib
+        [/\bsalzletten?\b|\bsalzgebäck\b/gi, 'keks'],
+        [/\bminipretzel\b|\bmini-?brezel\b/gi, 'brot'],
+        [/\bgrissini\b|\bitalienische\s+brotstangen?\b/gi, 'brot'],
+        // ── Nuss-Varianten ──
+        [/\bnussmischung\b|\bgemischte?\s+nüsse?\b/gi, 'nussmix'],
+        [/\bgebrannte?\s+mandeln?\b/gi, 'mandel'],    // karamellisiert S1
+        [/\bkaramell(?:nüsse?|mandeln?|cashews?)\b/gi, 'haselnuss'],  // Karamell+Nuss S1
+        [/\bwasabi\s+erdnüsse?\b|\bwasabi\s+peas\b/gi, 'erdnuss'],
+                [/\bchilisamen(?:öl)?\b|\brotes?\s+chili(?:samen)?öl\b/gi, 'chiliöl'],  // S1-2
+[/\bchili\s+erdnüsse?\b|\bchili\s+nuts?\b/gi, 'erdnuss'],
+        [/\bhonig\s+(?:erdnüsse?|mandeln?|cashews?)\b/gi, 'erdnuss'],
+        [/\bkokos\s+erdnüsse?\b/gi, 'erdnuss'],
+        // ── Müsliriegel-Marken → Kategorien ──
+        [/\bm[üu]lleriegel\b|\bmüller\s+riegel\b/gi, 'müsli'],
+        [/\bcorny\b(?:\s+\w+)?\b/gi, 'müsli'],     // Corny alle Sorten → müsli
+        [/\bbalisto\b/gi, 'schokolade'],              // Schokolade+Getreide S1-2
+        [/\bnature\s+valley\b(?:\s+\w+)?\b/gi, 'müsli'],   // NV alle Sorten
+        [/\bclif\s+bar\b|\bclif\b(?!\s*ford)/gi, 'proteinriegel'],
+        [/\bkind\s+bar\b/gi, 'nussmix'],             // Kind = Nüsse+Früchte S0-1
+        [/\btrek\s+bar\b|\btrek\b(?!\s*\w{5,})/gi, 'proteinriegel'],
+        [/\bl[äa]rabar\b(?:\s+\w+)?\b/gi, 'dattel'],  // Lärabar = Datteln+Nüsse S1
+        [/\bhigh5?\s*(?:protein)?\s*bar\b/gi, 'proteinriegel'],
+        [/\bkitkat\b|\bkit\s+kat\b/gi, 'schokolade'],
+        [/\bmar[s]\s+riegel\b|\bmar[s]\b(?=\s+riegel)/gi, 'schokolade'],
+        [/\bpalmöl\b|\bpalmfett\b|\bpalmkernöl\b|\bpalmkernfett\b/gi, 'palmöl'],
+        [/\bvollkorn-?(\w+)flocken\b/gi, '$1flocken'],   // "Vollkornweizenflocken" → "Weizenflocken"
+
+        [/\bhaferfleks?\b|\bvollkorn-?haferfleks?\b|\bhafer-?fleks?\b/gi, 'hafer'],
+        [/\bhaselnuss(?:krokant|konfekt)?\b|\bhafernuss(?:krokant)?\b/gi, 'haselnuss'],
+        [/\bkrokant\b|\bnusskrokant\b/gi, 'haselnuss'],  // Krokant = karamellisierte Nüsse
+        // palmöl-Varianten bereits oben konsolidiert (Zeile ~5010)
+        [/\bbananen?flocken?\b|\bbananen?stücke?\b/gi, 'banane'],
+        [/\bbananen?chips?\b/gi, 'banane'],
+        [/\bzitronensaft(?:pulver|konzentrat|extrakt)?\b/gi, 'zitrone'],
+        [/\bsauerkirsch(?:stücke?|saft|extrakt)?\b/gi, 'kirsche'],
+        [/\bgefriergetrocknete?\s+\w+/gi, m => m.replace(/gefriergetrocknete?\s+/i,'').trim()],
+        [/\bkakaokeks(?:e)?\b|\bschokokeks(?:e)?\b/gi, 'keks'],
+        [/\b\w+schokoladen?blättchen?\b/gi, 'schokolade'],
+        [/\bblättchen?\b(?!\s+teig)/gi, 'schokolade'],  // "Blättchen" allein = Schokobl.
+        [/\bkokosfett\b|\bkokos(?:butter|öl|fett)\b/gi, 'kokos'],  // Kokosfett → kokos (eigene Kategorie)
+        [/\bzimtsaftkonzentrat\b|\bhimbeer(?:saft)?konzentrat\b/gi, 'himbeere'],
+        [/\bcranberry-?stücke?\s+(?:mit\s+)?apfelsaft(?:konzentrat)?\b/gi, 'cranberry'],  // Kompositum → cranberry, vor generischer apfelsaft-Norm
+        [/\bapfelsaft(?:konzentrat)?\b/gi, 'apfel'],
+        [/\bapfelmus\b|\bapfelpüree\b|\bapfelmark\b/gi, 'apfel'],                   // Apfelmus → apfel → safe S0
+        [/\bbaumwollsaat(?:öl)?\b|\bbaumwollsamen(?:öl)?\b|\bcotton\s*seed\s*oil\b/gi, 'pflanzenöl'],  // neutral S0
+        [/\balkoholisches?\s+reis(?:getränk)?\b|\breisgetränk\b/gi, 'alkohol'],      // transparenter als 'sake'
+        [/\bhimbeersaft(?:konzentrat)?\b/gi, 'himbeere'],
+        [/\bgerstenflocken?\b/gi, 'gerste'],    // Gerstenflocken → gerste S0
+        [/\bkokosraspeln?\b|\bkokos(?:flocken?|chips?|streifen?)?\b/gi, 'kokos'],  // Plural-Fix
+        [/\broggenflocken?\b/gi, 'roggen'],
+        [/\bgerstenflocken?\b/gi, 'gerste'],
+        [/\bweizenflocken?\b/gi, 'weizen'],
+        [/\breisflocken?\b/gi, 'reis'],
+        [/\bschmelzflocken?\b/gi, 'hafer'],   // Schmelzflocken sind traditionell Hafer
+        [/\bquinoa(?:flocken?)?\b/gi, 'quinoa'],
+        // ── Crunchy / Knusperstücke ──
+        [/\bknusperstücke?\s*(?:hafer|dinkel|mais|multi(?:korn)?)?\b/gi, 'müsli'],
+        [/\b(?:hafer|schoko|multikorn|dinkel|reis)-?crunchy\b/gi, 'müsli'],
+        [/\bfrucht-?crunchy\b|\bbeeren-?crunchy\b|\bmohnblüten-?crunchy\b/gi, 'müsli'],
+        [/\bproteingranola\b|\bpaleo\s+(?:granola|müsli)\b/gi, 'müsli'],
+        [/\bkakaonibs?\b|\bcacao\s+nibs?\b/gi, 'kakao'],       // S1-2 (Kakao Liberator)
+        // ── Trockenfrüchte ──
+        [/\baprikosen?stücke?\b|\baprikosen?\s+getrocknet\b/gi, 'aprikose'],
+        [/\bpapayastücke?\b|\bpapaya\s+getrocknet\b/gi, 'papaya'],
+        [/\bfeigenstücke?\b|\bfeigen?\s+getrocknet\b/gi, 'feige'],
+        [/\bpflaumenstücke?\b|\bpflaumen?\s+getrocknet\b/gi, 'pflaume'],
+        [/\bkirschen?\s+getrocknet\b|\bkirschen?stücke?\b/gi, 'kirsche'],
+        [/\bjohannisbeeren?\s+getrocknet\b/gi, 'johannisbeere'],
+        [/\bblaubeeren?\s+getrocknet\b|\bheidelbeeren?\s+getrocknet\b/gi, 'heidelbeere'],
+        // ── Nüsse ──
+        [/\bpekannüsse?\b|\bpekan(?:nuss)?\b/gi, 'pekan'],
+        [/\bcashewkerne?\b|\bcashews?\b/gi, 'cashew'],
+        [/\bkokosn(?:uss)?(?:\s+\w+)?\b(?!milch|öl|fett|wasser|mark)/gi, 'kokos'],
+        // ── Süßungsmittel ──
+        [/\bhonig(?:pulver|granulat|extrakt)?\b/gi, 'honig'],
+        [/\bpalm(?:zucker|blütenzucker|kristallzucker)\b/gi, 'zucker'],   // Palmzucker → safe S0
+        [/\bpalmkernfett\b|\bpalmkernöl\b/gi, 'palmöl'],                   // Palmkernfett → palmöl
+        // ── Funktionszutaten ──
+        [/\bbeta-?glucan\b|\bbetaglucan\b/gi, 'hafer'],    // Beta-Glucan = Haferfaser S0
+        [/\bballaststoffe?\s+\w*\b/gi, 'inulin'],           // Ballaststoffe allgemein S0
+        [/\bglutenfreie?\s+hafer(?:flocken?)?\b/gi, 'hafer'],
+        // ── Müsli-Marken/Sorten → 'müsli' ──
+        [/\bfrüchtemüsli\b|\bknuspermüsli\b|\bschokomüsli\b/gi, 'müsli'],
+        [/\bnuss(?:müsli|granola)\b|\bfitness\s+müsli\b|\bsportler(?:müsli)?\b/gi, 'müsli'],
+        [/\blow\s+carb\s+müsli\b|\bvegan(?:es)?\s+müsli\b/gi, 'müsli'],
+        [/\bbirchermüsli\b|\bovernight\s+oats?\b|\bporridge\s+\w+\b/gi, 'müsli'],
+        [/\baromengemisch\b|\bgeschmacksmischung\b/gi, 'aroma'],
+        // [/\bgrüntee(?:extrakt)?\b/gi, 'tee'],  // DEAKTIVIERT — grüntee ist eigener Token S1!
+        [/\bschwarz(?:er?)?\s*tee(?:extrakt)?\b|\bschwarztee(?:extrakt)?\b/gi, 'schwarztee'],  // nur mit 'tee'!
+        [/\bhibiskus(?:tee)?(?:extrakt)?\b/gi, 'hibiskustee'],
+        [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\brote\s*bee?te\s*extrakt\b/gi, 'rote bete'],
+        [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
+        [/\bacerola-?(?:saft)?(?:pulver|extrakt)?\b|\bacerola\b/gi, 'acerola'],
+        [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bsiliciumdioxid\b|e551\b/gi, 'e551'],
+        [/\brote-?beete?-?extrakt\b|\brote\s+bete\s+extrakt\b/gi, 'rote bete'],
+        [/\bdarjeeling\s+(?:extrakt|tee)?\b/gi, 'schwarztee'],  // Darjeeling = Schwarztee
+        [/\bclassic\s+black\s+tea\b/gi, 'schwarztee'],
+        [/\bclassic\s+green\s+tea\b/gi, 'grüntee'],
+        [/\bclassic\s+hibiscus\b/gi, 'hibiskustee'],
+        [/\biced\s+tea\b/gi, 'schwarztee'],  // Eistee = meist Schwarztee-Basis
+        [/\bgrün[\wäöüßÄÖÜ]*teeextrakt\b|\bgreen\s*tea\s+extrakt\b/gi, 'grüntee'],
+        [/\b[\wäöüßÄÖÜ]+teeextrakt\b|\b[\wäöüßÄÖÜ]+tea\s+extrakt\b/gi, 'tee'],
+        [/\bhopfenextrakt\b|\bhopfen(?:blüten)?extrakt\b/gi, 'hopfen'],
+        [/\bhonigmelone\b|\bhoneydew\b/gi, 'melone'],
+        [/\bwassermelone\b|\bwatermelon\b/gi, 'melone'],
+        [/\b(\w+)cremesuppe\b/gi, '$1'],      // "Spargelcremesuppe" → "Spargel"
+        [/\b(\w+)s?suppe\b/gi, '$1'],          // "Kartoffelsuppe" → "Kartoffel"
+        [/\b\w+suppe\b/gi, m => m.replace(/suppe\b/i,'').trim() || 'suppe'],
+        [/\b\w+cremesuppe\b/gi, m => m.replace(/cremesuppe\b/i,'').trim() || 'suppe'],
+        [/\bbouillabaisse\b/gi, 'bouillabaisse'],  // S3 – Fischsuppe (bleibt in high[])
+        [/\bminestrone\b|\bgazpacho\b|\bvichyssoise\b/gi, 'gemüse'],  // S0-1 Gemüsesuppen
+        [/\bokroschka\b/gi, 'gemüse'],
+        [/\bborschtsch?\b/gi, 'rote bete'],
+        [/\bokroschka\b/gi, 'gemüse'],
+        [/\bsolyanka\b/gi, 'solyanka'],  // S3 – eigenes Keyword, steht in high[]
+
+        // ── Salate (Compound X+salat → Grundzutat) ──
+        [/\bkartoffelsalat\b/gi, 'kartoffel'],  // Einstufung je nach Dressing
+        [/\bnudelsalat\b/gi, 'nudeln'],
+        [/\breissalat\b/gi, 'reis'],
+        [/\bbohnensalat\b/gi, 'bohnen'],
+        [/\bgurkensalat\b/gi, 'gurke'],
+        [/\btomatensalat\b/gi, 'tomate'],
+        [/\bkrautsalat\b|\brotkohls?\s*alat\b/gi, 'kohl'],
+        [/\bselleriesalat\b/gi, 'sellerie'],
+        [/\bkarottesalat\b|\bmöhrensalat\b/gi, 'karotte'],
+        // ── Bekannte Salat-Gerichte ──
+        [/\bgriechischer\s+salat\b|\bhoriatiki\b/gi, 'salat'],
+        [/\bcaprese\s+(?:salat)?\b/gi, 'tomate'],   // Tomate+Mozzarella → S2-3
+        [/\bnicoise\s+(?:salat)?\b|\bniçoise\b/gi, 'salat'],  // Thunfisch → S2-3
+        [/\bwaldorf\s+(?:salat)?\b/gi, 'salat'],
+        [/\bcäsar\s+(?:salat)?\b|\bcaesar\s+(?:salad|salat)\b/gi, 'salat'],  // Sardellen → S3
+        [/\blentil(?:suppe)?\b|\blentils?\b/gi, 'linsen'],
+        [/\bfrench\s+toast\b|\bpain\s+perdu\b|\barmer\s+ritter\b/gi, 'pfannkuchen'],
+        [/\bcoq\s+au\s+vin\b|\bboeuf\s+bourguignon\b/gi, 'rindfleisch'],
+        [/\bpoulet\s+r[oô]ti\b/gi, 'hähnchen'],
+        [/orangensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'orange'],
+        [/zitronensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'zitrone'],
+        [/apfelsaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'apfel'],
+        [/birnensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'birne'],
+        [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],  // VOR allem anderen!
+        [/traubensaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'traube'],
+        [/schwarzer\s+johannisbeersaft\b|schwarzen\s+johannisbeersaft\b/gi, 'johannisbeere'],
+        [/johannisbeersaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'johannisbeere'],
+        [/cranberrysaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'cranberry'],
+        [/mangosaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'mango'],
+        [/ananassaft\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, 'ananas'],
+        [/grapefruitsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'grapefruit'],
+        [/mandarinensaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'mandarine'],
+        [/maracujasaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'maracuja'],
+        [/kirschsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b|sauerkirschsaft\s*(?:aus\s+)?(?:fruchtsaft)?konzentraten?\b/gi, 'kirsche'],
+        [/schwarzer\s+johannisbeersaft\b|schwarzen\s+johannisbeersaft\b/gi, 'johannisbeere'],
+        [/sauerkirschmark\b|sauerkirschsaft\b|kirschmark\b/gi, 'kirsche'],
+        [/mandarinensaft\b/gi, 'mandarine'],
+        [/maracujasaft\b/gi, 'maracuja'],
+        [/grapefruitsaft\b/gi, 'grapefruit'],
+        [/traubensaft\s+aus\s+roten\s+und\s+weißen\s+trauben\b/gi, 'traube'],  // Multi-Wort vor Split
+        [/\s+aus\s+[\wäöüÄÖÜ]+konzentrat\b/gi, ''],   // Fallback: restliches "aus X" entfernen
+        [/\s+fruchtsaftkonzentraten?\b/gi, ''],         // Artefakt "fruchtsaftkonzentraten" entfernen
+        [/\s+aus\s+[\wäöüÄÖÜ]+(saft|püree|mark)\b/gi, ''],
+        [/knoblauchzehe[n]?/gi,          'knoblauch'],
+        [/knoblauchknolle[n]?/gi,        'knoblauch'],
+        [/lauchstange[n]?/gi,            'lauch'],
+        [/zwiebelring[e]?/gi,            'zwiebel'],
+                [/\b(?:krause|glatte|fein|grob)\s+petersilie\b/gi, 'petersilie'],
+[/petersilieoder\s*\w*/gi,       'petersilie'],
+        [/petersilienstiel[e]?/gi,       'petersilie'],
+        [/\bpetersilienw(?:urzel)?(?:pulver|extrakt|trocken)?\b/gi, 'petersilie'],  // Petersilienwurzelpulver
+        [/\bpetersilje?\b/gi, 'petersilie'],  // Schreibvariante
+        [/butterflöckchen/gi,            'butter'],
+        [/butterstückchen/gi,            'butter'],
+        [/olivenölzum\w*/gi,             'olivenöl'],
+        [/lasagneplatte[n]?/gi,          'lasagne'],
+        [/parmesanspäne/gi,              'parmesan'],
+        [/tomaten[,\s]*(geschält[e]?|gehackt[e]?|gestückt[e]?|dose[n]?)/gi, 'tomaten'],
+        [/\bschältomaten?\b|\bgeschälte\s+tomaten?\b/gi, 'tomate'],
+        [/möhre[n]?/gi,                  'karotte'],
+        [/chilischote[n]?/gi,            'chili'],
+        [/paprikaschote[n]?/gi,          'paprika'],
+        [/frühlingszwiebel[n]?/gi,       'frühlingszwiebel'],
+        [/zimtstange[n]?/gi,             'zimt'],
+        [/butterschmalz\w*/gi,           'butterschmalz'],
+        [/zuckerschote[n]?/gi,           'zuckerschote'],
+        // Kartoffel-Varianten
+        [/ofenkartoffel[n]?/gi,          'kartoffel'],
+        [/pellkartoffel[n]?/gi,          'kartoffel'],
+        [/bratkartoffel[n]?/gi,          'kartoffel'],
+        [/salzkartoffel[n]?/gi,          'kartoffel'],
+        [/süßkartoffel[n]?/gi,           'süßkartoffel'],
+        // Tomate-Varianten
+        [/cherrytomaten?/gi,             'tomaten'],
+        [/cocktailtomaten?/gi,           'tomaten'],
+        [/rispentomaten?/gi,             'tomaten'],
+        [/flaschentomaten?/gi,           'tomaten'],
+        [/strauchtomaten?/gi,            'tomaten'],
+        // Brot-Varianten mit Bindestrich
+        // Salz-Varianten
+        [/speisesalz/gi,                 'salz'],
+        [/meersalz/gi,                   'salz'],
+        [/jodsalz/gi,                    'jodsalz'],  // → liberator S2 L (SIGHI!)
+        [/ursalz/gi,                     'salz'],
+        // Salat-Mischungen
+        [/blattsalatmischung\b/gi,       'salat'],
+        [/salatmischung\b/gi,             'salat'],
+        [/blattsalat\b/gi,               'salat'],
+        [/feldsalatmischung\b/gi,        'salat'],
+        // Balsamico-Varianten → balsamico (S3 lt. SIGHI)
+        [/\bbalsamico(?:\s*(?:creme|glaze|reduktion|dressing))?\b|\bbalsamicocreme\b/gi, 'balsamico'],
+        [/\bbalsamessig\b|\bbalsamicoessig\b|\bbalsamikoessig\b|\bbalsamico-essig\b/gi, 'balsamico'],
+        [/\baceto\s*balsamico\b|\bcrème\s+de\s+balsamique?\b/gi, 'balsamico'],
+        // Gewürzmischung: Markenname wegkürzen
+        [/gewürzmischung\s+[\w\s]+/gi,   'gewürzmischung'],
+        // Sojasoße → sojasauce
+        [/sojasoße\b/gi,                 'sojasauce'],
+        [/(\w{3,})füllung\b/gi,          '$1'],
+        // Diverses
+        [/lauchzwiebel[n]?\b/gi,         'frühlingszwiebel'],
+        [/zimtzucker\b/gi,               'zimt'],
+        [/schnittlauchröllchen\b/gi,     'schnittlauch'],
+        [/kräuterfrische?\b/gi,          'kräuter'],
+        // schmandersatzweise Crème fraîche oder ... → 'schmand' (alles abschneiden)
+        [/(\w+)ersatzweise\b.*/gi,      '$1'],
+        [/schmandersatz\w*/gi,           'schmand'],
+        // 'ersatzweise ...' → leer (Beschreibungstext nach Zutat)
+        [/\s+ersatz\w*\b.*/gi,             ''],
+        [/sahneschmelzkäse\b/gi,         'schmelzkäse'],
+        [/currypaste\b/gi,               'curry'],
+        [/reisgekochter?\b/gi,           'reis'],
+        [/spitzpaprika\b/gi,             'paprika'],
+        [/woknudeln\b/gi,                'nudeln'],
+        [/kräuterbutter\b/gi,            'butter'],
+        [/lasagneplatte[n]?\b/gi,        'lasagne'],
+        [/sahnesteif\b/gi,               ''],  // Kein Lebensmittel
+        [/blätterteig\w*/gi,             'blätterteig'],
+        // Stuck-Suffix 'mit': staudenselleriemit → staudensellerie
+        [/(\w{5,})mit\b/gi,             '$1'],
+        // Stuck-Suffix 'vom': brühevom → brühe
+        [/(\w{4,})vom\b.*/gi,            '$1'],
+        // Stuck 'ca.' Mengenangabe: zimtpulverca. → zimt
+        [/(\w+(?:[äöüÄÖÜß]\w*)*)ca\.\s*[\d\/\-–½¼¾].*/gi, '$1'],  // zimtpulverca.1/2 → zimtpulver
+        [/(?:ca\.|circa)\s*[\d\/\-–½¼¾]+.*/gi, ''],                  // restliche ca.-Mengen
+        // Hackfleisch-Typen → hackfleisch
+        [/rinderhackfleisch\b/gi,         'hackfleisch'],
+        [/schweinehackfleisch\b/gi,        'hackfleisch'],
+        [/lammhackfleisch\b/gi,            'hackfleisch'],
+        // Brötchen eingeweicht → brötchen
+        [/brötcheneingeweicht?\b/gi,       'brötchen'],
+        // Joghurt-Varianten → joghurt
+        [/naturjoghurt\b/gi,              'joghurt'],
+        [/joghurt\d+\s*g\b/gi,            'joghurt'],
+        // Brühe-Varianten → brühe
+        [/(\w+)alternativ\b.*/gi,        '$1'],   // mehlalternativ... → mehl
+        [/gemahlene\s+erdnüsse?\b/gi,     'erdnuss'],
+        [/erdnussbutter\b/gi,              'erdnuss'],
+
+        // ── Pflanzen-Präfix klebt: "pflanzenrettich" → "rettich" ──
+        [/pflanzens?(\w{4,})/gi,           '$1'],
+
+        // ── Backtriebmittel / Technische Salze ────────────────
+        [/natriumcarbonat[e]?\b/gi,        'natron'],
+        [/ammoniumcarbonat[e]?\b/gi,       'e503'],
+        [/(?:dinatrium|calcium|kalium|natrium|magnesium)?-?diphosphat[e]?\b/gi, 'e450'],
+        [/natriumhydroxid\b/gi,            ''],
+        [/mono-?\s*und\s*diglyceride?\s+von\s+speisefettsäuren/gi, 'e471'],
+        [/monoglyceride?\b/gi,             'e471'],
+        [/diglyceride?\b/gi,               'e471'],
+
+        // ── Erdbeer-Compounds → erdbeere ──────────────────────
+        [/erdbeer\w*-?creme\b/gi,          'erdbeere'],
+        [/erdbeer\w*(?:granulat|pulver)\b/gi, 'erdbeere'],
+
+        // ── Milch-Isolate / Protein-Compounds ─────────────────
+        [/molkeneiweißisolat\b/gi,         'molke'],
+        // REMOVED (wrong target, casein→milchprotein): [/calciumkaseinat\b/gi,            'milch'],
+        // REMOVED: [/milchprotein\w*/gi,              'milch'],
+        [/rinderkollagen\w*/gi,            ''],
+        // REMOVED (duplicate/wrong): [/casein\w*/gi,                    'milch'],
+
+        // ── Joghurt-Compounds ──────────────────────────────────
+        [/\w*joghurt\w*pulver\b/gi,        'joghurt'],
+        [/\w*milch\w*joghurt\w*/gi,        'joghurt'],
+        [/joghurt-erdbeer\w*/gi,              'erdbeere'],
+        // Milch/Molke-Pulver-Compounds
+        // buttermilchpulver → milchpulver (siehe unten, konsolidiert)
+        [/kokosmilchpulver\b/gi,               'kokosmilch'],
+        [/sahne-?pulver\b/gi,                  'sahne'],  // mit und ohne Bindestrich
+        [/buttermilch\b/gi,                    'buttermilch'],
+        // Glukose-Fruktose → glucosesirup
+        [/glukose-fruktose-sirup\b/gi,         'glucosesirup'],
+        [/fruktose-glukose-sirup\b/gi,         'glucosesirup'],
+        [/glucose-fructose-sirup\b/gi,         'glucosesirup'],
+        [/ammoniumhydrogencarbonat\b/gi,       'e503'],
+        [/ammoniumbicarbonat\b/gi,             'e503'],
+        // Malt/Getreide-Compounds
+        [/\bgerstenmalzmehl\b/gi, 'malzmehlzusatz'],  // S1 — sichtbar statt komplett verschworfen (Restrisiko bei hochsensiblen Personen)
+        [/zuckerrohrmelasse\b/gi,             'melasse'],  // S2 SIGHI
+        [/karamellisierter?\s*zucker\b/gi,   'karamell'],  // S0 (E150)
+        [/natriumpropionat\b/gi,              'e281'],  // ? umstritten
+        [/natriumstearoyl\w*/gi,              ''],  // Emulgator → skip
+        [/propylenglykolester\w*/gi,          ''],  // Emulgator → skip
+        [/mono.und\s*diglyceride\w*/gi,      ''],  // Emulgator → skip
+        [/citrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden
+        [/\bbambusfasern?\b|\bbamboo\s*fi(?:ber|bre)s?\b/gi, ''],          // Ballaststoff S0 → leer = safe
+        [/\bcondensed\s+whey\b|\bkondensierte\s+molke\b/gi, 'molke'],      // S0 Molkenprodukt
+        [/\blean\s+cocoa\b|\bentöltes?\s+kakaopulver\b/gi, 'kakao'],        // entöltes Kakao → Liberator
+        [/\be420\s*ii\b|\bsorbitsirup\b/gi, 'süßungsmittel'],               // Sorbitsirup → safe
+        [/weizenhalmfasern?\b/gi,             ''],  // Ballaststoff
+        [/weizenfasern?\b/gi,                 ''],  // Ballaststoff
+        [/erbsenfasern?\b/gi,                 ''],  // Ballaststoff
+                [/\binulin\b/gi, 'inulin'],  // S0 Präbiotischer Ballaststoff
+        [/tarakernmehl\b/gi,                 ''],  // Verdickungsmittel ?
+        [/jodiertes?\s*kochsalz\b/gi,       'jodsalz'],  // S2 L!
+        [/eisensulfat\b/gi,                  ''],  // Nährstoff → skip
+        [/geräuchertes?\s*maltodextrin\b/gi, 'maltodextrin'],
+        [/\bmaltodextrine\s*n?\b|\bmaltodextrins\b/gi, 'maltodextrin'],  // Plural-Form, Dativ-Plural-Worttrennung, engl. Plural
+        // "siehe S. Heidelbeerpüree" / "siehe sch Heidelbeerpüree" (OCR von "siehe S.") → nur Zielzutat behalten
+        [/\bsiehe\s+(?:s\.?\s*ch?\.?\s*)?/gi, ''],
+        // "Brombeerfruchtpulver" / "Holunderbeerenpulver" etc. → Basis-Beere (Liberator-Status erhalten)
+        [/\b(?:erdbeer|himbeer|brombeer|johannisbeer|holunderbeer|preiselbeer|cranberry|aronia)(?:en)?(?:frucht)?pulver\b/gi, (m) => m.replace(/(?:en)?(?:frucht)?pulver/gi, 'e').trim()],
+        [/\b(?:bananen?|ananas|papaya|mango|maracuja|passionsfrucht|guave|kiwi|litschi|granatapfel)(?:frucht)?pulver\b/gi, (m) => m.replace(/(?:frucht)?pulver\b/gi, '').trim()],  // tropische Früchte
+        [/rauchsalz\b/gi,                    'salz'],  // S0 (Raucharoma, kein H)
+        [/bunter\s*pfeffer\b/gi,             'pfeffer'],
+        [/natriumstearoyl-?2-lactylat\b/gi,  ''],
+
+        // [/malzmehl\b/gi, ''],  // DEAKTIVIERT — malzmehl bleibt als eigener Token
+        // [/gerstenmalzextrakt\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
+
+        [/malzextrakt\b/gi,                    'malz'],
+        [/weizenkeim(?:mehl|öl|extrakt)?\b/gi,                   'weizenkeime'],  // S2! biogene Amine: Putrescin, Spermin...
+        [/weizenkleie\b/gi,                    'weizen'],
+        [/maisgrieß\b/gi,                      'mais'],
+        [/hafermehl\b/gi,                      'haferflocken'],
+        [/puffreis\b/gi,                       'reis'],
+        // Schokolade-Glazuren
+        [/\w*kakaohaltige\s+fett\w*/gi,       'schokolade'],
+        [/fettglasur\b/gi,                     'schokolade'],
+        [/palmkernöl\b/gi,                     'palmöl'],
+        [/diacetylweinsäureglycerid\b/gi, 'e472e'],
+        [/\bglycerin\w*diacetyl\w*tartrat\w*\b|\bdiacetyl\w*tartrat\w*\b/gi, 'e472e'],
+        [/calciumstearoyl.{0,5}lactylat\b/gi, 'e482'],
+        [/calciumpropionat\b/gi, 'e282'],
+        // natriumpropionat → e281 (siehe Zeile weiter oben)
+        [/dinatrium\w*phosphat\b/gi, 'e450'],
+        [/dinatriumdiphosphat\b/gi, 'e450'],
+        [/natriumacetat[e]?\b/gi, 'e262'],
+        [/calciumacetat\b/gi, 'e263'],
+        [/apfelsinenaroma\b/gi, 'orangearoma'],
+        [/natürliches butteraroma\b/gi, 'butteraroma'],
+        [/butter.{0,3}aroma\b/gi, 'butteraroma'],
+        // sojalecithin/lecithin → consolidated to e322 above
+
+        [/karamellisierter\s+zucker\b/gi, 'karamell'],
+        [/karamellzucker\b/gi, 'karamell'],
+
+        [/vollkornflocken\b/gi,                'vollkorn'],
+        [/antiverklumpungsmittel\b/gi,         ''],
+        [/^backtrieb\s*mittel$/gi, ''],   // standalone nach Klammer-Entfernung
+
+
+
+
+        // ── VollEi / VollMilch-Compounds ──────────────────────
+        [/vollei\w*|voll-?ei\b/gi,         'ei'],
+        [/voll\s+milch\w*pulver\b/gi,      'milchpulver'],
+        [/vollmilch\w*pulver\b/gi,         'milchpulver'],
+        // [/magermilch\w*pulver\b/gi, 'milchpulver'],  // DEAKTIVIERT — eigener Token
+
+        // ── Sonstige Compounds ────────────────────────────────
+        [/bienenwachs(?:\s+[\wäöüÄÖÜß]+)*\b/gi,  'e901'],   // 'bienenwachs weiß und gelb' → e901
+        [/holunderbeer\w*extrakt\b/gi,     'holunderbeeren'],
+        [/saflor\b/gi,                     'distelöl'],
+        // Protein-Compound-Zutaten → Basislebensmittel
+        [/\berbsenprotein(?:isolat)?\b|\bpea\s*protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 Liberator,
+        [/ackerbohnenprotein\b/gi,          'ackerbohne'],
+        [/kartoffelprotein\b/gi,            'kartoffel'],  // S0
+        [/weizenprotein\b/gi,               'weizengluten'],  // Seitan-ähnlich S1 H
+        [/texturiertes?\s+\w+protein\b/gi, 'seitan'],
+        [/texturiertes?\s+\w+/gi,           ''],  // 'texturiertes X' → strip prefix
+        [/belgische\s+\w+stückchen\b/gi,   'schokolade'],  // belgische Schokostückchen
+        [/\w+stückchen\b/gi,               'schokolade'],  // Schokoladenstückchen
+        [/gewürzextrakte?\b/gi,              'gewürze'],
+        [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
+        [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
+        // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
+        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],
+        [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],
+        [/\bgranatapfelsaft(?:konzentrat)?\b|\bgranatapfelkonzentrat\b/gi, 'granatapfel'],  // VOR generischem Strip!
+        [/\bkiwikonzentrat\b|\bkiwisaftkonzentrat\b/gi, 'kiwi'],
+        [/\bananas(?:saft)?konzentrat\b/gi, 'ananas'],
+        [/\bmango(?:saft)?konzentrat\b/gi, 'mango'],
+        [/\bmaracuja(?:saft)?konzentrat\b/gi, 'maracuja'],
+        [/\b\w+-weizenmehl\b/gi, 'weizenmehl'],  // 'X-weizenmehl' → 'weizenmehl'
+        [/\b(?:schwarzer?|weißer?|roter?|grüner?)\s+pfeffer\s+(?=[a-zäöüß])/gi, 'pfeffer, '],  // Split
+        [/\bpiment\s+(?=[a-zäöüß])/gi, 'piment, '],  // Piment+X split
+        [/\bkurkuma\s+(?=[a-zäöüß])/gi, 'kurkuma, '],  // Kurkuma+X split
+        [/\bpaprika\s+(?:edelsüß|scharf|geräuchert|getrocknet)\b/gi, 'paprika'],  // paprika edelsüß → paprika
+        [/\b(?:schwarzer?|weißer?|roter?|grüner?)\s+pfeffer\b/gi, 'pfeffer'],  // Pfeffersorten
+        [/\bzucker\s+(?:kartoffel)?stärke\b/gi, 'stärke'],  // Agavendicksaft+Stärke-Compound
+        [/\bkakaohaltiger?\s+/gi, ''],  // Präfix wie 'kakaohaltige X' → 'X'
+        [/\bvollkorn(?:weizen|roggen|dinkel)-?/gi, ''],  // 'Vollkornweizen-X' → 'X'
+        [/\bcrispies?\b/gi, ''],  // Crispies-Suffix (technischer Begriff)
+        [/\btomatenmark(?:konzentrat|konzentriert)e?\b/gi, 'tomatenmark'],  // vor Deletion!
+        [/\bfruchtmark(?:konzentrat)?\b/gi, 'fruchtmark'],  // vor Deletion!
+        [/\bkarottenkonzentrat\b|\bmöhrenkonzentrat\b/gi, 'karotte'],  // vor Deletion!
+        [/\brettichkonzentrat\b/gi, 'rettich'],  // vor Deletion!
+        [/\bselleriekonzentrat\b/gi, 'sellerie'],  // vor Deletion!
+        [/\brotkohlkonzentrat\b/gi, 'rotkohl'],  // vor Deletion!
+        [/\w+konzentrate?\b/gi, ''],  // generisch: Farbkonzentrate etc. → skip
+  // texturiertes Weizenprotein
+        // REMOVED: was mapping milchprotein→milch (wrong, milchprotein is correct target) [/milchprotein\b|milcheiwei[sß]\b/gi, 'milch'],
+        // weizengluten → 'gluten' (siehe Zeile 3867), nicht mehr seitan
+        [/natriumcyclamat\b/gi,            'cyclamat'],
+        [/acesulfam\s*k\b/gi,             'acesulfam'],
+        [/natriumsaccharin\b/gi,           'saccharin'],
+        [/vitaminmischung\b/gi,            ''],
+        [/phenylalaninquelle\b/gi,         ''],
+        [/phenylalanin\b/gi,              ''],
+        [/glyzerin?\w*/gi,                 ''],
+        [/weißmischung\b/gi,               ''],
+        [/maltit\b(?!-[A-ZÄÖÜ])/gi,                     'maltitol'],
+        [/fruchtsaft(?:\s+aus\s+\w+)?(?:konzentrat)\b\s*:?/gi,  ''],
+        [/aus\s*:\s*/gi,  ''],   // Reste wie 'aus :' entfernen
+
+
+        [/dulce\s+schokolade\b/gi,        'schokolade'],
+        [/vollmilchschokolade\b/gi,        'schokolade'],
+        [/zartbitterschokolade\b/gi,       'schokolade'],
+        [/bitterschokolade\b/gi,           'schokolade'],
+        [/alkalisierter\s+kakao\b/gi,     'kakao'],
+        [/magerer\s+kakao\b/gi,           'kakao'],
+        [/kakaopulver\b/gi,               'kakao'],
+        [/karamellpulver\b/gi,            'karamell'],
+        [/karamellaroma\b/gi,             'karamell'],
+        [/s[uü][sß]sholz\w*/gi,           'süßholz'],
+        [/lakritz\w*/gi,                   'süßholz'],
+        [/süßholzwurzel\w*/gi,              'süßholz'],
+        [/suessholz\w*/gi,                  'süßholz'],
+        [/lakritz\w*/gi,                  'süßholz'],
+        [/liquorice\w*/gi,                'süßholz'],
+        [/weiss?es?\s+milchpulver\b/gi,  'milchpulver'],
+        // [/magermilchpulver\b/gi, 'milchpulver'],  // DEAKTIVIERT
+        [/vollmilchpulver\b/gi,           'milchpulver'],
+        [/s[uü][sß]smolke\b/gi,              'molke'],
+        [/kondensierte\s+\w*milch\b/gi,     'milch'],
+        [/kondensierte\s+\w*molke?\b/gi,  'molke'],
+        [/s[uü][sß]smolke\b/gi,             'molke'],
+        [/kondensierte\s+s[uü][sß]s\w*/gi, 'molke'],
+        // REMOVED (duplicate/wrong): [/milchzucker\b/gi,               'milch'],
+        [/butterreinfett\b/gi,            'butter'],
+        [/molkenerzeugnis\b/gi,           'molke'],
+        [/molkenpulver\b/gi,              'molke'],
+        // sojalecithin/lecithin → consolidated to e322
+        // lecithin soja variants → e322
+
+        [/sojalecithine?\b/gi,            'lecithin'],
+        [/vanillearoma\b/gi,              'vanille'],
+        [/natürliche\s+aromen?\b/gi,     'aromen'],
+        [/naturaromen?\b/gi,              'aromen'],
+        [/anisöl\b/gi,                    'anis'],
+        [/e(\d+[a-z]?)\s+pflanzlich\b/gi, 'e$1'],
+        [/e(\d+[a-z]?)\s+(?:pflanzlich|modifiziert|oxidiert|acetyliert|hydroxyliert|gehärtet)\b/gi, 'e$1'],  // nur echte Adjektive, NICHT andere Zutaten!
+        [/ammoniumchlorid\b/gi,           ''],
+        [/schellack\b/gi,                'e904'],
+        [/karamellpulver\b/gi,            'karamell'],
+        [/glukosesirup\b/gi,              'glucosesirup'],
+        [/invertzuckersirup\b/gi,         'zucker'],
+        [/rohrzuckersirup\b/gi,           'zucker'],
+        [/sorbitsirup\b/gi,              'sorbit'],
+        [/pflanzliche\s+fette?\b/gi,     'pflanzenöl'],
+        [/pflanzliche\s+öle?\b/gi,       'pflanzenöl'],
+        [/palmfett\b/gi,                  'palmöl'],
+        [/kokosfett\b/gi,                'kokosöl'],
+        [/halbbitter\w*schokolade\b/gi,  'schokolade'],
+        [/halbschokolade\b/gi,            'schokolade'],
+        [/vollmilchschokolade\b/gi,       'schokolade'],
+        [/vanillin\b/gi, 'vanillin'],  // S0 synthetisch
+        [/sahnepulver\b/gi,               'sahne'],
+        [/s[uü][sß]smolkenpulver\b/gi,    'molke'],
+        [/s[uü][sß]smolke\b/gi,           'molke'],
+        [/kandiszucker\w*/gi,             'zucker'],
+        [/sojamehl\b/gi,                  'soja'],
+        [/äpfelsäure\b/gi,                'apfelsäure'],
+        [/citronensäure\b/gi,             'zitronensäure'],
+        [/natriumhydrogencarbonat\b/gi,   'natron'],
+        [/zertifiziertes?\s+\w+/gi,      ''],
+        [/\*zertifiziertes?\s+\w+/gi,   ''],
+        [/glucose-fructose-sirup\b/gi,    'glucosesirup'],
+        [/fructose-glucose-sirup\b/gi,    'glucosesirup'],
+        [/konzentrate?:\s*/gi,            ''],
+        [/hibiskus\b/gi,                  'hibiskustee'],
+        [/brennessel[n]?\b/gi,            'brennessel'],
+        [/weizenvollkornmehl\b/gi,        'weizenmehl'],
+        [/vollkornweizenmehl\b/gi,        'weizenmehl'],
+        [/weizenstärke\b/gi,              'weizenstärke'],
+        [/reisstärke\b/gi,               'reisstärke'],
+        [/maniokstärke\b/gi,             'tapiokastärke'],
+
+        [/melasse\b/gi,                   'melasse'],  // bleibt als eigene Zutat (biogene Amine)
+        [/rinderfond[\wäöüÄÖÜß]*/gi,     'brühe'],
+        [/rotwein[\wäöüÄÖÜß]*/gi,        'rotwein'],
+        [/weißwein[\wäöüÄÖÜß]*/gi,       'weißwein'],
+        // Schoko-Derivate → schokolade
+        [/schokostreusel\b/gi,            'schokolade'],
+        [/schokoglasur\b/gi,              'schokolade'],
+        [/schokoriegel\b/gi,              'schokolade'],
+        // Ingwer-Varianten → ingwer
+        [/\bingwer(?:(?!tee|tea)[\wäöüÄÖÜß]*)?\b/gi, 'ingwer'],  // not ingwertee!
+        // kl. Bund / kl. Glas als Maßpräfix
+        [/^kl\.?\s+(?:bund|glas|dose)\s+/gi, ''],
+
+        // Stuck-Suffix 'dunkle': sojasaucedunkle → sojasauce
+        [/(\w{4,})(dunkle?[rs]?|helle?[rs]?)$/gi, '$1'],
+        // kl. Dose/Flasche als Maßpräfix
+        [/^kl\.?\s+(?:dose|flasche|tasse|glas|stück)\s+/gi, ''],
+        [/champignonsaft(?:konzentrat)?\b/gi,           'champignon'],
+        [/\bhydrolysiertes?\s+(?:raps|mais|weizen|soja)eiweiß\b/gi, 'aroma'],  // Würzmittel → S1 DAO-Blocker-ähnlich
+        [/\bhuhnaromen?\b|\bhühneraromen?\b|\bchicken\s*aromen?\b/gi, 'aroma'],  // Hühner-Aroma → safe
+        [/\bsellerieblätter\b|\bselleriepulver\b|\bselleriesamen?\b/gi, 'sellerie'], // Kompositum → sellerie
+        [/tomatensaft\b/gi,              'tomate'],
+        [/zitronensaft\b/gi,             'zitrone'],
+        // Fruchtsaftkonzentrate → Frucht
+        [/zitronen?saftkonzentrat\b/gi,  'zitrone'],
+        [/mandarin\w*saftkonzentrat\b/gi, 'mandarine'],
+        [/orangen?saftkonzentrat\b/gi,   'orange'],
+        [/ananassaftkonzentrat\b/gi,     'ananas'],
+        [/mangosaftkonzentrat\b/gi,      'mango'],
+        [/maracujasaftkonzentrat\b/gi,   'maracuja'],
+        [/johannisbeersaftkonzentrat\b/gi, 'johannisbeere'],
+        [/holundersaftkonzentrat\b/gi,   'holunderbeere'],
+        [/apfelsaftkonzentrat\b/gi,      'apfel'],
+        [/(\w+)saftkonzentrat\b/gi,      '$1'],   // generic: Xsaftkonzentrat → X
+        // Trailing Bindestrich in Compound-Listen: 'orangen-' → 'orange'
+        [/([a-zA-ZäöüÄÖÜß]{4,})-\s*$/gi,  '$1'],
+        // Stabilisatoren-Präfix: 'stabilisatoren guarkernmehl' → 'guarkernmehl'
+        [/\bstabilisator[en]?\s+(\w[\wäöüÄÖÜß]+)/gi, '$1'],
+        [/karamellzuckersirup\b/gi,      'karamell'],
+        [/zitrusfaser\b/gi,              'zitrus'],   // Liberator wie Zitrusfrucht
+        // Salz-Varianten
+        [/speisesalz\b/gi,               'salz'],
+        [/meersalz\b/gi,                 'salz'],
+        // Knoblauch gerösteter
+        [/ger[öo]steter?\s+knoblauch\b/gi, 'knoblauch'],
+        [/tropea.?zwiebel\b/gi,             'zwiebel'],  // S0 — kein Liberator
+        [/weiße?\s+zwiebel\b/gi,             'zwiebel'],  // S0 — kein Liberator
+        [/schwarzer\s+knoblauch\b/gi,      'schwarzer knoblauch'],  // fermentiert → S3
+        [/eingelegter\s+knoblauch\b/gi,    'knoblauch'],  // konserviert
+        [/knoblauchpulver\b/gi,             'knoblauch'],
+        [/pinkelwürste?\b/gi,            'pinkelwurst'],
+        [/mettenden\b/gi,                'mettenden'],  // Grünkohl-Wurst (geräuchert)
+        [/kasseler\s*kotelett[s]?\b/gi,  'kasseler'],
+        [/\bkasseler\s+(?:würfel|stücke?|fleisch|nacken|rücken)(?:\s+aus(?:\s+\w+)+)?\b/gi, 'kasseler'],  // Kasseler Würfel aus Schulter...
+        [/\bkasseler\b/gi,               'kasseler'],
+        [/kochwürste?\b/gi,              'kochwurst'],
+        [/grillwürste?\b/gi,             'grillwurst'],
+        // Schmalz
+        [/gänseschmalz\b/gi,            'schmalz'],
+        [/schweineschmalz\b/gi,          'schmalz'],
+        // Fleischbrühe komplex
+        [/frischkäse\b/gi,               'frischkäse'],  // bleibt als Eigenname
+        [/emmentaler\s*geraspelt\b/gi,   'emmentaler'],
+        [/emmentalergeraspelt\b/gi,      'emmentaler'],
+        [/käsegeraspelt\b/gi,            'käse'],
+        [/kräuterfrischkäse\b/gi,        'frischkäse'],
+        [/kräuterbutter\b/gi,            'butter'],
+        // Gewürzpulver
+        [/knoblauchpulver\b/gi,          'knoblauch'],
+        [/knoblauchgranulat\b/gi,        'knoblauch'],
+        [/zwiebelpulver\b/gi,            'zwiebel'],
+        [/zwiebelgranulat\b/gi,          'zwiebel'],
+        // "geraspelt" → DESCRIPTOR, aber "Emmentalergeraspelt" braucht Normalisierung
+        [/emmentalergeraspelt\b/gi,      'emmentaler'],
+        // Fett/Öl-Varianten
+        [/rapsfett/gi,                   'rapsöl'],
+        [/palmfett/gi,                   'palmöl'],
+        [/kokosfett/gi,                  'kokosöl'],
+        [/pflanzliches?\s*fett/gi,       'pflanzenöl'],
+        [/pflanzliche?\s*öle?/gi,        'pflanzenöl'],
+        // Stärke-Varianten (alle safe)
+        [/modifi?zierte?\s*stärke/gi,     'stärke'],  // generic ok; 'i' optional für Tippfehler "modifzierte"
+        [/kartoffelstärke\b/gi,          'kartoffelstärke'],
+        // [/maisstärke/gi, 'stärke'],  // DEAKTIVIERT,
+        [/weizenstärke/gi,               'weizenstärke'],
+        // [/tapiokastärke/gi, 'stärke'],  // DEAKTIVIERT — tapiokastärke ist eigener Token
+        // Hefe-Varianten: Hefeautolysat/Hefeextrakt = HIGH!
+        [/hefeautolysat/gi,              'hefeextrakt'],
+        [/hefepulver/gi,                 'hefeextrakt'],
+        // Käse-Varianten
+        [/käsepulver/gi,                 'käse'],
+        [/käsezubereitung/gi,            'käse'],
+        // Milch-Varianten
+        [/molkenerzeugnis/gi,            'molke'],
+        [/süßmolkenpulver/gi,            'molke'],
+        [/\bsüßmolke\b/gi,               'molke'],                                 // kondensierte Süßmolke
+        [/\bsolaprotein\b/gi,             'sojaprotein'],                           // Tippfehler für Sojaprotein
+        [/\bsaflorkonzentrat\b|\bsaflorfarbstoff\b/gi, 'saflor'],                  // Farbstoff → safe
+        [/\bzitronenkonzentrat\b/gi,      'zitrone'],                              // Zitronenkonzentrat → zitrone S1
+        // [/magermilchpulver/gi, 'magermilch'],  // DEAKTIVIERT
+        [/vollmilchpulver/gi,            'milch'],
+        [/milcheiweiss/gi,               'milch'],
+        [/milcheiweiß/gi,                'milch'],
+        // Zucker-Varianten
+        [/glukosesirup/gi,               'zucker'],
+        [/glucosesirup/gi,               'zucker'],
+        [/\bdextrose\b/gi,                   'zucker'],
+        [/maltodextrin/gi,               'maltodextrin'],  // neutral, bleibt
+        // Zwiebel-Varianten
+        [/zwiebelpulver/gi,              'zwiebel'],
+        [/zwiebelgranulat/gi,            'zwiebel'],
+        // Tomate
+        [/tomatenpulver/gi,              'tomaten'],
+        [/tomatenkonzentrat/gi,          'tomatenmark'],
+        // Paprika
+        [/paprikapulver/gi,              'paprika'],
+        [/paprikaextrakt/gi, 'paprikaextrakt'],  // S2 Liberator — Konzentrat!
+        // Soja
+        [/sojaeiweiß/gi,                 'soja'],
+        [/sojaprotein/gi,                'soja'],
+        [/sojaöl/gi,                     'sojaöl'],
+        // Ei
+        [/volleipulver/gi,               'ei'],
+        [/eipulver/gi,                   'ei'],
+        [/vollei/gi,                     'ei'],
+        // Pasta-Varianten (ohne Ei = safe)
+        [/bandnudeln?/gi,                'nudeln'],
+        [/tagliatelle[n]?/gi,            'nudeln'],
+        [/fettuccine[n]?/gi,             'nudeln'],
+        [/spaghetti/gi,                  'nudeln'],
+        [/penne[n]?/gi,                  'nudeln'],
+        [/rigatoni/gi,                   'nudeln'],
+        [/farfalle[n]?/gi,               'nudeln'],
+        [/linguine[n]?/gi,               'nudeln'],
+        [/fusilli/gi,                    'nudeln'],
+        [/tortellini-nudeln?/gi,         'tortellini'],
+
+        // ── Produkt-Normalierungen (Verpackungszutatenlisten) ──
+        [/^fett$/gi,                      'pflanzenöl'],  // generisches Fett → Pflanzenöl
+        [/^öl$/gi,                        'pflanzenöl'],  // generisches Öl
+        [/rapsfett/gi,          'pflanzenöl'],  // palmfett bereits oben zu palmöl normiert
+        [/hefeautolysat|hefepulver/gi,   'hefeextrakt'],
+        [/käsepulver|käsezubereitung/gi, 'käse'],
+        [/glukosesirup|glucosesirup|\bdextrose\b/gi, 'zucker'],
+        [/zwiebelpulver|zwiebelgranulat/gi, 'zwiebel'],
+        [/tomatenpulver/gi,              'tomaten'],
+        [/tomatenpüree\b/gi,             'tomatenmark'],
+        [/paprikapulver/gi, 'paprika'],  // Pulver = safe; Extrakt = Liberator (getrennt geregelt),
+        [/sojaeiweiß|sojaprotein/gi,     'soja'],
+        [/sojasauce|sojasoße/gi,         'sojasauce'],
+        [/sojaöl/gi,                     'sojaöl'],
+        [/volleipulver|eipulver|vollei/gi, 'ei'],
+        [/molkenerzeugnis|süßmolkenpulver/gi, 'molke'],
+        [/kondensmagermilch|vollmilch\b/gi, 'milch'],  // magermilchpulver raus — eigener Token
+        [/schlagsahne|rahm\b/gi,         'sahne'],
+        [/pflanzliche\s*öle?|pflanzliches?\s*fett/gi, 'pflanzenöl'],
+        [/kokosfett/gi,                  'kokosöl'],
+        // modifizierte stärke/kartoffelstärke/maisstärke → eigene Tokens (nicht generisch)
+        [/mehlschwitze/gi,               'mehl'],
+        [/weizenvollkornmehl|weizenvollkorn\b/gi, 'weizenmehl'],
+        [/vollkorn-haferflocken/gi,       'haferflocken'],
+        [/hartweizengriess|hartweizengrieß/gi, 'griess'],
+        [/reismehl/gi, 'reismehl'],
+        [/maismehl/gi, 'maismehl'],
+        [/hafermehl/gi, 'hafermehl'],
+        [/\breisgrieß\b|\breisgries\b/gi, 'reis'],                                  // Reisgrieß → reis → safe
+        [/\btraubenkernextrakt\b|\btraubenkerneextrakt\b|\bgrape\s*seed\s*extract\b/gi, 'trauben'], // → Liberator S1
+        [/\bsojasaucenpulver\b|\bsojasoßenpulver\b/gi, 'sojasoße'],                // → high S3
+        [/\be385\b|\bedta\b|\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b/gi, 'e385'],  // Antioxidans → safe
+        [/basmatireis|jasminreis|parboiledreis/gi, 'reis'],
+        [/trinkwasser/gi,                'wasser'],
+        [/kartoffelpüreepulver/gi,       'kartoffel'],
+        [/brechbohnen|fisolen/gi,        'grüne bohnen'],
+        [/mungobohnenkeime?|mungokeimlinge?/gi, 'keime'],
+        [/bambussprossen?/gi,            'bambussprossen'],
+        [/wirsing\b/gi,                  'kohl'],
+        [/glasierter?\s+/gi,             ''],
+        [/vanilleextrakt/gi,             'vanille'],
+        [/vanillezucker\b/gi,            'vanille'],  // enthält Vanille + Zucker → safe
+        [/weinsteinbackpulver\b/gi,      'backpulver'],
+        [/kakaopulver|kakaomasse/gi, 'kakao'],  // kakaobutter is S0!
+        [/huhnfleisch|hühnerfleisch|hähnchenbrustfilet|hähnchenbrust\b|hühnerbrust\b/gi, 'hähnchen'],
+        [/hühnerfett/gi,                 'hähnchen'],
+        [/cayennepfeffer\b/gi, 'cayenne'],
+        [/\s+(?:für die form|zum frittieren|zum braten|zum backen|zum aufschlagen|zum würzen|zum kochen|zum garnieren|zum belegen|zum bestreuen)\s*[.,]*$/gi, ''],
+        [/schinkenwürfel|schinkenwürfeln/gi, 'schinken'],
+        [/karamellsirup|karamelisirup/gi, 'karamellsirup'],
+        // süßmolkenpulver → molke (consolidated)
+        [/stickstoff\b|e941\b/gi, 'stickstoff'],
+        [/meerrettichzubereitung/gi, 'meerrettich'],
+        [/\s+und\/?oder\s+\w+/gi, ''],       // "Rapsöl und/oder Sonnenblumenöl" → "Rapsöl"
+        [/^oder\s+/gi, ''],                   // "oder Sonnenblumenöl" → "" (leading oder)
+        // ── Lebensmittelform-Adjektive (nur Adjektiv entfernen, Nomen bleibt) ──
+        [/gefriergetrockne?te?[rs]?\b\s*/gi, ''],   // "gefriergetrocknete Erdbeerstücke" → "Erdbeerstücke"
+        [/gefriergetrockenete?[rs]?\b\s*/gi, ''],   // Tippfehler-Variante
+        [/gefrier\s+/gi, ''],                         // Präfix-Rest "gefrier X" → "X"
+        [/\b(?:frische?[rs]?|gepresste?[rs]?|geriebene?[rs]?|gehackte?[rs]?|geröstete?[rs]?|kandierte?[rs]?|karamellisierte?[rs]?|zerkleinerte?[rs]?|entsteinte?[rs]?)\b\s*/gi, ''],
+        [/\bvollkorn-?(?=\w)/gi, ''],               // "Vollkorn-Haferflocken" → "Haferflocken"
+        [/\b(?:kernige?|zarte?|feine?|grobe?)\b\s*/gi, ''],  // Konsistenz-Adjektive
+        // ── Produktformen: NUR wenn eindeutig KEIN eigenständiges Produkt ──
+        [/bourbon-?vanille\b/gi, 'vanille'],          // "Bourbon-Vanille Aroma" → "vanille"
+        [/\bceylon[- ]?zimt\b/gi, 'zimt'],           // "Ceylon Zimt" → "zimt"
+        [/magermilch-?joghurtpulver\b/gi, 'joghurt'],
+        [/joghurtpulver\b/gi, 'joghurt'],
+        [/haferdrinkpulver\b/gi, 'haferdrink'],
+        [/\bkokosnussmilch(?:pulver)?\b/gi, 'kokos'],
+        [/\bkokosnuss(?:raspel|flocken|öl|milch|mehl|pulver)\b/gi, 'kokos'],
+        [/zitronenschalen\w*\b/gi, 'zitronenschale'],
+        [/\bjohannisbeer(?:saft|stücke?|püree|mark|konzentrat|extrakt|pulver)?\w*\b/gi, 'johannisbeere'],  // alle Komposita
+        [/\bweizenkeime?\b|\bweizenkeim(?:mehl|öl|extrakt)?\b/gi, 'weizenkeime'],    // Weizenkeime → safe S0 (wie Hafer)
+        [/\bgezuckerte?\b\s*/gi, ''],                                            // Adjektiv "gezuckert" → strip
+        [/\blösliche?\b\s*/gi, ''],                                              // "lösliche Haferflocken" → strip Adjektiv
+        [/\bbirnen?\b/gi, 'birne'],
+        [/\btrauben?\b/gi, 'traube'],
+        [/\blöslicher?\s+kaffee\b/gi, 'kaffee'],
+        [/\bkokosblüten(?:zucker|sirup)\b/gi, 'kokos'],
+
+        // ── Produktformen → Grundzutat (Apfelstücke = Apfelpulver = Apfel) ──
+        [/\b(apfel|birn|dattel|erdbeer|blaubeer|cranberry|himbeer|stachelbeer|johannisbeer|mandel|kokos|zitronenschal|orange|mango|ananas)(stücke?|pulver|püree|chips|raspel|mus|kompott|saft|konzentrat|mark|scheiben|ringe?|würfel)/gi, '$1'],
+        [/(hafer)(drinkpulver|drink|pulver|mehl|flocken)/gi, '$1'],
+        [/(dattel)(stücke?|pulver|sirup)/gi, '$1'],
+        [/(mais|kartoffel)(stärke|mehl|pulver|chips|flocken)/gi, '$1stärke'],
+        [/\bvollmilch(?=pulver|schokolade)\b/gi, 'milch'],
+        // [/\bmagermilch(?=pulver)\b/gi, 'milch'],  // DEAKTIVIERT
+        [/\b(vollkorn-?|kernige?\s+|zarte?\s+|feine?\s+|grobe?\s+)/gi, ''],
+        [/\btraubensaft\b/gi, 'traube'],
+        [/\bbirnenpüree\b|\bbirnen\b/gi, 'birne'],
+        [/\bblaubeeren?\b/gi, 'blaubeere'],
+        [/\bblaubeer\b(?!e)/gi, 'blaubeere'],
+        [/\bcranberry(?:püree|stücke?|s)?\b/gi, 'cranberry'],
+        [/\berdbeeren?\b|\berdbeer\b/gi, 'erdbeere'],
+        [/\bmandeln\b/gi, 'mandel'],
+        [/\bdatteln\b/gi, 'dattel'],
+        // ── Kategorie-Klammer: "Verdickungsmittel (Xanthan)" → "xanthan" ──
+        [/\b(?:verdickungsmittel|süßungsmittel|feuchthaltemittel|trennmittel|backtriebmittel|stabilisatoren?|emulgatoren?|konservierungsstoff|säuerungsmittel|antioxidationsmittel|mehlbehandlungsmittel|farbstoff)\s+\(([^)]+)\)/gi, '$1'],
+        // ── Grieß-Varianten ──
+        [/\bhartweizen(?:griess|grieß)\b/gi, 'griess'],
+        [/\bgriess\b|\bgrieß\b/gi, 'griess'],
+        [/\b(?:weiß|voll)?weizenmehl\b/gi, 'weizenmehl'],
+        // ── Zusammengesetzte Produktbezeichnungen (Kategorie + Produktname) ──
+        [/\bmodifizierte?\s+stärke\b/gi, 'stärke'],
+        [/\binvertzucker(?:sirup)?\b/gi, 'zucker'],
+        // ── Compound-Ingredient-Namen (nach Expansion verbleibend) ──
+        [/\bgebäck\s*streusel\b/gi, ''],          // Compound-Name nach Expansion verwerfen
+        [/pflanzliche?\s+öle?\s+(palm|raps|sonnenblume|kokos)\b/gi, '$1öl'], // "pflanzliche Öle Palm" → "palmöl"
+        [/\bpalmkernöl\b/gi, 'palmöl'],  // palmkernöl → palmöl
+        [/\braps\b(?!\w)/gi, 'rapsöl'],              // isolated "Raps" → "rapsöl"
+        [/\bsonnenblumenkerne?\b/gi, 'sonnenblumenkerne'],  // VOR sonnenblumenöl!
+        [/\blecithine?\s+sonnenblume\b/gi, 'e322'],
+        [/\bsonnenblume\b(?!\w)/gi, 'sonnenblumenöl'],
+        // ── Post-merge: "pflanzenöl palm" → "palmöl" (after generic oil rule fires) ──
+        [/pflanzen[öo]l\s+palm\b/gi, 'palmöl'],
+        [/pflanzen[öo]l\s+raps\b/gi, 'rapsöl'],
+        [/pflanzen[öo]l\s+sonnenblume\b/gi, 'sonnenblumenöl'],
+        [/pflanzen[öo]l\s+kokos\b/gi, 'kokosöl'],
+        // ── E-Nummern mit Leerzeichen: "E 472b" → "e472b" ──
+        [/\be\s+(\d{3,4}[a-d]?)\b/gi, 'e$1'],
+        // ── Geliermittel ──
+        [/carrageen\b|carageen\b|e407\b/gi, 'carrageen'],
+        [/agar.?agar\b|e406\b/gi, 'agar'],
+        [/pektin\b|e440\b/gi, 'pektin'],
+        // ── Stabilisatoren ──
+        [/calciumlactat\b|e327\b/gi, 'e327'],
+        [/natriumlactat\b|e325\b/gi, 'e325'],
+        // ── Farbstoffe ──
+        [/carotin\b|beta.?carotin\b|e160a\b|e160\b/gi, 'e160a'],
+        [/\bcarotine\b|\bkarotine\b/gi, 'e160a'],                               // Plural "Carotine" → e160a → safe
+        [/\bwildlachsfilet\b|\bwildlachs(?:filet|stück)?\b/gi, 'fischfilet'],  // Kompositum
+        [/\bmaltitsirup\b|\bmaltit(?:ol)?sirup\b/gi, 'maltit'],                 // → safe Zuckeralkohol
+        [/\bweinbeeren?\b/gi, 'rosinen'],                                        // Weinbeeren = Rosinen → dao_blocker
+        [/\bshea(?:butter)?\b/gi, 'sheabutter'],                                 // standalone 'shea' → safe
+        [/\bglycer(?:in|ol)\b|e422\b/gi, 'e422'],                               // Glycerin → safe Feuchthaltemittel
+        [/\bchilies\b|\bcajun\b/gi, 'chili'],                                   // Plural chilies
+        [/\bhühnereieiwei[sß]+\b|\bhühnereieiweib\b/gi, 'ei'],                // Tippfehler Ei-Eiweiß
+        [/\bmaltodextin\b/gi, 'maltodextrin'],                                   // Tippfehler maltodextrin
+        [/\bsenfsaaten?\b/gi, 'senf'],                                           // Plural senfsaaten
+        // [/\bgetreide\b/gi, 'mehl'],  // DEAKTIVIERT — zu generisch                                              // generisches Getreide → safe
+        [/\bzuckersirup\b|\bbrown\s+sugar\s+syrup\b/gi, 'zucker'],              // Zuckersirup → safe
+        [/\bmolkepulver\b|\bwheypulver\b|\bwhey\s*powder\b/gi, 'molke'],       // Molkepulver → safe
+        [/\btraubenmost\b|\bgekochter\s+traubenmost\b/gi, 'wein'],              // Traubenmost → wein → high
+        [/\bfärbendes?\b\s*/gi, ''],                                             // Adjektiv "färbend" strippen
+        [/curcumin\b|e100\b/gi, 'e100'],
+        [/riboflavin\b|e101\b/gi, 'e101'],
+        // ── Emulgatoren E-Nummern-Schreibweisen ──
+        [/e472b\b|e\s*472\s*b\b/gi, 'e472b'],
+        [/e472e\b|e\s*472\s*e\b/gi, 'e472e'],
+        [/e472a\b|e\s*472\s*a\b/gi, 'e472a'],
+        // ── Öl-Typen ──
+        [/\bpalmkern(?:öl|fett)?\b/gi, 'palmöl'],
+        [/\bpalmkern\b/gi, 'palmöl'],
+        [/\bpalm\s+kernel\s+oil\b/gi, 'palmöl'],
+        [/\bpalm\s+oil\b/gi, 'palmöl'],
+        [/\bpalm\b(?![\wöa])/gi, 'palmöl'],
+        // ── "pflanzenöl palmöl" → "palmöl" (post-normalization merge cleanup) ──
+        [/pflanzen[öo]l\s+palmöl/gi, 'palmöl'],
+        [/pflanzen[öo]l\s+rapsöl/gi, 'rapsöl'],
+        [/pflanzen[öo]l\s+sonnenblumenöl/gi, 'sonnenblumenöl'],
+        [/pflanzen[öo]l\s+kokosöl/gi, 'kokosöl'],
+        [/pflanzen[öo]l\s+olivenöl/gi, 'olivenöl'],
+        // ── "aus Xkonzentrat" / "aus X" Suffix strippen ──
+        [/\s+aus\s+\w*saftkonzentrat\b/gi, ''],
+        [/\s+aus\s+\w*konzentrat\b/gi, ''],
+        // ── Kategoriebegriff OHNE Klammern + Inhalt (Leerzeichen-Trennung) ──
+        // "Farbstoff E150d" → "e150d", "Aroma Koffein" → "koffein"
+        [/\b(?:natürliches?|künstliches?)\s+aroma\s+(\w{4,})/gi, '$1'],
+        [/\baroma\s+(\w{4,})/gi, '$1'],
+        [/\bstabilisator\s+(\w{4,})/gi, '$1'],
+        [/\bsäureregulator\s+(\w{4,})/gi, '$1'],
+        [/\bantioxidationsmittel\s+(\w{4,})/gi, '$1'],
+        [/\bantioxidationsmittel\b\s*$/gi, ''],    // isoliertes Kategorienwort → entfernen
+        // ── E150 Karamell-Farbstoffe ──
+        [/\be150[abcd]?\b/gi, 'e150'],
+        // ── Phosphorsäure ──
+        [/phosphors[äa]ure\b|e338\b/gi, 'phosphorsäure'],
+        // ── Natriumcitrat ──
+        [/natriumcitrat\b|e331\b/gi, 'e331'],
+        [/kaliumcitrat\b|e332\b/gi, 'e332'],
+        [/calciumcitrat\b|e333\b/gi, 'e333'],
+        // ── Koffein ──
+        [/koffein\b|coffein\b|kofein\b/gi, 'koffein'],
+        // ── "Säuerungsmittel X und Y" → "X, Y" ──
+        [/\b(?:säuerungs|säurungs)mittel\s+(\w+)\s+und\s+(\w+)/gi, '$1, $2'],
+        //
+        //
+
+        [/^flüssige?\s*soße\s*:\s*/gi, ''],  // 'Flüssige Soße: ' → strip
+        [/^(?:säuerungs|säurungs)mittel$/gi, ''],  // standalone → leer (KI verhindert)
+        // ── "Xsaft aus Ykonzentrat" → "X" ──
+        [/(orangensaft|zitronensaft|apfelsaft|traubensaft|johannisbeersaft|birnensaft|tomatensaft|mangosaft|ananassaft|maracujasaft|cranberrysaft|blaubeersaft)\s+aus\s+[\w]+konzentrat/gi, (m, saft) => saft.replace(/saft$/, '')],
+        [/\borgensaft\b/gi, 'orange'],
+        [/\bzitronensaft\b/gi, 'zitrone'],
+                // ── Kohlensäure ──
+        [/kohlens[äa]ure\b(?!\s+und)/gi, 'kohlensäure'],
+        // ── Zitronensäure als Säuerungsmittel ──
+        [/\bzitronens[äa]ure\b/gi, 'zitronensäure'],
+        // ── Phosphorsäure ──
+        [/phosphors[äa]ure\b|e338\b/gi, 'phosphorsäure'],
+        // ── Bier/Hopfen ──
+        [/gärungs(?:kohlensäure|co2|kohlendioxid)\b/gi, 'kohlensäure'],  // = normale CO2
+        [/hopfenextrakt\b|hopfenpellets?\b/gi, 'hopfen'],
+        [/\bpils\b|\bpilsner\b|\blager\b|\bale\b|\bweizenbier\b/gi, 'bier'],
+        [/alkoholfreies?\s+(bier|pils|lager|weizen|ale)\b/gi, 'alkoholfreies bier'],
+        // ── Glukose-Fruktosesirup ──
+        [/glukose-?fruktose-?sirup\b|fruktose-?glukose-?sirup\b/gi, 'glukosesirup'],
         // ── Backzutaten ──
         [/vanillepuddingpulver\b|puddingpulver\b/gi, 'stärke'],   // = Maisstärke + Vanillin
         [/vanillinzucker\b/gi, 'vanille'],
@@ -8510,8 +10430,20 @@ function parseIngredients(inputText) {
 // ═══════════════════════════════════════════════════════════
 // CLASSIFICATION (lokal)
 // ═══════════════════════════════════════════════════════════
+const KNOWN_AROMA_FRUITS = ['erdbeere','himbeere','johannisbeere','holunderbeere','preiselbeere',
+    'zitrone','limette','orange','kirsche','apfel','banane','pfirsich','aprikose','ananas',
+    'mango','birne','pflaume','traube','cranberry','granatapfel','maracuja','papaya'];
+function _extractAromaFruit(n) {
+    if (!n.endsWith('aroma')) return null;
+    const prefix = n.slice(0, -5);
+    for (const fruit of KNOWN_AROMA_FRUITS) {
+        if (prefix === fruit) return fruit;
+    }
+    return null;
+}
 function classifyIngredient(name) {
     const _D = window._histDebug || false;
+    if (_extractAromaFruit(name.toLowerCase())) return classifyIngredient(_extractAromaFruit(name.toLowerCase()));
     // Früherkennung: Tokens die durch NORMALIZE-Bugs korrumpiert werden könnten
     if (/^chiliöl$|^chili.?öl$|^chilisamen.?öl$/i.test(name.trim())) return "liberator";
     if (/^gouda\s+jung$/i.test(name.trim())) return "safe";  // SIGHI S0
@@ -9349,6 +11281,7 @@ const SIGHI_META = {
 
 function getSIGHI(name) {
     const n = name.toLowerCase().trim();
+    if (_extractAromaFruit(n)) return getSIGHI(_extractAromaFruit(n));
     if (n.includes('entkoffeiniert')) return 0;  // Entkoffeiniert → S0
 
     // Alkoholfreie Produkte explizit S0 — vor SIGHI_DB-Lookup!
@@ -9530,13 +11463,22 @@ function showHistoryDetail(entry) {
         
 function getIngredientInfo(name, cat, aiGuess) {
  const n = name.toLowerCase();
+        if (_extractAromaFruit(n)) {
+            const fruit = _extractAromaFruit(n);
+            const fruitCat = classifyIngredient(fruit);
+            const fruitSighi = getSIGHI(fruit);
+            const fruitText = getIngredientInfo(fruit, fruitCat, false);
+            const fruitLabel = fruit.charAt(0).toUpperCase() + fruit.slice(1);
+            const sighiNote = fruitSighi !== null ? ` (SIGHI ${fruitSighi})` : '';
+            return `Aromaextrakt aus ${fruitLabel}. In deutlich geringerer Menge als Saft/ganze Frucht enthalten. Zur Frucht selbst: ${fruitText} Das konzentrierte Aroma dürfte in der Praxis milder wirken als die ganze Frucht/Saft.`;
+        }
         if (n === 'schutzkultur' || n === 'schutzkulturen')
             return 'Gezielt ausgewählte Bakterienkultur zur natürlichen Haltbarmachung (hemmt Verderb-Keime) — anders als Fermentationskulturen nicht auf Aromabildung ausgelegt, meist in geringer Menge dosiert. Histaminbildung ist hier unwahrscheinlich, aber nicht wissenschaftlich vollständig ausgeschlossen.';
         if (n === 'säuerungsmittel')
             return '⚠️ Keine Einschätzung möglich: "Säuerungsmittel" ohne Angabe der konkreten Säure kann von unbedenklich (z.B. Citronensäure) bis reizend variieren. Zutatenliste auf die konkrete Säure in Klammern prüfen.';
         if (n === 'stärke' || n === 'starch')
             return '⚠️ Nicht näher spezifiziert. Auf deutschen Zutatenlisten ist damit fast immer Mais- oder Kartoffelstärke gemeint — beide sind histaminfrei. Bei Unsicherheit die Verpackung genauer prüfen.';
-        if (n === 'aroma' || n === 'natürliches aroma' || n === 'aromen' || n === 'natürliche aromen')
+        if (n === 'aroma' || n === 'natürliches aroma' || n === 'aromen' || n === 'natürliche aromen' || n === 'künstliches aroma' || n === 'künstliche aromen')
             return '⚠️ Keine Einschätzung möglich: "Aroma" ist auf Verpackungen nicht weiter aufgeschlüsselt und kann aus sehr unterschiedlichen, teils kritischen Quellen stammen. Hersteller ggf. direkt kontaktieren.';
         if (n === 'zucker' || n === 'sugar')
             return '⚠️ Als reines Wort "Zucker" ohne weitere Angabe meist Haushaltszucker (Saccharose) und damit histaminfrei — bei Fertigprodukten kann sich dahinter aber auch ein Sirup oder Zuckeraustauschstoff verbergen. Zutatenliste auf genauere Angaben prüfen.';
@@ -13334,6 +15276,7 @@ for (const [e, name] of Object.entries(E_NAMES)) {
     const key = name.toLowerCase().replace(/\s*[(/].*$/, '').trim();
     if (!NAME_TO_E[key]) NAME_TO_E[key] = e.toUpperCase();
 }
+NAME_TO_E['hirschhornsalz'] = 'E503';  // eigenständiges Token, nicht über E_NAMES-Reverse-Lookup erreichbar
 
 const TOKEN_DISPLAY_NAMES = {
     'hefe': 'Hefe',  // verhindert Heidelbeeren-Label
@@ -13362,6 +15305,19 @@ const TOKEN_DISPLAY_NAMES = {
 
 function displayIngredientName(rawName, originalName) {
     const n = rawName.toLowerCase().trim();
+    if (_extractAromaFruit(n)) {
+        const fruit = _extractAromaFruit(n);
+        const AROMA_DISPLAY = {
+            'zitrone':'Zitronenaroma','limette':'Limettenaroma','orange':'Orangenaroma',
+            'kirsche':'Kirscharoma','erdbeere':'Erdbeeraroma','himbeere':'Himbeeraroma',
+            'johannisbeere':'Johannisbeeraroma','apfel':'Apfelaroma','banane':'Bananenaroma',
+            'pfirsich':'Pfirsicharoma','aprikose':'Aprikosenaroma','ananas':'Ananasaroma',
+            'mango':'Mangoaroma','birne':'Birnenaroma','pflaume':'Pflaumenaroma','traube':'Traubenaroma',
+            'holunderbeere':'Holunderaroma','preiselbeere':'Preiselbeeraroma','cranberry':'Cranberryaroma',
+            'granatapfel':'Granatapfelaroma','maracuja':'Maracujaaroma','papaya':'Papayaaroma',
+        };
+        return AROMA_DISPLAY[fruit] || (cap(fruit) + 'aroma');
+    }
     let displayName = '';
 
     // Ist es eine E-Nummer? → Ausgeschriebener Name zuerst, E-Nummer in Klammern
