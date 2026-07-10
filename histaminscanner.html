@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.58<br>
+                Histaminscanner v12.59<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4247,7 +4247,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.58');
+    dbg('VERSION: v12.59');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -10915,6 +10915,15 @@ if (cat === 'high') {
             return 'SIGHI 1 — Meerrettich/Kren: Reich an Senfölen. Wirkt stark schleimhautreizend und triggert bei sensiblen Anwendern die Histaminausschüttung.';
         if (n.match(/\be22[0-8]\b|schwefeldioxid|schweflige säure|sulfite|sulphit|sulfit|sulphite|natriumsulfit|kaliumsulfit|natriumdisulfit|kaliumdisulfit|natriummetabisulfit|kaliummetabisulfit|calciumsulfit|calciumhydrogensulfit|kaliumhydrogensulfit/))
             return 'SIGHI 2 — Sulfite/Schwefeldioxid: Potenter Histaminliberator! Triggert Mastzell-Degranulation und kann schwere pseudoallergische Reaktionen auslösen (Sulfit-Asthma, Weinkopfschmerz). Häufig in Wein und Trockenfrüchten.';
+        {
+            const _qualifierStripped = n.replace(/\b(?:eingelegt|geräuchert|gepökelt|mariniert|getrocknet|konzentriert|überreif|reif)e?[rns]?\s+/gi, '').trim();
+            if (_qualifierStripped && _qualifierStripped !== n) {
+                const _specific = getIngredientInfo(_qualifierStripped, cat, false);
+                if (_specific && _specific !== 'Regt die körpereigene Histaminfreisetzung aus Mastzellen an' && !_specific.startsWith('🔍') && !_specific.startsWith('🤔')) {
+                    return _specific;
+                }
+            }
+        }
         return 'Regt die körpereigene Histaminfreisetzung aus Mastzellen an';
     }
 
