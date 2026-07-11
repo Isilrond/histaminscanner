@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.68<br>
+                Histaminscanner v12.69<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -4248,7 +4248,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.68');
+    dbg('VERSION: v12.69');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -15152,6 +15152,8 @@ const BADGE_META = {
 
 
 const E_NAMES = {
+    // Säuerungsmittel
+    'e260':'Essigsäure',
     // Farbstoffe
     'e100':'Kurkumin','e101':'Riboflavin','e101a':'Riboflavin-5-Phosphat','e102':'Tartrazin',
     'e104':'Chinolingelb',
