@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.88<br>
+                Histaminscanner v12.98<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1353,6 +1353,7 @@ const DB = {
     // HISTAMINLIBERATOREN — regen Histaminausschüttung an
     // ═══════════════════════════════════════════════════════
     liberator: [
+        'ackerbohne','saubohne','favabohne','dicke bohne',
         'schafskäse','feta','fetakäse',  // S2 — Präventiv-Scan: aus high verschoben, passend zu SIGHI_DB S2
         'rohkakao','rohschokolade',  // S2 — Nachtrag nach DESCRIPTOR_RE-Fix (wie Kakao)
         'melanzani','limonensaft','limonen','rohmilchkäse','kreuzkümmelpulver','speisewürze','colagetränke','colagetr‰nke','rot 2g','braun fk','extrascharfe chilis','braunalgen',  // S2 — Orphans Runde 2
@@ -1784,6 +1785,14 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'vitamina','vitaminb1','vitaminb2','vitaminb3','vitaminb5','vitaminb6','vitaminb7',
+        'vitaminb9','vitaminb12','vitamind','vitamine2',  // Vitamine einzeln statt Sammelbecken
+        'leucin','isoleucin','valin','bcaa','glucuronolacton','carnitin','inositol','e304',  // KEINE Vitamine
+        'glutamin','arginin','lysin','tryptophan',  // Aminosäuren, KEINE Vitamine
+        'ashwagandha','beifuss','bohnenkraut','enzian','giersch','hagebutte','kamille','kerbel',
+        'lauch','moringa','orangenschale','limettenschale','pfefferminze','rosenwasser','schafgarbe',
+        'shiso','spirulina','chlorella','spitzwegerich','tulsi','zitronengras','zitronenverbene',
+        'zitronenthymian','zitronenbasilikum',  // vormals im "Kräuter"-Sammelbecken, jetzt einzeln
         'e173','e174','e175',  // Aluminium/Silber/Gold - inerte Farbstoffe
         'e216','e217',  // Parabene (Propyl-PHB) - Konservierungsstoffe
         'e500i','e500iii','e501ii','e503i','e504i',  // Carbonat-Varianten
@@ -4259,7 +4268,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.88');
+    dbg('VERSION: v12.98');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4286,6 +4295,14 @@ function parseIngredients(inputText) {
     // späteren Disclaimer-Filter-Logik aus unbekanntem Grund nicht vollständig entfernt
     // (Text bricht vorher an "Das Produkt" ab). Ganz früh entfernen, um das zu umgehen.
     inputText = inputText.replace(/[.,]?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '');
+    inputText = inputText.replace(/\bmono\s*-?\s*und\s*diglyceride[n]?\s+von\s+fettsäuren\b/gi, 'E471');
+    inputText = inputText.replace(/\bpolyglycerinester\s+von\s+(?:speise)?fettsäuren\b/gi, 'E475');
+    inputText = inputText.replace(/\bkamille\(nblüten\)/gi, 'Kamille');
+    inputText = inputText.replace(/([A-ZÄÖÜ][a-zäöüß]+)\(([a-zäöüß]+)\)(?=[,;.\s]|$)/g, '$1');
+    inputText = inputText.replace(/\borangenschale\b/gi, 'Orangenschale');
+    inputText = inputText.replace(/\bsonnenblumenöl\s+mit\s+hohem\s+ölsäureanteil\b/gi, 'Sonnenblumenöl');
+    inputText = inputText.replace(/\bkakopulver\b/gi, 'Kakaopulver');
+    inputText = inputText.replace(/\bcochiealrot\b/gi, 'Cochenillerot');
     inputText = inputText.replace(/\b(e\d{3,4})\s*\(\s*(i{1,3})\s*\)/gi, '$1$2');
     inputText = inputText.replace(/%\s*-\s*(?=\()/g, '% ');
     inputText = inputText.replace(/\bbeta-carotin\s*\(\s*provitamin\s*a\s*\)/gi, 'Beta-Carotin');
@@ -4649,9 +4666,10 @@ function parseIngredients(inputText) {
         // ── Superfoods / Exotic ──
         [/\blucuma(?:frucht|pulver|extrakt)?\b/gi, 'lucuma'],  // Fruchtpulver S0
         [/\bmaca(?:wurzel|pulver|extrakt|root)?\b/gi, 'maca'],  // Adaptogen S0
-        [/\baschwagandha(?:wurzel)?(?:extrakt|pulver)?\b|\bashwagandha\b/gi, 'kräuter'],
-        [/\bspirulina\b|\bchlorella\b/gi, 'kräuter'],  // Algen S0
-        [/\bmoringa\b/gi, 'kräuter'],  // Moringa S0
+        [/\baschwagandha(?:wurzel)?(?:extrakt|pulver)?\b|\bashwagandha\b/gi, 'ashwagandha'],
+        [/\bspirulina\b/gi, 'spirulina'],
+        [/\bchlorella\b/gi, 'chlorella'],  // Algen S0
+        [/\bmoringa\b/gi, 'moringa'],  // Moringa S0
         [/\bgerstengras\b/gi, 'gerstengras'],  // Graspulver S0
         [/\bweizengras\b/gi, 'weizengras'],  // Graspulver S0
         [/\bmatcha\b(?!\s*latte)/gi, 'grüntee'],
@@ -4695,9 +4713,10 @@ function parseIngredients(inputText) {
         [/\bpolyphosphate?\b|\be452\b/gi, 'e452'],  // E452 → safe S0
         [/\btriphosphate?\b/gi, 'e451'],
         // e452/polyphosphate → safe_hints (S0)
-        [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
-        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitamine'],  // B12 → safe (kein supplement)
-        [/\bvitamin\s*[ab]\d?\b/gi, 'vitamine'],                      // Vitamin A, B (NICHT C, B12!)
+        [/\bvitamin\s*d\d?\b/gi, 'vitamind'],                         // Vitamin D, D2, D3
+        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitaminb12'],  // B12 → safe (kein supplement)
+        [/\bvitamin\s*a\d?\b/gi, 'vitamina'],
+        [/\bvitamin\s*b(?!\d)\b/gi, 'vitamine'],                      // NUR bares "Vitamin B" ohne Zahl bleibt Sammelbegriff
         [/\bvitamin\s*c\b|e300\b/gi, 'e300'],                         // Vitamin C = E300 S0 (NICHT vitamine!)
         // ── Multi-Wort Ausdrücke VOR dem \s+aus\s+-Strip! ───────────────
         [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],
@@ -4757,10 +4776,17 @@ function parseIngredients(inputText) {
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
         // ── Sportlernahrung ──
         [/\bcreatin(?:-monohydrat)?\b|\bkreatin\b/gi, 'kreatin'],
-        [/\bl-leucin\b|\bl-isoleucin\b|\bl-valin\b|\bbcaa\b/gi, 'vitamine'],
-        [/\bl-glutamin\b|\bl-arginin\b|\bl-lysin\b|\bl-\w+\b/gi, 'vitamine'],  // Aminosäuren
-        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'vitamine'],              // S0 – Stoffwechselprodukt
-        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'vitamine'], // S0 – Aminosäurederivat
+        [/\bl-leucin\b/gi, 'leucin'],
+        [/\bl-isoleucin\b/gi, 'isoleucin'],
+        [/\bl-valin\b/gi, 'valin'],
+        [/\bbcaa\b/gi, 'bcaa'],
+        [/\bl-glutamin\b/gi, 'glutamin'],
+        [/\bl-arginin\b/gi, 'arginin'],
+        [/\bl-lysin\b/gi, 'lysin'],
+        [/\bl-tryptophan\b/gi, 'tryptophan'],
+        [/\bl-carnitin\b/gi, 'carnitin'],
+        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'glucuronolacton'],              // S0 – Stoffwechselprodukt
+        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'carnitin'], // S0 – Aminosäurederivat
         [/\bzitronenzellen\b|\blemon\s*cells?\b/gi, 'zitrone'],                 // Trübungsmittel aus Zitrone → liberator
         [/\bzitronenfruchtfleisch\b|\blemon\s*flesh\b|\bzitronenmark\b/gi, 'zitrone'],  // Fruchtfleisch → zitrone S1
         [/\bkonzentrierter?\s+zitronensaft\b|\bkonzentrierter?\s+limettensaft\b/gi, 'zitrone'], // "konzentrierter Zitronensaft"
@@ -4773,14 +4799,14 @@ function parseIngredients(inputText) {
         [/\brosmarin(?:extrakt|öl|zweige?)?\b/gi, 'rosmarin'],  // S0
         [/\bsalbei\b|\bsage\b/gi, 'salbei'],  // S0
         [/\bestragon\b|\btarragon\b/gi, 'estragon'],  // S0
-        [/\bkerbel\b/gi, 'kräuter'],
+        [/\bkerbel\b/gi, 'kerbel'],
         // ── Couscous / Bulgur / Polenta ──
         [/\bcouscous\b/gi, 'couscous'],
         [/\bbulgur\b/gi, 'bulgur'],  // Bulgur = vorgekochter Hartweizen, eigener Token
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
         [/\bascorbinsäure\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
-        [/\bascorbin(?:säure)?\b/gi, 'vitamine'],  // Mehlbehandlungsmittel (ohne e300/vitamin c!)
+        [/\bascorbin(?:säure)?\b/gi, 'e300'],  // Mehlbehandlungsmittel, chemisch identisch mit E300/Vitamin C
         [/\breismilch(?:pulver)?\b/gi, 'reismilch'],  // eigener Token S0
         // ── Baharat / Dukkah ──
         [/\ballspice\b/gi, 'piment'],  // allspice = piment
@@ -4832,7 +4858,7 @@ function parseIngredients(inputText) {
         // 'geräuchert' NICHT mehr pauschal löschen — histaminrelevant, siehe DESCRIPTOR_RE-Ausnahme + Qualifier-Fallback
         [/\bstark\s+entölt(?:es?)?\b\s*/gi, ''],                                // "stark entöltes Kakaopulver" → "Kakaopulver"
         [/\bentölt(?:es?)?\b\s*/gi, ''],                                         // "entöltes" allein
-        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine'], // Vit-E-Extrakt → safe
+        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine2'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
@@ -4943,8 +4969,8 @@ function parseIngredients(inputText) {
         [/\bfischoel\b|\bfischöl\b|\blachsoel\b|\blachsöl\b|\bfish\s*oil\b|\bomega-?3\s*öl\b/gi, 'fischöl'],
 
         [/\bkichererbsenmehl\b|\bgram(?:mehl)?\b|\bbesan\b/gi, 'kichererbsenmehl'],
-        [/\bmandelmehl\b|\bmandelgrieß\b/gi, 'mandel'],
-        [/\bkokosmehl\b|\bkokosgrieß\b/gi, 'kokos'],
+        [/\bmandelmehl\b|\bmandelgrieß(?![a-zäöü])/gi, 'mandel'],
+        [/\bkokosmehl\b|\bkokosgrieß(?![a-zäöü])/gi, 'kokos'],
         // ── Schwefel / Konservierung getrocknete Früchte ──
         [/\bschwefeldiox?id\b|\bschweflige\s+säure\b|e220\b/gi, 'e220'],
         [/\bnatriumsulfit\b|e221\b/gi, 'e221'],                            // E221 = Natriumsulfit
@@ -4964,16 +4990,18 @@ function parseIngredients(inputText) {
         [/\bröstkaffee\b|\bröstkaffeeextrakt\b|\bgerösteter?\s+kaffee\b|\bkaffeeöl\b|\bkaffeepulver\b|\binstantkaffee\b/gi, 'kaffee'],
         [/\barabica(?:-kaffeebohnen?|-bohnen?)?\b|\brobusta(?:-bohnen?)?\b/gi, 'kaffee'],
         // ── Tee-Zutaten ──
-        [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'kräuter'],
-        [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'kräuter'],
-        [/\bzitronengras\b|\bzitronenverbene\b/gi, 'kräuter'],
+        [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'pfefferminze'],
+        [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'hagebutte'],
+        [/\bzitronengras\b/gi, 'zitronengras'],
+        [/\bzitronenverbene\b/gi, 'zitronenverbene'],
         [/\bzitronenmelisse\b/gi, 'melisse'],
         [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'zimt'],  // Liberator S1-2 — NICHT zu gewürze!
-        [/\borgangen?schale\b|\blimettenschale\b/gi, 'kräuter'],
+        [/\borgangen?schale\b/gi, 'orangenschale'],
+        [/\blimettenschale\b/gi, 'limettenschale'],
         [/\bbergamotte(?:öl|extrakt|schale)?\b/gi, 'bergamotteöl'],
         [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'süßholz'],  // DAO-Hemmer — NICHT kräuter!
         // ── Schokolade Spezifika ──
-        [/\brosenwasser\b|\brose\s*water\b/gi, 'kräuter'],       // S0
+        [/\brosenwasser\b|\brose\s*water\b/gi, 'rosenwasser'],       // S0
         [/\bmandelaroma\b|\bnatürliches?\s+mandelaroma\b/gi, 'aroma'],
         [/\bmarzipan(?:masse|rohmasse|füllung)?\b/gi, 'marzipan'],
         // ── Kulturen weitere ──
@@ -5036,7 +5064,7 @@ function parseIngredients(inputText) {
         [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'paprikaextrakt'],
         // ── Süßwarenzutaten ──
         [/\bfruchtgummi\b|\bfruchtsaft\s+[\wäöüßÄÖÜ]+\b/gi, 'frucht'],
-        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'kräuter'],
+        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'pfefferminze'],
         // ── Onion / Zwiebel-Compound ──
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
@@ -5066,20 +5094,24 @@ function parseIngredients(inputText) {
         [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'branntweinessig'],  // → safe S0 (kein Weinessig!)
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
         [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
-        [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
+        [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitaminb5'],
         [/\btaurin\b/gi, 'taurin'],  // Aminosäure, S0 — bleibt als taurin (safe)
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],  // guarana-auszug etc.
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'matetee'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],  // Farbextrakt → Zutat
-        [/\binosit(?:ol)?\b/gi, 'vitamine'],
-        [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
+        [/\binosit(?:ol)?\b/gi, 'inositol'],
+        [/(?<!vitamin\s)\bb3\b/gi, 'vitaminb3'],
+        [/\bb5\b/gi, 'vitaminb5'],
+        [/\bb7\b/gi, 'vitaminb7'],
+        [/\bb8\b/gi, 'inositol'],
+        [/\bb9\b/gi, 'vitaminb9'],  // kurze B-Vitamin-Bezeichnungen
         // ── Süßungsmittel-Kombinationen ──
         [/\bacesulfam-k\b|\bacesulfam\s+k\b|\bacesulfam-kalium\b|\be950\b/gi, 'acesulfam'],  // → safe S0
         [/\bsüßungsmittel-k\b/gi, 'süßungsmittel'],  // Artefakt: "Acesulfam-K" → "süßungsmittel-k"
         // ── Proteinprodukte ──
         [/\bwedhy\s*\w*\b|\bmolken(?:protein)?(?:isolat|konzentrat|hydrolysat)?\b/gi, 'molke'],
         [/\bisomalto-?oligosaccharide?\b|\bimos\b/gi, 'süßungsmittel'],  // Ballaststoff-Süßer S0
-        [/\bvitamin\s*c\b/gi, 'vitamine'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
+        [/\bvitamin\s*c\b/gi, 'e300'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
         [/\btocopherol(?:e|ol)?\b|\balpha-tocopherol\b|\bgamma-tocopherol\b|\bdelta-tocopherol\b/gi, 'e306'],  // Vitamin E → E306 (S0, kein supplement!)
         [/\bvitamin\s+e\b(?!\w)|\be306\b|\be307\b/gi, 'e306'],  // Vitamin E Schreibweisen (Leerzeichen nötig — sonst Kollision mit "Vitamine")
         [/\bnatriumbicarbonat\b|\bnatriumhydrogencarbonat\b|e500\b/gi, 'e500'],
@@ -5099,7 +5131,7 @@ function parseIngredients(inputText) {
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
         [/\bkaramellfarbe\b/gi, 'e150'],
         // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
-        [/\be101\b|\briboflavin\b/gi, 'vitamine'],
+        [/\be101\b|\briboflavin\b/gi, 'vitaminb2'],
         // tocopherol/vitamin e → e306 (already handled above)
         [/\bgelierzucker\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
         [/\bpektin\b|e440\b/gi, 'e440'],                       // Pektin allein = E440 S0
@@ -5151,11 +5183,16 @@ function parseIngredients(inputText) {
         [/\bcalciumcarbonat\b|e170\b/gi, 'e170'],
         [/\bkaliumphosphat\b|e340\b/gi, 'e340'],
         // ── Vitaminformen in Getränken ──
-        [/\bvitamin\s*b12\b|\bcyanocobalamin\b|\bmethylcobalamin\b/gi, 'vitamine'],
-        [/\bvitamin\s*d2\b|\bergocalciferol\b/gi, 'vitamine'],
-        [/\bvitamin\s*d3\b|\bcholecalciferol\b/gi, 'vitamine'],
-        [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitamine'],
-        [/\bb12\b|\bd2\b|\bd3\b|\bb6\b|\bb2\b|\bb1\b/gi, 'vitamine'],  // kurze Vitamin-Bezeichnung
+        [/\bvitamin\s*b12\b|\bcyanocobalamin\b|\bmethylcobalamin\b/gi, 'vitaminb12'],
+        [/\bvitamin\s*d2\b|\bergocalciferol\b/gi, 'vitamind'],
+        [/\bvitamin\s*d3\b|\bcholecalciferol\b/gi, 'vitamind'],
+        [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitaminb2'],
+        [/\bb12\b/gi, 'vitaminb12'],
+        [/\bd2\b/gi, 'vitamind'],
+        [/\bd3\b/gi, 'vitamind'],
+        [/(?<!vitamin\s)\bb6\b/gi, 'vitaminb6'],
+        [/\bb2\b/gi, 'vitaminb2'],
+        [/(?<!vitamin\s)\bb1\b/gi, 'vitaminb1'],  // kurze Vitamin-Bezeichnung, nicht wenn 'vitamin' direkt davor steht
         // ── Hühnerpulver / Instant-Brühen ──
         [/\brind\b(?!fleisch|\w)/gi, 'rindfleisch'],  // 'Rind' standalone → rindfleisch S0
 
@@ -5184,7 +5221,7 @@ function parseIngredients(inputText) {
         [/\bmilchserum\b|\bwhey\s*serum\b/gi, 'molke'],                            // Milchserum = Molke → safe
         [/\bdicalciumphosphat\b|\be341\s*ii\b/gi, 'e341'],                         // Calcium-Phosphat → safe
         [/\btricalciumphosphat\b|\be341\s*iii\b/gi, 'e341'],
-        [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'vitamine'],      // E304 Antioxidans → safe
+        [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'e304'],      // E304 Antioxidans → safe
         [/\bsäuerungskulture?n?\b/gi, 'kulturen'],                                 // = Milchsäurebakterienkulturen → safe
         [/\bhaferhalmfasern?\b|\boat\s*straw\s*fi(?:ber|bre)s?\b/gi, 'hafer'],    // Haferhalmfaser = Ballaststoff aus Hafer S0
         [/\bmilchkaramell\b|\bkaramell(?:creme|füllung|sauce)?\s*(?:mit)?\s*milch\b/gi, 'zucker'],  // Milchkaramell → zucker (Zuckerprodukt S0)
@@ -5216,13 +5253,13 @@ function parseIngredients(inputText) {
         [/\bkohlensäure\b|\bco2\b/gi, 'e290'],               // Kohlensäure = CO2, S0 — eigenes Token statt irreführend 'salz'
         [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
         // ── Vitamine / Mineralstoffe (Anreicherung) ──
-        [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b/gi, 'vitamine'],
-        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitamine'],
-        [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitamine'],
-        [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitamine'],
-        [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitamine'],
-        [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitamine'],
-        [/\bvitamin\s*[a-e]\d?\b|\bvitamin[a-e]\d?\b/gi, 'vitamine'],
+        [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b|\bvitamin\s*b3\b/gi, 'vitaminb3'],
+        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitaminb2'],
+        [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitaminb1'],
+        [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitaminb2'],
+        [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitaminb6'],
+        [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitaminb9'],
+        [/\bvitamin\s+[a-e]\d?\b/gi, 'vitamine'],  // NUR mit Leerzeichen (echte Nutzereingabe), nicht interne Tokens wie 'vitaminb3'
         [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
         [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
@@ -5262,7 +5299,7 @@ function parseIngredients(inputText) {
         [/\blecithin\b(?!\s*\w)/gi, 'e322'],  // generisches Lecithin → E322
         [/\bvanille(?:extrakt|aroma|schote|pulver)\b/gi, 'vanille'],  // nur MIT Suffix!
         [/\bvanillin\b|\bvanilin\b/gi, 'vanillin'],  // synthetisch → eigener Token S0
-        [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'kräuter'],
+        [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'pfefferminze'],
         [/\bbeta-?carotin\b|e160a\b/gi, 'e160a'],
         [/\bbutterreinfett\b|\bbutterreinfett\b|\bklarbutterreinfett\b|\bghee\b/gi, 'butter'],
         [/\bmolkenpulver\b|\bmolkenproteinpulver\b|\bwheypulver\b/gi, 'molke'],
@@ -5327,7 +5364,7 @@ function parseIngredients(inputText) {
         [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
         [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
-        [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
+        [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
         [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
@@ -5372,9 +5409,9 @@ function parseIngredients(inputText) {
         [/\bshio\s+koji\b|\bkoji\b/gi, 'hefeextrakt'],
 
         [/\bkamillentee\b|\bchamomile\s+tea\b|\bchamomile\s+tee\b/gi, 'kamillentee'],  // eigener Token S0
-        [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kräuter'],  // standalone → kräuter, aber nicht chamomile tea!
+        [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kamille'],  // standalone → kräuter, aber nicht chamomile tea!
         [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
-        [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
+        [/\bpfefferminze?\b|\bpepermint\b/gi, 'pfefferminze'],
         [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
         // ── Getreidezutaten ──
         [/\bweizenquellmehl\b|\bquellmehl\b/gi, 'mehl'],  // Quellmehl S0
@@ -5630,8 +5667,8 @@ function parseIngredients(inputText) {
         [/\bhibiskustee-?extrakt\b/gi, 'hibiskustee'],
         [/\bstevioglyceride?\b|\bstevioglycoside?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],
         [/\btrinatrium(?:citrat)?(?:dihydrat)?\b|\bnatriumcitrat\b|e331\b/gi, 'e331'],
-        [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
-        [/\btulsi(?:extrakt)?\b|\bholy\s+basil(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'ashwagandha'],
+        [/\btulsi(?:extrakt)?\b|\bholy\s+basil(?:extrakt)?\b/gi, 'tulsi'],
         [/\bhopfen(?:extrakt|blüten)?\b/gi, 'hopfen'],
         [/\bgeschmacksgebender?\s+blend\b|\bgeschmacks(?:mischung|blend)\b/gi, 'aroma'],
         [/\bacerola(?:saft)?(?:pulver|extrakt)?\b/gi, 'acerola'],
@@ -5785,9 +5822,9 @@ function parseIngredients(inputText) {
         [/\bschwarz(?:er?)?\s*tee(?:extrakt)?\b|\bschwarztee(?:extrakt)?\b/gi, 'schwarztee'],  // nur mit 'tee'!
         [/\bhibiskus(?:tee)?(?:extrakt)?\b/gi, 'hibiskustee'],
         [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\brote\s*bee?te\s*extrakt\b/gi, 'rote bete'],
-        [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
+        [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'ashwagandha'],
         [/\bacerola-?(?:saft)?(?:pulver|extrakt)?\b|\bacerola\b/gi, 'acerola'],
-        [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'tulsi'],
         [/\bsiliciumdioxid\b|e551\b/gi, 'e551'],
         [/\brote-?beete?-?extrakt\b|\brote\s+bete\s+extrakt\b/gi, 'rote bete'],
         [/\bdarjeeling\s+(?:extrakt|tee)?\b/gi, 'schwarztee'],  // Darjeeling = Schwarztee
@@ -6068,7 +6105,7 @@ function parseIngredients(inputText) {
         [/saflor\b/gi,                     'distelöl'],
         // Protein-Compound-Zutaten → Basislebensmittel
         [/\berbsenprotein(?:isolat)?\b|\bpea\s*protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 Liberator,
-        [/ackerbohnenprotein\b/gi,          'ackerbohne'],
+        [/ackerbohnenprotein\b|\bsaubohnenmehl\b|\backerbohnenmehl\b/gi,          'ackerbohne'],
         [/kartoffelprotein\b/gi,            'kartoffel'],  // S0
         [/weizenprotein\b/gi,               'weizengluten'],  // Seitan-ähnlich S1 H
         [/texturiertes?\s+\w+protein\b/gi, 'seitan'],
@@ -6585,9 +6622,10 @@ function parseIngredients(inputText) {
         // ── Superfoods / Exotic ──
         [/\blucuma(?:frucht|pulver|extrakt)?\b/gi, 'lucuma'],  // Fruchtpulver S0
         [/\bmaca(?:wurzel|pulver|extrakt|root)?\b/gi, 'maca'],  // Adaptogen S0
-        [/\baschwagandha(?:wurzel)?(?:extrakt|pulver)?\b|\bashwagandha\b/gi, 'kräuter'],
-        [/\bspirulina\b|\bchlorella\b/gi, 'kräuter'],  // Algen S0
-        [/\bmoringa\b/gi, 'kräuter'],  // Moringa S0
+        [/\baschwagandha(?:wurzel)?(?:extrakt|pulver)?\b|\bashwagandha\b/gi, 'ashwagandha'],
+        [/\bspirulina\b/gi, 'spirulina'],
+        [/\bchlorella\b/gi, 'chlorella'],  // Algen S0
+        [/\bmoringa\b/gi, 'moringa'],  // Moringa S0
         [/\bgerstengras\b/gi, 'gerstengras'],  // Graspulver S0
         [/\bweizengras\b/gi, 'weizengras'],  // Graspulver S0
         [/\bmatcha\b(?!\s*latte)/gi, 'grüntee'],
@@ -6631,9 +6669,10 @@ function parseIngredients(inputText) {
         [/\bpolyphosphate?\b|\be452\b/gi, 'e452'],  // E452 → safe S0
         [/\btriphosphate?\b/gi, 'e451'],
         // e452/polyphosphate → safe_hints (S0)
-        [/\bvitamin\s*d\d?\b/gi, 'vitamine'],                         // Vitamin D, D2, D3
-        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitamine'],  // B12 → safe (kein supplement)
-        [/\bvitamin\s*[ab]\d?\b/gi, 'vitamine'],                      // Vitamin A, B (NICHT C, B12!)
+        [/\bvitamin\s*d\d?\b/gi, 'vitamind'],                         // Vitamin D, D2, D3
+        [/\bvitamin\s*b12\b|\bcobalamin\b|\bcyanocobalamin\b/gi, 'vitaminb12'],  // B12 → safe (kein supplement)
+        [/\bvitamin\s*a\d?\b/gi, 'vitamina'],
+        [/\bvitamin\s*b(?!\d)\b/gi, 'vitamine'],                      // NUR bares "Vitamin B" ohne Zahl bleibt Sammelbegriff
         [/\bvitamin\s*c\b|e300\b/gi, 'e300'],                         // Vitamin C = E300 S0 (NICHT vitamine!)
         // ── Multi-Wort Ausdrücke VOR dem \s+aus\s+-Strip! ───────────────
         [/traubensaft\s+aus\s+roten\s+und\s+wei[sß]en\s+trauben\b/gi, 'traube'],
@@ -6693,10 +6732,17 @@ function parseIngredients(inputText) {
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
         // ── Sportlernahrung ──
         [/\bcreatin(?:-monohydrat)?\b|\bkreatin\b/gi, 'kreatin'],
-        [/\bl-leucin\b|\bl-isoleucin\b|\bl-valin\b|\bbcaa\b/gi, 'vitamine'],
-        [/\bl-glutamin\b|\bl-arginin\b|\bl-lysin\b|\bl-\w+\b/gi, 'vitamine'],  // Aminosäuren
-        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'vitamine'],              // S0 – Stoffwechselprodukt
-        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'vitamine'], // S0 – Aminosäurederivat
+        [/\bl-leucin\b/gi, 'leucin'],
+        [/\bl-isoleucin\b/gi, 'isoleucin'],
+        [/\bl-valin\b/gi, 'valin'],
+        [/\bbcaa\b/gi, 'bcaa'],
+        [/\bl-glutamin\b/gi, 'glutamin'],
+        [/\bl-arginin\b/gi, 'arginin'],
+        [/\bl-lysin\b/gi, 'lysin'],
+        [/\bl-tryptophan\b/gi, 'tryptophan'],
+        [/\bl-carnitin\b/gi, 'carnitin'],
+        [/\bglucuronolacton\b|\bglucoronolacton\b/gi, 'glucuronolacton'],              // S0 – Stoffwechselprodukt
+        [/\bl-carnitin(?:-l-tartrat)?\b|\bcarnitin(?:tartrat)?\b/gi, 'carnitin'], // S0 – Aminosäurederivat
         [/\bzitronenzellen\b|\blemon\s*cells?\b/gi, 'zitrone'],                 // Trübungsmittel aus Zitrone → liberator
         [/\bzitronenfruchtfleisch\b|\blemon\s*flesh\b|\bzitronenmark\b/gi, 'zitrone'],  // Fruchtfleisch → zitrone S1
         [/\bkonzentrierter?\s+zitronensaft\b|\bkonzentrierter?\s+limettensaft\b/gi, 'zitrone'], // "konzentrierter Zitronensaft"
@@ -6709,14 +6755,14 @@ function parseIngredients(inputText) {
         [/\brosmarin(?:extrakt|öl|zweige?)?\b/gi, 'rosmarin'],  // S0
         [/\bsalbei\b|\bsage\b/gi, 'salbei'],  // S0
         [/\bestragon\b|\btarragon\b/gi, 'estragon'],  // S0
-        [/\bkerbel\b/gi, 'kräuter'],
+        [/\bkerbel\b/gi, 'kerbel'],
         // ── Couscous / Bulgur / Polenta ──
         [/\bcouscous\b/gi, 'couscous'],
         [/\bbulgur\b/gi, 'bulgur'],  // Bulgur = vorgekochter Hartweizen, eigener Token
         [/\bpolenta\b|\bmaisbrei\b|\bmaisgrieß\b/gi, 'mais'],
         // ── Weitere Backzutaten ──
         [/\bascorbinsäure\b/gi, 'e300'],  // VOR vitamin-Regel! Ascorbinsäure = E300 S0
-        [/\bascorbin(?:säure)?\b/gi, 'vitamine'],  // Mehlbehandlungsmittel (ohne e300/vitamin c!)
+        [/\bascorbin(?:säure)?\b/gi, 'e300'],  // Mehlbehandlungsmittel, chemisch identisch mit E300/Vitamin C
         [/\breismilch(?:pulver)?\b/gi, 'reismilch'],  // eigener Token S0
         // ── Baharat / Dukkah ──
         [/\ballspice\b/gi, 'piment'],  // allspice = piment
@@ -6768,7 +6814,7 @@ function parseIngredients(inputText) {
         // 'geräuchert' NICHT mehr pauschal löschen — histaminrelevant, siehe DESCRIPTOR_RE-Ausnahme + Qualifier-Fallback
         [/\bstark\s+entölt(?:es?)?\b\s*/gi, ''],                                // "stark entöltes Kakaopulver" → "Kakaopulver"
         [/\bentölt(?:es?)?\b\s*/gi, ''],                                         // "entöltes" allein
-        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine'], // Vit-E-Extrakt → safe
+        [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine2'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
@@ -6879,8 +6925,8 @@ function parseIngredients(inputText) {
         [/\bfischoel\b|\bfischöl\b|\blachsoel\b|\blachsöl\b|\bfish\s*oil\b|\bomega-?3\s*öl\b/gi, 'fischöl'],
 
         [/\bkichererbsenmehl\b|\bgram(?:mehl)?\b|\bbesan\b/gi, 'kichererbsenmehl'],
-        [/\bmandelmehl\b|\bmandelgrieß\b/gi, 'mandel'],
-        [/\bkokosmehl\b|\bkokosgrieß\b/gi, 'kokos'],
+        [/\bmandelmehl\b|\bmandelgrieß(?![a-zäöü])/gi, 'mandel'],
+        [/\bkokosmehl\b|\bkokosgrieß(?![a-zäöü])/gi, 'kokos'],
         // ── Schwefel / Konservierung getrocknete Früchte ──
         [/\bschwefeldiox?id\b|\bschweflige\s+säure\b|e220\b/gi, 'e220'],
         [/\bnatriumsulfit\b|e221\b/gi, 'e221'],                            // E221 = Natriumsulfit
@@ -6900,16 +6946,18 @@ function parseIngredients(inputText) {
         [/\bröstkaffee\b|\bröstkaffeeextrakt\b|\bgerösteter?\s+kaffee\b|\bkaffeeöl\b|\bkaffeepulver\b|\binstantkaffee\b/gi, 'kaffee'],
         [/\barabica(?:-kaffeebohnen?|-bohnen?)?\b|\brobusta(?:-bohnen?)?\b/gi, 'kaffee'],
         // ── Tee-Zutaten ──
-        [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'kräuter'],
-        [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'kräuter'],
-        [/\bzitronengras\b|\bzitronenverbene\b/gi, 'kräuter'],
+        [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'pfefferminze'],
+        [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'hagebutte'],
+        [/\bzitronengras\b/gi, 'zitronengras'],
+        [/\bzitronenverbene\b/gi, 'zitronenverbene'],
         [/\bzitronenmelisse\b/gi, 'melisse'],
         [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'zimt'],  // Liberator S1-2 — NICHT zu gewürze!
-        [/\borgangen?schale\b|\blimettenschale\b/gi, 'kräuter'],
+        [/\borgangen?schale\b/gi, 'orangenschale'],
+        [/\blimettenschale\b/gi, 'limettenschale'],
         [/\bbergamotte(?:öl|extrakt|schale)?\b/gi, 'bergamotteöl'],
         [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'süßholz'],  // DAO-Hemmer — NICHT kräuter!
         // ── Schokolade Spezifika ──
-        [/\brosenwasser\b|\brose\s*water\b/gi, 'kräuter'],       // S0
+        [/\brosenwasser\b|\brose\s*water\b/gi, 'rosenwasser'],       // S0
         [/\bmandelaroma\b|\bnatürliches?\s+mandelaroma\b/gi, 'aroma'],
         [/\bmarzipan(?:masse|rohmasse|füllung)?\b/gi, 'marzipan'],
         // ── Kulturen weitere ──
@@ -6972,7 +7020,7 @@ function parseIngredients(inputText) {
         [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'paprikaextrakt'],
         // ── Süßwarenzutaten ──
         [/\bfruchtgummi\b|\bfruchtsaft\s+[\wäöüßÄÖÜ]+\b/gi, 'frucht'],
-        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'kräuter'],
+        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'pfefferminze'],
         // ── Onion / Zwiebel-Compound ──
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
@@ -7002,20 +7050,24 @@ function parseIngredients(inputText) {
         [/\bwein-branntweinessig\b|\bweinbranntweinessig\b/gi, 'branntweinessig'],  // → safe S0 (kein Weinessig!)
         [/\bsafflor\b/gi, 'saflor'],                                           // Safflor = Saflor (Distel) → safe
         [/\bweizengluten\b/gi, 'gluten'],  // Klebereiweiß-Zusatz S0 — NICHT Seitan!
-        [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitamine'],
+        [/\bpantothensäure\b|\bpantothen(?:at)?\b|\bvitamin\s*b5\b/gi, 'vitaminb5'],
         [/\btaurin\b/gi, 'taurin'],  // Aminosäure, S0 — bleibt als taurin (safe)
         [/\bguarana[-\s]?(?:auszug|extrakt|samen|samenextrakt|konzentrat)?\b/gi, 'koffein'],  // guarana-auszug etc.
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'matetee'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],  // Farbextrakt → Zutat
-        [/\binosit(?:ol)?\b/gi, 'vitamine'],
-        [/\bb3\b|\bb5\b|\bb7\b|\bb8\b|\bb9\b/gi, 'vitamine'],  // kurze B-Vitamin-Bezeichnungen
+        [/\binosit(?:ol)?\b/gi, 'inositol'],
+        [/(?<!vitamin\s)\bb3\b/gi, 'vitaminb3'],
+        [/\bb5\b/gi, 'vitaminb5'],
+        [/\bb7\b/gi, 'vitaminb7'],
+        [/\bb8\b/gi, 'inositol'],
+        [/\bb9\b/gi, 'vitaminb9'],  // kurze B-Vitamin-Bezeichnungen
         // ── Süßungsmittel-Kombinationen ──
         [/\bacesulfam-k\b|\bacesulfam\s+k\b|\bacesulfam-kalium\b|\be950\b/gi, 'acesulfam'],  // → safe S0
         [/\bsüßungsmittel-k\b/gi, 'süßungsmittel'],  // Artefakt: "Acesulfam-K" → "süßungsmittel-k"
         // ── Proteinprodukte ──
         [/\bwedhy\s*\w*\b|\bmolken(?:protein)?(?:isolat|konzentrat|hydrolysat)?\b/gi, 'molke'],
         [/\bisomalto-?oligosaccharide?\b|\bimos\b/gi, 'süßungsmittel'],  // Ballaststoff-Süßer S0
-        [/\bvitamin\s*c\b/gi, 'vitamine'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
+        [/\bvitamin\s*c\b/gi, 'e300'],  // ascorbinsäure/e300 → bereits zu e300 normiert (frühere Regel)
         [/\btocopherol(?:e|ol)?\b|\balpha-tocopherol\b|\bgamma-tocopherol\b|\bdelta-tocopherol\b/gi, 'e306'],  // Vitamin E → E306 (S0, kein supplement!)
         [/\bvitamin\s+e\b(?!\w)|\be306\b|\be307\b/gi, 'e306'],  // Vitamin E Schreibweisen (Leerzeichen nötig — sonst Kollision mit "Vitamine")
         [/\bnatriumbicarbonat\b|\bnatriumhydrogencarbonat\b|e500\b/gi, 'e500'],
@@ -7035,7 +7087,7 @@ function parseIngredients(inputText) {
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
         [/\bkaramellfarbe\b/gi, 'e150'],
         // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
-        [/\be101\b|\briboflavin\b/gi, 'vitamine'],
+        [/\be101\b|\briboflavin\b/gi, 'vitaminb2'],
         // tocopherol/vitamin e → e306 (already handled above)
         [/\bgelierzucker\b/gi, 'zucker'],   // Gelierzucker = Zucker+Pektin S0
         [/\bpektin\b|e440\b/gi, 'e440'],                       // Pektin allein = E440 S0
@@ -7087,11 +7139,16 @@ function parseIngredients(inputText) {
         [/\bcalciumcarbonat\b|e170\b/gi, 'e170'],
         [/\bkaliumphosphat\b|e340\b/gi, 'e340'],
         // ── Vitaminformen in Getränken ──
-        [/\bvitamin\s*b12\b|\bcyanocobalamin\b|\bmethylcobalamin\b/gi, 'vitamine'],
-        [/\bvitamin\s*d2\b|\bergocalciferol\b/gi, 'vitamine'],
-        [/\bvitamin\s*d3\b|\bcholecalciferol\b/gi, 'vitamine'],
-        [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitamine'],
-        [/\bb12\b|\bd2\b|\bd3\b|\bb6\b|\bb2\b|\bb1\b/gi, 'vitamine'],  // kurze Vitamin-Bezeichnung
+        [/\bvitamin\s*b12\b|\bcyanocobalamin\b|\bmethylcobalamin\b/gi, 'vitaminb12'],
+        [/\bvitamin\s*d2\b|\bergocalciferol\b/gi, 'vitamind'],
+        [/\bvitamin\s*d3\b|\bcholecalciferol\b/gi, 'vitamind'],
+        [/\bvitamin\s*b2\b|\briboflavin\b/gi, 'vitaminb2'],
+        [/\bb12\b/gi, 'vitaminb12'],
+        [/\bd2\b/gi, 'vitamind'],
+        [/\bd3\b/gi, 'vitamind'],
+        [/(?<!vitamin\s)\bb6\b/gi, 'vitaminb6'],
+        [/\bb2\b/gi, 'vitaminb2'],
+        [/(?<!vitamin\s)\bb1\b/gi, 'vitaminb1'],  // kurze Vitamin-Bezeichnung, nicht wenn 'vitamin' direkt davor steht
         // ── Hühnerpulver / Instant-Brühen ──
         [/\brind\b(?!fleisch|\w)/gi, 'rindfleisch'],  // 'Rind' standalone → rindfleisch S0
 
@@ -7120,7 +7177,7 @@ function parseIngredients(inputText) {
         [/\bmilchserum\b|\bwhey\s*serum\b/gi, 'molke'],                            // Milchserum = Molke → safe
         [/\bdicalciumphosphat\b|\be341\s*ii\b/gi, 'e341'],                         // Calcium-Phosphat → safe
         [/\btricalciumphosphat\b|\be341\s*iii\b/gi, 'e341'],
-        [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'vitamine'],      // E304 Antioxidans → safe
+        [/\bl-ascorbylpalmitat\b|\bascorbylpalmitat\b|e304\b/gi, 'e304'],      // E304 Antioxidans → safe
         [/\bsäuerungskulture?n?\b/gi, 'kulturen'],                                 // = Milchsäurebakterienkulturen → safe
         [/\bhaferhalmfasern?\b|\boat\s*straw\s*fi(?:ber|bre)s?\b/gi, 'hafer'],    // Haferhalmfaser = Ballaststoff aus Hafer S0
         [/\bmilchkaramell\b|\bkaramell(?:creme|füllung|sauce)?\s*(?:mit)?\s*milch\b/gi, 'zucker'],  // Milchkaramell → zucker (Zuckerprodukt S0)
@@ -7152,13 +7209,13 @@ function parseIngredients(inputText) {
         [/\bkohlensäure\b|\bco2\b/gi, 'e290'],               // Kohlensäure = CO2, S0 — eigenes Token statt irreführend 'salz'
         [/\bphosphorsäure\b|e338\b/gi, 'e338'],              // DAO-Hemmer!
         // ── Vitamine / Mineralstoffe (Anreicherung) ──
-        [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b/gi, 'vitamine'],
-        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitamine'],
-        [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitamine'],
-        [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitamine'],
-        [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitamine'],
-        [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitamine'],
-        [/\bvitamin\s*[a-e]\d?\b|\bvitamin[a-e]\d?\b/gi, 'vitamine'],
+        [/\bniacinamid\b|\bnicotinamid\b|\bnicotinsäureamid\b|\bniacin\b|e375\b|\bvitamin\s*b3\b/gi, 'vitaminb3'],
+        [/\briboflavine?\b|\be101a?\b|\bvitamin\s*b2\b/gi, 'vitaminb2'],
+        [/\bthiamin(?:hydrochlorid)?\b|\bvitamin\s*b1\b/gi, 'vitaminb1'],
+        [/\briboflavin\b|\bvitamin\s*b2\b|e101\b/gi, 'vitaminb2'],
+        [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitaminb6'],
+        [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitaminb9'],
+        [/\bvitamin\s+[a-e]\d?\b/gi, 'vitamine'],  // NUR mit Leerzeichen (echte Nutzereingabe), nicht interne Tokens wie 'vitaminb3'
         [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
         [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
         [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
@@ -7198,7 +7255,7 @@ function parseIngredients(inputText) {
         [/\blecithin\b(?!\s*\w)/gi, 'e322'],  // generisches Lecithin → E322
         [/\bvanille(?:extrakt|aroma|schote|pulver)\b/gi, 'vanille'],  // nur MIT Suffix!
         [/\bvanillin\b|\bvanilin\b/gi, 'vanillin'],  // synthetisch → eigener Token S0
-        [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'kräuter'],
+        [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'pfefferminze'],
         [/\bbeta-?carotin\b|e160a\b/gi, 'e160a'],
         [/\bbutterreinfett\b|\bbutterreinfett\b|\bklarbutterreinfett\b|\bghee\b/gi, 'butter'],
         [/\bmolkenpulver\b|\bmolkenproteinpulver\b|\bwheypulver\b/gi, 'molke'],
@@ -7263,7 +7320,7 @@ function parseIngredients(inputText) {
         [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
         [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
-        [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
+        [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
         [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
@@ -7308,9 +7365,9 @@ function parseIngredients(inputText) {
         [/\bshio\s+koji\b|\bkoji\b/gi, 'hefeextrakt'],
 
         [/\bkamillentee\b|\bchamomile\s+tea\b|\bchamomile\s+tee\b/gi, 'kamillentee'],  // eigener Token S0
-        [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kräuter'],  // standalone → kräuter, aber nicht chamomile tea!
+        [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kamille'],  // standalone → kräuter, aber nicht chamomile tea!
         [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
-        [/\bpfefferminze?\b|\bpepermint\b/gi, 'kräuter'],
+        [/\bpfefferminze?\b|\bpepermint\b/gi, 'pfefferminze'],
         [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
         // ── Getreidezutaten ──
         [/\bweizenquellmehl\b|\bquellmehl\b/gi, 'mehl'],  // Quellmehl S0
@@ -7566,8 +7623,8 @@ function parseIngredients(inputText) {
         [/\bhibiskustee-?extrakt\b/gi, 'hibiskustee'],
         [/\bstevioglyceride?\b|\bstevioglycoside?\b|\bsteviol(?:glycoside?|glyceride?)?\b/gi, 'stevia'],
         [/\btrinatrium(?:citrat)?(?:dihydrat)?\b|\bnatriumcitrat\b|e331\b/gi, 'e331'],
-        [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
-        [/\btulsi(?:extrakt)?\b|\bholy\s+basil(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bashwagandha(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'ashwagandha'],
+        [/\btulsi(?:extrakt)?\b|\bholy\s+basil(?:extrakt)?\b/gi, 'tulsi'],
         [/\bhopfen(?:extrakt|blüten)?\b/gi, 'hopfen'],
         [/\bgeschmacksgebender?\s+blend\b|\bgeschmacks(?:mischung|blend)\b/gi, 'aroma'],
         [/\bacerola(?:saft)?(?:pulver|extrakt)?\b/gi, 'acerola'],
@@ -7721,9 +7778,9 @@ function parseIngredients(inputText) {
         [/\bschwarz(?:er?)?\s*tee(?:extrakt)?\b|\bschwarztee(?:extrakt)?\b/gi, 'schwarztee'],  // nur mit 'tee'!
         [/\bhibiskus(?:tee)?(?:extrakt)?\b/gi, 'hibiskustee'],
         [/\brote-bete-extrakt\b|\brote\s+bete\s+extrakt\b|\brote\s*bee?te\s*extrakt\b/gi, 'rote bete'],
-        [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'kräuter'],
+        [/\bashwagandha-?(?:wurzel)?(?:extrakt|pulver)?\b/gi, 'ashwagandha'],
         [/\bacerola-?(?:saft)?(?:pulver|extrakt)?\b|\bacerola\b/gi, 'acerola'],
-        [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'kräuter'],
+        [/\bholy\s+basil\b|\btulsi(?:extrakt)?\b/gi, 'tulsi'],
         [/\bsiliciumdioxid\b|e551\b/gi, 'e551'],
         [/\brote-?beete?-?extrakt\b|\brote\s+bete\s+extrakt\b/gi, 'rote bete'],
         [/\bdarjeeling\s+(?:extrakt|tee)?\b/gi, 'schwarztee'],  // Darjeeling = Schwarztee
@@ -8004,7 +8061,7 @@ function parseIngredients(inputText) {
         [/saflor\b/gi,                     'distelöl'],
         // Protein-Compound-Zutaten → Basislebensmittel
         [/\berbsenprotein(?:isolat)?\b|\bpea\s*protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 Liberator,
-        [/ackerbohnenprotein\b/gi,          'ackerbohne'],
+        [/ackerbohnenprotein\b|\bsaubohnenmehl\b|\backerbohnenmehl\b/gi,          'ackerbohne'],
         [/kartoffelprotein\b/gi,            'kartoffel'],  // S0
         [/weizenprotein\b/gi,               'weizengluten'],  // Seitan-ähnlich S1 H
         [/texturiertes?\s+\w+protein\b/gi, 'seitan'],
@@ -8686,7 +8743,8 @@ function parseIngredients(inputText) {
         [/\bglukose\b(?!\s*sirup)/gi, 'zucker'],
         [/\bagavendicksaft\s+\w*stärke\b|\bagavensirup\s+\w*stärke\b/gi, 'zucker, stärke'],
         // Agavendicksaft/-sirup NICHT zu 'zucker' generalisieren — eigener S0-Eintrag mit spezifischem Hint (Fruktoseanteil!)
-        [/\btagatose\b|\berythrit\b|\bxylit\b|\bisomalt\b|\bsorbit\b|\bmannitol\b|\blactit\b|\bmaltit\b(?!-[A-ZÄÖÜ])/gi, 'süßungsmittel'],  // Zuckeralkohole S0
+        // Zuckeralkohole (Tagatose/Erythrit/Xylit/Isomalt/Sorbit/Mannitol/Lactit/Maltit) haben
+        // bereits eigene, vollständige Registrierung mit E-Nummer — keine Sammelbecken-Regel nötig.
         [/\bstevioglycoside\b|\bstevia\b|\bsteviolglycosid\b/gi, 'stevia'],
         [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b|\bsucralose\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, nicht süßungsmittel!
         [/\bethyl[- ]?vanillin\b/gi, 'vanillin'],  // Ethylvanillin stärker als Vanillin, S1-2   // stärker als Vanillin, gleiches Problem S1
@@ -8694,7 +8752,7 @@ function parseIngredients(inputText) {
         [/\bseitan\b|\bvitalweizengluten\b/gi, 'seitan'],  // S3 — fertige Seitan-Produkte
         [/\bweizengluten\b/gi, 'gluten'],  // S0 — Klebereiweiß-Zusatz ≠ Seitan
         [/\blupinenprotein\b|\blupinen\w+\b/gi, 'lupine'],
-        [/\backerbohne\w*\b|\backerbohnenprotein\b/gi, 'erbse'],
+        // Ackerbohne bleibt eigenständig — keine botanische Gleichsetzung mit Erbse (andere Art)!
         [/\bleinsamen(?:mehl|öl)?\b/gi, 'leinsamen'],
         [/\bhanfprotein\b|\bhanfsamen\b|\bhanföl\b/gi, 'hanf'],
         [/\berbsenmehl\b/gi, 'erbsen'],  // nur erbsenmehl→erbsen; protein hat eigene norm,
@@ -8770,7 +8828,7 @@ function parseIngredients(inputText) {
         [/\bsheabutter\b/gi, 'pflanzenöl'],
         [/\bchinarindenextrakt\b|\bchinin\b/gi, 'chinin'],
         [/\bginseng\b/gi, 'ginseng'],
-        [/\benzianextrakt\b/gi, 'kräuter'],
+        [/\benzianextrakt\b/gi, 'enzian'],
         [/\btannin[e]?\b|\bgerbstoff[e]?\b/gi, 'tannin'],
         [/\blachgas\b|\bdistickstoffmonoxid\b|e942\b/gi, 'e942'],
         [/\bsauerstoff\b/gi, 'stickstoff'],     // inert gas → same as N2 S0
@@ -8831,7 +8889,7 @@ function parseIngredients(inputText) {
         // ── Öle ──
         // sojaöl behält eigene Identität (S1 SIGHI) — siehe eigene Registrierung + Hint-Text
         [/\bzitronenöl\b/gi, 'zitronenschale'],  // = ätherisches Öl aus Zitronenschale
-        [/\blimettenschale\b|\bkaffirlimette\w*\b/gi, 'limette'],
+        [/\bkaffirlimette\w*\b/gi, 'limette'],
         // ── Würzmittel ──
         [/\bchilipulver\b|\bchiliflocken\b/gi, 'chili'],
         [/\bsenfsaat\b|\bsenfkörner?\b|\bsenfsamen\b/gi, 'senf'],
@@ -9106,7 +9164,7 @@ function parseIngredients(inputText) {
         [/\bportobello(?:pilz)?\b/gi, 'champignon'],
         // ── Mehle ──
         [/\bkichererbsenmehl\b|\bkichererbsenpulver\b/gi, 'kichererbsen'],
-        [/\bkichererbseneiweiß\b|\bkichererbsenprotein\b|\bchickpea\s*protein\b/gi, 'kichererbsen'], // S0-1
+        [/\bkichererbseneiweiß(?![a-zäöü])|\bkichererbsenprotein\b|\bchickpea\s*protein\b/gi, 'kichererbsen'], // S0-1
         [/\bkaliumiodat\b/gi, 'kaliumjodat'],   // Schreibvariante (i statt j)
         [/\btapioka(?:mehl|stärke)?\b|\bmaniok(?:mehl|stärke)?\b/gi, 'tapiokastärke'],  // eigener Token
         [/\bsago(?:stärke)?\b/gi, 'sago'],
@@ -9168,7 +9226,7 @@ function parseIngredients(inputText) {
         [/\bzitronenp?feffer\b/gi, 'zitronenpfeffer'],
         [/\brauchpaprika\b|\bpaprika\s+geräuchert\b|\bsmoked\s+paprika\b/gi, 'paprika'],
         // ── Salz-Varianten ──
-        [/\blauchpulver\b/gi, 'kräuter'],
+        [/\blauchpulver\b/gi, 'lauch'],
         [/\bsellerie(?:pulver|salz)\b/gi, 'sellerie'],         // Sellerie S1
         [/\bkräutersalz\b|\bkräuter\s*salz\b/gi, 'salz'],
         [/\bfleur\s+de\s+sel\b|\bmeersalz\b|\bhimalayasalz\b/gi, 'salz'],
@@ -9222,7 +9280,7 @@ function parseIngredients(inputText) {
         [/\bsake\b/gi, 'alkohol'],                         // S3
         // ── Asiatische Zutaten ──
         [/\bumeboshi\b|\bumeplaume\b/gi, 'umeboshi'],    // eingelegte Pflaume S3 (Säure+ferment.)
-        [/\bshiso\b|\bperilla\b/gi, 'kräuter'],          // S0
+        [/\bshiso\b|\bperilla\b/gi, 'shiso'],          // S0
         // ── Essig-Varianten ──
         [/\bsherryessig\b/gi, 'sherryessig'],  // S3 eigener Token
         [/\bchampagner[-\s]?essig\b|\bchampagnessig\b/gi, 'weinessig'],
@@ -9241,7 +9299,7 @@ function parseIngredients(inputText) {
         [/\bgeflügel(?:gewürz|mix|würze)\b|\bhähnchen(?:gewürz|mix|würze)\b/gi, 'gewürze'],  // Nur mit Suffix!
         [/\bgeflügel(?:fleisch|brust|keule|schnitzel|filet)\b/gi, 'hähnchen'],  // → safe S0
         [/\bsahnejoghurt\b|\bsahne-?joghurt\b/gi, 'joghurt'],                   // → safe S0
-        [/\bbiotin\b|vitamin\s*h\b|e640\b/gi, 'vitamine'],                       // Biotin = Vitamin H
+        [/\bbiotin\b|vitamin\s*h\b|e640\b/gi, 'vitaminb7'],                       // Biotin = Vitamin H
         [/\bnatrium-?phosphate?\b|\bnatriumphosphat\b(?!\w)/gi, 'e339'],         // Natriumphosphat → safe
         [/\blamm(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\bwild(?:gewürz|mix)\b/gi, 'gewürze'],
@@ -9255,10 +9313,11 @@ function parseIngredients(inputText) {
         [/\bkümmelkörner?\b/gi, 'kümmel'],
         [/\bwacholder(?:beeren?)?\b/gi, 'wacholder'],
         [/\bliebstöckel(?:kraut)?\b/gi, 'liebstöckel'],
-        [/\bbeifuß\b|\bartemizia\b/gi, 'kräuter'],         // S0
+        [/\bbeifuß\b|\bartemizia\b/gi, 'beifuss'],         // S0
         [/\bborretsch\b/gi, 'borretsch'],                  // S2 — biogene Amine!
-        [/\bzitronenthymian\b|\bzitronenbasilikum\b/gi, 'kräuter'],
-        [/\bbergbohnenkraut\b|\bsommerbohnenkraut\b/gi, 'kräuter'],
+        [/\bzitronenthymian\b/gi, 'zitronenthymian'],
+        [/\bzitronenbasilikum\b/gi, 'zitronenbasilikum'],
+        [/\bbergbohnenkraut\b|\bsommerbohnenkraut\b/gi, 'bohnenkraut'],
         [/\bpippali\b|\blanger\s+pfeffer\b/gi, 'pfeffer'],
         [/\basant\b|\basafoetida\b/gi, 'asafoetida'],
         [/\bspickmohn\b|\bmohnsamen?\b|\bmohn\b/gi, 'mohn'],  // S0
@@ -9305,7 +9364,7 @@ function parseIngredients(inputText) {
         [/\bradler\b|\bshandy\b/gi, 'bier'],          // Bier+Limo S2-3
         [/\bmalzbier\b|\bbiermischgetränk\b/gi, 'bier'],
         [/\bwasserkefir\b|\bkefirwasser\b/gi, 'kefir'],
-        [/\bkvass\b|\bkwaß\b/gi, 'bier'],             // fermentiertes Brodbier S2-3
+        [/\bkvass\b|\bkwaß(?![a-zäöü])/gi, 'bier'],             // fermentiertes Brodbier S2-3
         [/\bswitchel\b|\bhaymaker[']?s?\s+punch\b/gi, 'essig'],  // Essig-Basis S3
         [/\brote.?beete.?saft\b|\branden.?saft\b/gi, 'rote bete'],
         [/\blimettensaft\b/gi, 'limette'],
@@ -9321,9 +9380,9 @@ function parseIngredients(inputText) {
         // ── Wildkräuter / Wildpflanzen ──
         [/\bwildkräuter\b|\bwildpflanzen\b/gi, 'kräuter'],
         [/\blöwenzahn(?:blüten?|blätter?|grün)?\b/gi, 'kräuter'],
-        [/\bgiersch\b|\bgeißfuß\b/gi, 'kräuter'],
-        [/\bschafgarbe\b|\bgarbe\b/gi, 'kräuter'],
-        [/\bspitzwegerich\b|\bwegerich\b/gi, 'kräuter'],
+        [/\bgiersch\b|\bgeißfuß(?![a-zäöü])/gi, 'giersch'],
+        [/\bschafgarbe\b|\bgarbe\b/gi, 'schafgarbe'],
+        [/\bspitzwegerich\b|\bwegerich\b/gi, 'spitzwegerich'],
         [/\bsauerampfer\b|\bampfer\b/gi, 'sauerampfer'],  // S1 Liberator (Oxalsäure)
         [/\bwermutkraut\b|\bwermut(?!wein)\b/gi, 'wermutkraut'],  // S2
         [/\bkrauseminze\b/gi, 'krauseminze'],                       // S1
@@ -9348,8 +9407,8 @@ function parseIngredients(inputText) {
         [/\bacai(?:pulver|beeren?|bowl)?\b/gi, 'acai'],          // S1-2 (dunkle Beere)
         [/\bgoji(?:\s*-?\s*)?beeren?\b|\bgoji(?:pulver|beeren)?\b/gi, 'goji'],  // S1-2
         [/\bmaca(?:\s*-?\s*)?pulver\b|\bmaca\b/gi, 'maca'],      // S0-1 Wurzelpulver
-        [/\bashwagandha\b|\bwinterkirs?\w+\b/gi, 'kräuter'],     // S0 Adaptogen
-        [/\bmoringa(?:\s*-?\s*)?pulver\b|\bmoringa\b/gi, 'kräuter'],  // S0
+        [/\bashwagandha\b|\bwinterkirs?\w+\b/gi, 'ashwagandha'],     // S0 Adaptogen
+        [/\bmoringa(?:\s*-?\s*)?pulver\b|\bmoringa\b/gi, 'moringa'],  // S0
         [/\bbaobab(?:pulver|frucht)?\b/gi, 'baobab'],            // S1 (Säure)
         [/\blucuma(?:\s*-?\s*)?pulver?\b|\blucuma\b/gi, 'lucuma'],  // S0 Süßungsmittel
         [/\bmesquite(?:pulver)?\b/gi, 'zucker'],                  // S0 Hülsenfrucht-Mehl
@@ -9675,7 +9734,7 @@ function parseIngredients(inputText) {
         [/\bkollagen(?:\s*(?:pulver|peptide|hydrolysat))?\b/gi, 'supplement'],
         [/\bhyaluron(?:\s*(?:kapseln?|pulver))?\b/gi, 'supplement'],
         [/\bcurcumin(?:\s*(?:kapseln?|extrakt))?\b/gi, 'kurkuma'],
-        [/\bashwagandha(?:\s*(?:kapseln?|extrakt|pulver))?\b/gi, 'kräuter'],
+        [/\bashwagandha(?:\s*(?:kapseln?|extrakt|pulver))?\b/gi, 'ashwagandha'],
         [/\bprobiotika?\s*(?:kapseln?|tabletten?)?\b/gi, 'supplement'],
         // ── Compound-Artefakt-Fixes ──
         [/\bnudeln-?schnitzel\b/gi, 'fleischalternative'],  // Dinkel→nudeln vor Schnitzel-strip
@@ -10324,7 +10383,20 @@ function parseIngredients(inputText) {
             });
         }
 
-        for (const [re, rep] of NORMALIZE) line = line.replace(re, rep);
+        if (window._histDebug) {
+            let _ni = 0;
+            for (const [re, rep] of NORMALIZE) {
+                _ni++;
+                const _before = line;
+                line = line.replace(re, rep);
+                if (line !== _before) {
+                    const _m = '[HIT] NORMALIZE#' + _ni + ' (' + re.source.slice(0, 60) + ') : ' + JSON.stringify(_before.slice(0,80)) + ' -> ' + JSON.stringify(line.slice(0,80));
+                    console.log(_m); window._hlog(_m);
+                }
+            }
+        } else {
+            for (const [re, rep] of NORMALIZE) line = line.replace(re, rep);
+        }
 
         // Generische Dedup: "wort wort" (durch NORMALIZE entstandene Wiederholung,
         // z.B. "Zitronensaft aus Zitronensaftkonzentrat" → "zitrone zitrone") → "wort"
@@ -11612,6 +11684,102 @@ function getIngredientInfo(name, cat, aiGuess) {
             return 'Vernetzte Carboxymethylcellulose (E468), Verdickungsmittel/Ballaststoff. Histaminneutral.';
         if (n === 'e472')
             return 'Essigsäureester von Mono- und Diglyceriden (E472, Sammelbegriff für E472a-f), Emulgator. Histaminneutral.';
+        if (n === 'ashwagandha')
+            return 'Ashwagandha (Winterkirsche), adaptogene Heilpflanze aus dem Ayurveda. Histaminarm, gilt als gut verträglich.';
+        if (n === 'beifuss')
+            return 'Beifuß (Artemisia), traditionelles Würz- und Heilkraut (z.B. für Gänsebraten). Histaminarm.';
+        if (n === 'bohnenkraut')
+            return 'Bohnenkraut (Berg- oder Sommerbohnenkraut), Würzkraut für Hülsenfrüchte. Histaminarm.';
+        if (n === 'enzian')
+            return 'Enzian(-extrakt), Bitterstoff aus der Enzianwurzel. Histaminarm, kann in großen Mengen die Verdauung anregen.';
+        if (n === 'giersch')
+            return 'Giersch (Geißfuß), heimisches Wildkraut. Histaminarm.';
+        if (n === 'hagebutte')
+            return 'Hagebutte (Rosenfrucht/Rosenhüfte), reich an Vitamin C. Histaminarm.';
+        if (n === 'kamille')
+            return 'Kamille(nblüten), beruhigendes Heilkraut. Histaminarm, gut verträglich.';
+        if (n === 'kerbel')
+            return 'Kerbel, mildes Küchenkraut. Histaminarm.';
+        if (n === 'lauch')
+            return 'Lauch(pulver), milde Zwiebelgewächs-Würze. Histaminarm, im Gegensatz zu Zwiebel/Knoblauch kein bekannter Liberator.';
+        if (n === 'moringa')
+            return 'Moringa(-pulver), nährstoffreiches Blattpulver. Histaminarm, gilt als gut verträglich.';
+        if (n === 'orangenschale')
+            return 'Orangenschale, enthält ätherische Öle und kann als milder Liberator wirken. In kleinen Mengen meist toleriert.';
+        if (n === 'limettenschale')
+            return 'Limettenschale, enthält ätherische Öle und kann als milder Liberator wirken. In kleinen Mengen meist toleriert.';
+        if (n === 'pfefferminze')
+            return 'Pfefferminze (Blätter, Öl, Extrakt oder Aroma), verdauungsförderndes Kraut. Histaminarm, gut verträglich.';
+        if (n === 'rosenwasser')
+            return 'Rosenwasser, Destillat aus Rosenblütenblättern. Histaminarm.';
+        if (n === 'schafgarbe')
+            return 'Schafgarbe, traditionelles Heil- und Küchenkraut. Histaminarm.';
+        if (n === 'shiso')
+            return 'Shiso (Perilla), japanisches Kraut aus der Minzfamilie. Histaminarm.';
+        if (n === 'spirulina')
+            return 'Spirulina, blaugrüne Mikroalge. Histaminarm, in üblichen Nahrungsergänzungsmengen gut verträglich.';
+        if (n === 'chlorella')
+            return 'Chlorella, Süßwasser-Mikroalge. Histaminarm, in üblichen Nahrungsergänzungsmengen gut verträglich.';
+        if (n === 'spitzwegerich')
+            return 'Spitzwegerich (Wegerich), traditionelles Heilkraut, oft bei Husten verwendet. Histaminarm.';
+        if (n === 'tulsi')
+            return 'Tulsi (Holy Basil, Heiliges Basilikum), ayurvedisches Heilkraut, oft als Tee. Histaminarm.';
+        if (n === 'zitronengras')
+            return 'Zitronengras, aromatisches Gras der südostasiatischen Küche. Histaminarm.';
+        if (n === 'zitronenverbene')
+            return 'Zitronenverbene, zitronig-aromatisches Küchen- und Teekraut. Histaminarm.';
+        if (n === 'zitronenthymian')
+            return 'Zitronenthymian, milde Thymian-Sorte mit Zitrusnote. Histaminarm.';
+        if (n === 'zitronenbasilikum')
+            return 'Zitronenbasilikum, milde Basilikum-Sorte mit Zitrusnote. Histaminarm.';
+        if (n === 'vitamina')
+            return 'Vitamin A (Retinol/Beta-Carotin-Vorstufen). Histaminneutral, fettlösliches Vitamin.';
+        if (n === 'vitaminb1')
+            return 'Vitamin B1 (Thiamin). Histaminneutral.';
+        if (n === 'vitaminb2')
+            return 'Vitamin B2 (Riboflavin, E101). Histaminneutral.';
+        if (n === 'vitaminb3')
+            return 'Vitamin B3 (Niacin/Nicotinamid). Histaminneutral.';
+        if (n === 'vitaminb5')
+            return 'Vitamin B5 (Pantothensäure). Histaminneutral.';
+        if (n === 'vitaminb6')
+            return 'Vitamin B6 (Pyridoxin). Histaminneutral.';
+        if (n === 'vitaminb7')
+            return 'Vitamin B7/H (Biotin). Histaminneutral.';
+        if (n === 'vitaminb9')
+            return 'Vitamin B9 (Folsäure/Folat). Histaminneutral.';
+        if (n === 'vitaminb12')
+            return 'Vitamin B12 (Cobalamin). Histaminneutral, in Nahrungsergänzung meist gut verträglich.';
+        if (n === 'vitamind')
+            return 'Vitamin D (D2/Ergocalciferol oder D3/Cholecalciferol). Histaminneutral, fettlösliches Vitamin.';
+        if (n === 'vitamine2')
+            return 'Vitamin E (Tocopherol). Histaminneutral, wirkt antioxidativ.';
+        if (n === 'leucin')
+            return 'L-Leucin, essentielle verzweigtkettige Aminosäure (BCAA, kein Vitamin). Histaminneutral.';
+        if (n === 'isoleucin')
+            return 'L-Isoleucin, essentielle verzweigtkettige Aminosäure (BCAA, kein Vitamin). Histaminneutral.';
+        if (n === 'valin')
+            return 'L-Valin, essentielle verzweigtkettige Aminosäure (BCAA, kein Vitamin). Histaminneutral.';
+        if (n === 'bcaa')
+            return 'BCAA (verzweigtkettige Aminosäuren: Leucin, Isoleucin, Valin — keine Vitamine). Histaminneutral.';
+        if (n === 'glucuronolacton')
+            return 'Glucuronolacton, körpereigenes Stoffwechselprodukt (oft in Energy-Drinks, kein Vitamin). Histaminneutral.';
+        if (n === 'inositol')
+            return 'Inositol (auch als "Vitamin B8" bezeichnet, aber kein echtes Vitamin). Histaminneutral.';
+        if (n === 'e304')
+            return 'Ascorbylpalmitat (E304), fettlösliches Antioxidans auf Vitamin-C-Basis. Histaminneutral.';
+        if (n === 'glutamin')
+            return 'L-Glutamin, Aminosäure (kein Vitamin). Histaminneutral, wird u.a. bei Darmproblemen ergänzt.';
+        if (n === 'arginin')
+            return 'L-Arginin, Aminosäure (kein Vitamin). Histaminneutral.';
+        if (n === 'lysin')
+            return 'L-Lysin, essentielle Aminosäure (kein Vitamin). Histaminneutral.';
+        if (n === 'tryptophan')
+            return 'L-Tryptophan, essentielle Aminosäure (kein Vitamin), Vorstufe von Serotonin. Histaminneutral.';
+        if (n === 'carnitin')
+            return 'L-Carnitin, aminosäureähnliche Verbindung (kein Vitamin). Histaminneutral.';
+        if (n === 'ackerbohne')
+            return 'Ackerbohne/Saubohne (Vicia faba, Fava-/Dicke Bohne), Hülsenfrucht. Kann wie andere Hülsenfrüchte als milder Liberator wirken.';
         if (n === 'schutzkultur' || n === 'schutzkulturen')
             return 'Gezielt ausgewählte Bakterienkultur zur natürlichen Haltbarmachung (hemmt Verderb-Keime) — anders als Fermentationskulturen nicht auf Aromabildung ausgelegt, meist in geringer Menge dosiert. Histaminbildung ist hier unwahrscheinlich, aber nicht wissenschaftlich vollständig ausgeschlossen.';
         if (n === 'säuerungsmittel')
@@ -15421,6 +15589,7 @@ for (const [e, name] of Object.entries(E_NAMES)) {
     if (!NAME_TO_E[key]) NAME_TO_E[key] = e.toUpperCase();
 }
 NAME_TO_E['hirschhornsalz'] = 'E503';  // eigenständiges Token, nicht über E_NAMES-Reverse-Lookup erreichbar
+NAME_TO_E['zitronensäure'] = 'E330';  // Token nutzt "Z", E_NAMES-Eintrag "Citronensäure" mit "C" — Reverse-Lookup verpasst das
 
 const TOKEN_DISPLAY_NAMES = {
     'hefe': 'Hefe',  // verhindert Heidelbeeren-Label
