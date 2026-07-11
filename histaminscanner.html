@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v12.69<br>
+                Histaminscanner v12.88<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1784,6 +1784,17 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'e173','e174','e175',  // Aluminium/Silber/Gold - inerte Farbstoffe
+        'e216','e217',  // Parabene (Propyl-PHB) - Konservierungsstoffe
+        'e500i','e500iii','e501ii','e503i','e504i',  // Carbonat-Varianten
+        'e515i','e520',  // Sulfate
+        'e541i','e541ii',  // Natriumaluminiumphosphat-Varianten (Backtriebmittel)
+        'e554','e555','e559',  // Aluminiumsilikate (Trennmittel)
+        'e570',  // Fettsäuren
+        'e943a','e944',  // Treibgase
+        'e961','e956',  // Süßungsmittel (Neotam, Alitam)
+        'e468',  // Vernetzte Carboxymethylcellulose
+        'e472',  // Essigsäureester (generisch)
         'salsola stocksii','haradsamen',  // Traditionelle Kala-Namak-Herstellungskomponenten
         'schutzkultur','schutzkulturen',  // Bakterienkultur zur Haltbarmachung, gezielt dosiert (nicht Fermentation)
         'säuerungsmittel',  // S0 Kategorie-Label, konkrete Säure oft in Klammern — siehe Hint-Text-Warnung
@@ -1875,7 +1886,7 @@ const DB = {
         // e452/polyphosphate siehe dao_blocker (konsistent mit e452i/ii/iii)
         'curcumin','e100','kurkumaextrakt',
         // karamell/e150a-d → dao_blocker[] (SIGHI B!)
-        'chlorophyll','e140','e141',
+        'chlorophyll','e140','e141','e141i','e141ii',
         'beta-carotin','e160a',
         // paprikaextrakt/e160c → liberator S2, NICHT safe_hints!
         // REMOVED (conflict): 'acesulfam-k','e950','acesulfam',
@@ -2456,7 +2467,7 @@ const DB = {
         'e510',// S0 Backtriebmittel
         'e512','zinnchlorid',                           // S0
         'e513','schwefelsäure',                         // S0 Säureregulator
-        'e514','natriumsulfat',                         // S0
+        'e514','e514i','natriumsulfat',                         // S0
         'e515','kaliumsulfat',                          // S0
         'e517','ammoniumsulfat',                        // S0 Backhilfsmittel
         'e518','magnesiumsulfat',                       // S0
@@ -4248,12 +4259,26 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v12.69');
+    dbg('VERSION: v12.88');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
     // obwohl das gleichwertige Alias 'Vitamin H' korrekt funktioniert. Früh ersetzen, um das Problem zu umgehen.
     inputText = inputText.replace(/\bbiotin\b/gi, 'Vitamin H');
+    inputText = inputText.replace(/\bzuckerkulör\s*\(\s*einfach\s*\)/gi, 'E150A');
+    inputText = inputText.replace(/\bbasisches\s+natriumaluminiumphosphat\b/gi, 'E541II');
+    inputText = inputText.replace(/\bcarboxymethylcellulose\s*\(\s*vernetzt\s*\)/gi, 'E468');
+    inputText = inputText.replace(/\bsaures\s+natriumaluminiumphosphat\b/gi, 'E541I');
+    inputText = inputText.replace(/\bessigsäureester\s*\(\s*generisch\s*\)/gi, 'E472');
+    inputText = inputText.replace(/\bessigsäureester\b(?!\s+von)/gi, 'E472');
+    inputText = inputText.replace(/\bkaliumhydrogencarbonat\b/gi, 'E501II');
+    inputText = inputText.replace(/\bammoniumcarbonat\b/gi, 'E503I');
+    inputText = inputText.replace(/\bmagnesiumcarbonat\b/gi, 'E504I');
+    inputText = inputText.replace(/\bkaliumsulfat\b/gi, 'E515I');
+    inputText = inputText.replace(/\bpolysorbat\s*20\b/gi, 'E432');
+    inputText = inputText.replace(/\bpolysorbat\s*80\b/gi, 'E433');
+    inputText = inputText.replace(/\bpolysorbat\s*40\b/gi, 'E434');
+    inputText = inputText.replace(/\bpolysorbat\s*65\b/gi, 'E436');
     // OCR-Artefakt: ").8 %" statt "), 8 %" — fehlendes Trennzeichen zwischen Klammer-Ende
     // und der nächsten Prozent-Zutat (z.B. "...Eiweiß).8 % Hühnerfleisch" → zwei Zutaten!)
     inputText = inputText.replace(/\)\s*\.(\d+(?:[.,]\d+)?\s*%)/g, '), $1');
@@ -4261,6 +4286,7 @@ function parseIngredients(inputText) {
     // späteren Disclaimer-Filter-Logik aus unbekanntem Grund nicht vollständig entfernt
     // (Text bricht vorher an "Das Produkt" ab). Ganz früh entfernen, um das zu umgehen.
     inputText = inputText.replace(/[.,]?\s*(?:[Dd]as\s+[Pp]rodukt\s+)?[Kk]ann\s+[\s\S]*?(?:enthalten|beinhalten)\.?/g, '');
+    inputText = inputText.replace(/\b(e\d{3,4})\s*\(\s*(i{1,3})\s*\)/gi, '$1$2');
     inputText = inputText.replace(/%\s*-\s*(?=\()/g, '% ');
     inputText = inputText.replace(/\bbeta-carotin\s*\(\s*provitamin\s*a\s*\)/gi, 'Beta-Carotin');
     inputText = inputText.replace(/\)\s+(?=[A-ZÄÖÜ])/g, '), ');
@@ -4436,6 +4462,24 @@ function parseIngredients(inputText) {
     let text = inputText;
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
+        [/\bmaiskörner\b|\bmaiskorn\b/gi, 'mais'],
+        [/\baluminium\b(?!silikat|sulfat|phosphat)/gi, 'e173'],
+        [/\bsilber\b(?!zwiebel)/gi, 'e174'],
+        [/\bgold\b(?!hirse)/gi, 'e175'],
+        [/\bnatrium-?propyl-?phb\b/gi, 'e217'],
+        [/\bpropyl-?phb\b/gi, 'e216'],
+        [/\bsoda\b/gi, 'e500i'],
+        [/\baluminiumsulfat\b/gi, 'e520'],
+        [/\bnatriumaluminiumsilikat\b/gi, 'e554'],
+        [/\bkaliumaluminiumsilikat\b/gi, 'e555'],
+        [/\baluminiumsilikat\b|\bkaolin\b/gi, 'e559'],
+        [/\bfettsäuren\b/gi, 'e570'],
+        [/\bpropan\b(?!\/\s*butan)/gi, 'e943a'],
+        [/\bpropan\s*\/\s*butan\b/gi, 'e944'],
+        [/\bneotam\b/gi, 'e961'],
+        [/\balitam\b/gi, 'e956'],
+        // Carboxymethylcellulose (vernetzt): siehe frühe Vorverarbeitung (Klammer-Logik greift sonst zuerst)
+        [/\bnatriumstearoyllactylat\b/gi, 'e481'],
         [/\bbeetest\b/gi, 'rote beete'],  // OCR-Verstümmelung von "Beetesaft" (saft→st), Muster wie Apfelsaft/Zitronensaft
         [/\b(?:jasmin|basmati|vollkorn|wild)reismischung\b/gi, 'reis'],
         [/\bbasmati-,\s*(?=\w+reismischung)/gi, ''],  // Ellipse "Basmati-, Jasminreismischung" = "Basmati-Reismischung, Jasminreismischung"
@@ -4546,6 +4590,9 @@ function parseIngredients(inputText) {
         [/\bmate[-\s]?(?:blätter)?[-\s]?(?:auszug|extrakt|tee)?\b|\byerba\s+mate\b|\bmateblätter\b/gi, 'matetee'],
         [/\bfärbende[rn]?\s+extrakt\s+aus\s+schwarze[rn]?\s+johannisbeere\b[^,]*/gi, 'johannisbeere'],
         [/\bfärbende[rn]?\s+(?:karotte|möhren?)(?:n)?(?:extrakt|saftkonzentrat|konzentrat)?\b/gi, 'karotte'],  // "färbender Karotteextrakt" → karotte (S0)
+        [/\bsulfitlaugen-zuckerkulör\b/gi, 'e150b'],
+        [/\bammoniak-zuckerkulör\b/gi, 'e150c'],
+        [/\bammoniumsulfit-zuckerkulör\b/gi, 'e150d'],
         [/\bammonsulfit[-\s]?zuckerkulör\b|\bzuckerkulör\b|\bsulfit[-\s]?ammoniakzuckerkulör\b/gi, 'e150'],
         // ── Präfix-Stripping (muss zuerst!) ──
         [/\b(?:antioxidations?mittel|stabilisatoren?|konservierungsstoff|säureregulat(?:oren?|or)|emulgatoren?|feuchthaltemittel|trennmittel|verdickungsmittel|farbstoff)\s*:\s*/gi, ''],
@@ -4637,6 +4684,8 @@ function parseIngredients(inputText) {
         [/\bhallumi\b/gi, 'halloumi'],  // typo correction
         // ── Malz / Brauzutaten ──
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
+        [/\bcitronensäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472c'],  // vor generischem E471-Fallback!
+        [/\bessigsäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472a'],  // vor generischem E471-Fallback!
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
         [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
         [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
@@ -4942,7 +4991,7 @@ function parseIngredients(inputText) {
         [/^.*?:\s*((?:natrium|kalium|calcium|magnesium)\w*|e\d{3}\w*)\s*$/i, '$1'],
         [/\brote-?bete-?pulver\b|\brote\s+bete\s+pulver\b/gi, 'rote bete'],  // Rote-Bete-Pulver → Liberator S1
         [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
-        [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
+        [/\bnatriummalat[e]?\b|\bnatriumhydrogenmalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
         [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
         [/\binulin\b|\bchicorée-inulin\b|\bfrukto(?:oligosaccharide)?\b/gi, 'inulin'],
         // ── Brot ──
@@ -5048,7 +5097,7 @@ function parseIngredients(inputText) {
         // pistazie bereits oben korrekt auf 'pistazie' normiert
         // ── Funktionelle Zutaten Energy Drinks ──
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
-        [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
+        [/\bkaramellfarbe\b/gi, 'e150'],
         // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
         [/\be101\b|\briboflavin\b/gi, 'vitamine'],
         // tocopherol/vitamin e → e306 (already handled above)
@@ -5221,7 +5270,7 @@ function parseIngredients(inputText) {
         [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 — eigene Klassifizierung!
         [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
         [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
-        [/\bkaramellfarbstoff\b|\bkaramellsirup\b|e150\w?\b/gi, 'e150'],
+        [/\bkaramellfarbstoff\b|\bkaramellsirup\b/gi, 'e150'],
         [/\bkaramellzuckersirup\b|\bkaramellisierter\s+zucker\b/gi, 'e150'],  // → dao_blocker!
         // ── Waffelblätter / Süßwaren-Spezifika ──
         [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
@@ -5233,7 +5282,7 @@ function parseIngredients(inputText) {
         [/\bkaliumhydrogencarbonat\b|\bkaliumbicarbonat\b/gi, 'e501'],              // Backtriebmittel → safe
         [/\bammoniumchlorid\b|e510\b/gi, 'e510'],
         [/\bschwefelsäure\b|e513\b/gi, 'e513'],
-        [/\bnatriumsulfat[e]?\b|e514\b/gi, 'e514'],
+        [/\bnatriumsulfat[e]?\b(?!\s*\(glaubersalz\))|e514\b/gi, 'e514'],
         [/\bkaliumsulfat[e]?\b|e515\b/gi, 'e515'],
         [/\bammoniumsulfat\b|e517\b/gi, 'e517'],
         [/\bmagnesiumsulfat\b|e518\b/gi, 'e518'],
@@ -5261,8 +5310,8 @@ function parseIngredients(inputText) {
         [/\b4-hexylresorcin\b|\bhexylresorcin\b|e586\b/gi, 'e586'],
         [/\btalkum\b|e553b\b/gi, 'e553b'],
         [/\bmagnesiumsilicat\b|e553a\b/gi, 'e553a'],
-        [/\bglaubersalz\b|\bnatriumsulfat\b|e514i?\b/gi, 'e514'],
-        [/\bnatriumhydrogensulfat\b|e514ii\b/gi, 'e514'],
+        [/\bglaubersalz\b/gi, 'e514i'],
+        [/\bnatriumhydrogensulfat\b|e514ii\b/gi, 'e514ii'],
         [/\bkaliumhydrogensulfat\b|e515ii\b/gi, 'e515'],
         [/\bhirschhornsalz\b|\bammoniumhydrogencarbonat\b|e503ii\b/gi, 'e503'],
         [/\bspeisenatron\b|\bbacknatron\b|\bnatriumhydrogencarbonat\b|e500ii\b/gi, 'e500'],
@@ -5281,7 +5330,8 @@ function parseIngredients(inputText) {
         [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
-        [/\be?503\b|\bnatriumsesquicarbonat\b|\bammoniumcarbonat\b/gi, 'e503'],
+        [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
+        [/\bnatriumsesquicarbonat\b/gi, 'e500iii'],
         [/\bbabymais\b|\bjungmais\b|\bmaiskölbchen\b/gi, 'mais'],
         [/\bzuckerschoten?\b|\bsugarsnap\b|\bmangetout\b/gi, 'erbsen'],
         [/\bbambus(?:sprossen?)?\b/gi, 'gemüse'],
@@ -6460,7 +6510,7 @@ function parseIngredients(inputText) {
         [/\bantioxidationsmittel\s+(\w{4,})/gi, '$1'],
         [/\bantioxidationsmittel\b\s*$/gi, ''],    // isoliertes Kategorienwort → entfernen
         // ── E150 Karamell-Farbstoffe ──
-        [/\be150[abcd]?\b/gi, 'e150'],
+        [/\be150\b/gi, 'e150'],
         // ── Phosphorsäure ──
         [/phosphors[äa]ure\b|e338\b/gi, 'phosphorsäure'],
         // ── Natriumcitrat ──
@@ -6570,6 +6620,8 @@ function parseIngredients(inputText) {
         [/\bhallumi\b/gi, 'halloumi'],  // typo correction
         // ── Malz / Brauzutaten ──
         [/\bscoby\b|\bkombucha-kulturen?\b/gi, 'kulturen'],
+        [/\bcitronensäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472c'],  // vor generischem E471-Fallback!
+        [/\bessigsäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472a'],  // vor generischem E471-Fallback!
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
         [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
         [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
@@ -6875,7 +6927,7 @@ function parseIngredients(inputText) {
         [/^.*?:\s*((?:natrium|kalium|calcium|magnesium)\w*|e\d{3}\w*)\s*$/i, '$1'],
         [/\brote-?bete-?pulver\b|\brote\s+bete\s+pulver\b/gi, 'rote bete'],  // Rote-Bete-Pulver → Liberator S1
         [/\bkaliumacetat[e]?\b|e261\b/gi, 'e261'],                                         // Säureregulator → safe
-        [/\bnatriummalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
+        [/\bnatriummalat[e]?\b|\bnatriumhydrogenmalat[e]?\b|\bäpfelsäure-natriumsalz\b|e350\b/gi, 'e350'],             // Säureregulator → safe
         [/\bkurkuma-auszug\b|\bkurkumaextrakt\b|\bturmeric\s*extract\b/gi, 'kurkuma'],    // Kurkuma-Auszug → safe
         [/\binulin\b|\bchicorée-inulin\b|\bfrukto(?:oligosaccharide)?\b/gi, 'inulin'],
         // ── Brot ──
@@ -6981,7 +7033,7 @@ function parseIngredients(inputText) {
         // pistazie bereits oben korrekt auf 'pistazie' normiert
         // ── Funktionelle Zutaten Energy Drinks ──
         [/\baminosäure\s+taurin\b/gi, 'taurin'],
-        [/\be150d\b|\bkaramellfarbe\b/gi, 'e150'],
+        [/\bkaramellfarbe\b/gi, 'e150'],
         // ammonsulfit-zuckerkulör → e150 (bereits oben definiert, siehe früher NORMALIZE-Block)
         [/\be101\b|\briboflavin\b/gi, 'vitamine'],
         // tocopherol/vitamin e → e306 (already handled above)
@@ -7154,7 +7206,7 @@ function parseIngredients(inputText) {
         [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 — eigene Klassifizierung!
         [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
         [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
-        [/\bkaramellfarbstoff\b|\bkaramellsirup\b|e150\w?\b/gi, 'e150'],
+        [/\bkaramellfarbstoff\b|\bkaramellsirup\b/gi, 'e150'],
         [/\bkaramellzuckersirup\b|\bkaramellisierter\s+zucker\b/gi, 'e150'],  // → dao_blocker!
         // ── Waffelblätter / Süßwaren-Spezifika ──
         [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
@@ -7166,7 +7218,7 @@ function parseIngredients(inputText) {
         [/\bkaliumhydrogencarbonat\b|\bkaliumbicarbonat\b/gi, 'e501'],              // Backtriebmittel → safe
         [/\bammoniumchlorid\b|e510\b/gi, 'e510'],
         [/\bschwefelsäure\b|e513\b/gi, 'e513'],
-        [/\bnatriumsulfat[e]?\b|e514\b/gi, 'e514'],
+        [/\bnatriumsulfat[e]?\b(?!\s*\(glaubersalz\))|e514\b/gi, 'e514'],
         [/\bkaliumsulfat[e]?\b|e515\b/gi, 'e515'],
         [/\bammoniumsulfat\b|e517\b/gi, 'e517'],
         [/\bmagnesiumsulfat\b|e518\b/gi, 'e518'],
@@ -7194,8 +7246,8 @@ function parseIngredients(inputText) {
         [/\b4-hexylresorcin\b|\bhexylresorcin\b|e586\b/gi, 'e586'],
         [/\btalkum\b|e553b\b/gi, 'e553b'],
         [/\bmagnesiumsilicat\b|e553a\b/gi, 'e553a'],
-        [/\bglaubersalz\b|\bnatriumsulfat\b|e514i?\b/gi, 'e514'],
-        [/\bnatriumhydrogensulfat\b|e514ii\b/gi, 'e514'],
+        [/\bglaubersalz\b/gi, 'e514i'],
+        [/\bnatriumhydrogensulfat\b|e514ii\b/gi, 'e514ii'],
         [/\bkaliumhydrogensulfat\b|e515ii\b/gi, 'e515'],
         [/\bhirschhornsalz\b|\bammoniumhydrogencarbonat\b|e503ii\b/gi, 'e503'],
         [/\bspeisenatron\b|\bbacknatron\b|\bnatriumhydrogencarbonat\b|e500ii\b/gi, 'e500'],
@@ -7214,7 +7266,8 @@ function parseIngredients(inputText) {
         [/\blimetten(?:saft|schale|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
-        [/\be?503\b|\bnatriumsesquicarbonat\b|\bammoniumcarbonat\b/gi, 'e503'],
+        [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
+        [/\bnatriumsesquicarbonat\b/gi, 'e500iii'],
         [/\bbabymais\b|\bjungmais\b|\bmaiskölbchen\b/gi, 'mais'],
         [/\bzuckerschoten?\b|\bsugarsnap\b|\bmangetout\b/gi, 'erbsen'],
         [/\bbambus(?:sprossen?)?\b/gi, 'gemüse'],
@@ -8386,7 +8439,7 @@ function parseIngredients(inputText) {
         [/\bantioxidationsmittel\s+(\w{4,})/gi, '$1'],
         [/\bantioxidationsmittel\b\s*$/gi, ''],    // isoliertes Kategorienwort → entfernen
         // ── E150 Karamell-Farbstoffe ──
-        [/\be150[abcd]?\b/gi, 'e150'],
+        [/\be150\b/gi, 'e150'],
         // ── Phosphorsäure ──
         [/phosphors[äa]ure\b|e338\b/gi, 'phosphorsäure'],
         // ── Natriumcitrat ──
@@ -8679,7 +8732,14 @@ function parseIngredients(inputText) {
         [/\bpropylenglycolalginat\b|e405\b/gi, 'e405'],
         [/\bsaccharoseester\b|\bzuckerester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\bzuckerester\b|e473\b/gi, 'e473'],
         [/\bzuckerglycerid[e]?\b|e474\b/gi, 'e474'],
-        [/\bpolysorbat[e]?\b|\be432\b|\be433\b|\be434\b|\be436\b/gi, 'e432'],  // e435 hat eigene Regel!
+        [/\be433\b/gi, 'e433'],
+        [/\be434\b/gi, 'e434'],
+        [/\be436\b/gi, 'e436'],
+        [/\bpolysorbat\s*20\b/gi, 'e432'],
+        [/\bpolysorbat\s*80\b/gi, 'e433'],
+        [/\bpolysorbat\s*40\b/gi, 'e434'],
+        [/\bpolysorbat\s*65\b/gi, 'e436'],
+        [/\bpolysorbat[e]?\b|\be432\b/gi, 'e432'],  // e433/434/435/436 haben eigene Regeln!
         // ── Farbstoffe ──
         [/\bbeetenrot\b|\brotebetenextrakt\b|\bbetanin\b|e162\b/gi, 'e162'],
         // paprikaextrakt → paprikaextrakt norm ist früher (korrekt) bereits gesetzt
@@ -11185,7 +11245,7 @@ const SIGHI_DB = {
         'tocopherol','e306','e307','e308','e309','vitamin e',
         'lecithin','e322','sojalecithin','sonnenblumenlecithin','rapslecithin',
         'kurkumin','e100','riboflavin','e101','e101a',
-        'chlorophyll','e140','e141',
+        'chlorophyll','e140','e141','e141i','e141ii',
         'carotin','e160a','beta-carotin',
         'paprikaextrakt','e160c','capsanthin',
         'lycopin','e160d','lutein','e161b','canthaxanthin','e161g',
@@ -11502,6 +11562,56 @@ function getIngredientInfo(name, cat, aiGuess) {
             const sighiNote = fruitSighi !== null ? ` (SIGHI ${fruitSighi})` : '';
             return `Aromaextrakt aus ${fruitLabel}. In deutlich geringerer Menge als Saft/ganze Frucht enthalten. Zur Frucht selbst: ${fruitText} Das konzentrierte Aroma dürfte in der Praxis milder wirken als die ganze Frucht/Saft.`;
         }
+        if (n === 'e173')
+            return 'Aluminium als Farbstoff (E173), meist zur Dekoration von Konditoreiwaren. Metallisch, inert — histaminfrei.';
+        if (n === 'e174')
+            return 'Silber als Farbstoff (E174), meist zur Dekoration von Konditoreiwaren/Dragees. Metallisch, inert — histaminfrei.';
+        if (n === 'e175')
+            return 'Gold als Farbstoff (E175), meist zur Dekoration von Konditoreiwaren/Spirituosen. Metallisch, inert — histaminfrei.';
+        if (n === 'e216')
+            return 'Propylparaben (E216), Konservierungsstoff. In der EU für Lebensmittel nicht mehr zugelassen. Histaminneutral.';
+        if (n === 'e217')
+            return 'Natriumsalz des Propylparabens (E217), Konservierungsstoff. In der EU für Lebensmittel nicht mehr zugelassen. Histaminneutral.';
+        if (n === 'e514i')
+            return 'Natriumsulfat/Glaubersalz (E514i), Trägerstoff/Säureregulator. Histaminneutral, kann in größeren Mengen abführend wirken.';
+        if (n === 'e514ii')
+            return 'Natriumhydrogensulfat (E514ii), Säureregulator. Histaminneutral.';
+        if (n === 'e141i' || n === 'e141ii')
+            return 'Kupferchlorophyll-Komplex (E141), Farbstoff aus Chlorophyll mit Kupfer stabilisiert. Histaminneutral wie normales Chlorophyll (E140).';
+        if (n === 'e500i')
+            return 'Natriumcarbonat/Soda (E500i), Backtriebmittel/Säureregulator. Histaminfrei.';
+        if (n === 'e500iii')
+            return 'Natriumsesquicarbonat (E500iii), Mischsalz aus Natriumcarbonat und -hydrogencarbonat. Backtriebmittel. Histaminfrei.';
+        if (n === 'e501ii')
+            return 'Kaliumhydrogencarbonat (E501ii), Backtriebmittel. Histaminfrei.';
+        if (n === 'e503i')
+            return 'Ammoniumcarbonat (E503i), Backtriebmittel — Bestandteil von Hirschhornsalz. Histaminneutral. Nur für Flachgebäck geeignet.';
+        if (n === 'e504i')
+            return 'Magnesiumcarbonat (E504i), mineralischer Zusatzstoff/Trennmittel. Histaminneutral.';
+        if (n === 'e515i')
+            return 'Kaliumsulfat (E515i), Trägerstoff/Mineralsalz. Histaminneutral.';
+        if (n === 'e520')
+            return 'Aluminiumsulfat (E520), Festigungsmittel. Histaminneutral.';
+        if (n === 'e541i' || n === 'e541ii')
+            return 'Natriumaluminiumphosphat (E541), Backtriebmittel. Histaminneutral.';
+        if (n === 'e554')
+            return 'Natriumaluminiumsilikat (E554), Trennmittel gegen Verklumpen. Histaminneutral.';
+        if (n === 'e555')
+            return 'Kaliumaluminiumsilikat (E555), Trennmittel gegen Verklumpen. Histaminneutral.';
+        if (n === 'e559')
+            return 'Aluminiumsilikat/Kaolin (E559), Trennmittel gegen Verklumpen. Histaminneutral.';
+        if (n === 'e570')
+            return 'Fettsäuren (E570), Überzugs-/Trennmittel. Histaminneutral.';
+        if (n === 'e943a' || n === 'e944')
+            return 'Propan bzw. Propan/Butan-Gemisch (E943a/E944), Treibgas für Sprühdosen-Lebensmittel (z.B. Sahnespray). Histaminneutral.';
+        if (n === 'e961')
+            return 'Neotam (E961), hochpotenter künstlicher Süßstoff. Histaminneutral.';
+        if (n === 'e956')
+            return 'Alitam (E956), künstlicher Süßstoff. Histaminneutral.';
+        if (n === 'e468')
+            return 'Vernetzte Carboxymethylcellulose (E468), Verdickungsmittel/Ballaststoff. Histaminneutral.';
+        if (n === 'e472')
+            return 'Essigsäureester von Mono- und Diglyceriden (E472, Sammelbegriff für E472a-f), Emulgator. Histaminneutral.';
         if (n === 'schutzkultur' || n === 'schutzkulturen')
             return 'Gezielt ausgewählte Bakterienkultur zur natürlichen Haltbarmachung (hemmt Verderb-Keime) — anders als Fermentationskulturen nicht auf Aromabildung ausgelegt, meist in geringer Menge dosiert. Histaminbildung ist hier unwahrscheinlich, aber nicht wissenschaftlich vollständig ausgeschlossen.';
         if (n === 'säuerungsmittel')
@@ -13493,7 +13603,7 @@ if (cat === 'high') {
         if (n.match(/^schweinskeule$/i))
             return 'Fleischstück. Frisch verarbeitet histaminarm.';
         if (n.match(/^kulturen$/i))
-            return 'Teepilz-Kultur zur Kombucha-Herstellung (Scoby). Durch Fermentation kann Histamin entstehen.';
+            return 'Bakterien-/Hefekulturen zur Fermentation (z.B. Joghurt-, Kefir- oder Milchsäurekulturen). Manche Stämme können Histamin bilden — mit Vorsicht genießen.';
         if (n.match(/^scorzonera$/i))
             return 'Schwarzwurzel. Frisches Gemüse histaminarm.';
         if (n.match(/^seehecht$|^seehechts$/i))
@@ -13626,8 +13736,10 @@ if (cat === 'high') {
             return 'Englisch für Kaliumchlorid (E508). Histaminneutral.';
         if (n.match(/^supplement$/i))
             return 'Präparate mit lebenden Bakterienstämmen (Probiotika). Manche Stämme bilden Histamin, andere bauen es ab — gezielte Stämme wählen.';
-        if (n.match(/^paneer$|^frischkäse$/i))
+        if (n.match(/^paneer$/i))
             return 'Indischer Frischkäse (Paneer). Reift traditionell nicht — histaminarm.';
+        if (n.match(/^frischkäse$/i))
+            return 'Frischkäse (z.B. Doppelrahm- oder Kräuterfrischkäse). Reift nicht — histaminarm, sofern frisch verzehrt.';
         if (n.match(/^paprika powder$/i))
             return 'Englisch für Paprikapulver. Edelsüße Sorten meist gut bekömmlich, scharfe Sorten belastender.';
         if (n.match(/^paprikaextrakt$/i))
@@ -15164,7 +15276,7 @@ const E_NAMES = {
     'e938':'Argon','e900':'Dimethylpolysiloxan','e902':'Candelillawachs',
     'e124':'Cochenillerot A','e127':'Erythrosin','e129':'Allurarot AC',
     'e131':'Patentblau V','e132':'Indigotin','e133':'Brilliantblau',
-    'e140':'Chlorophyll','e141':'Kupferchlorophyll','e142':'Brilliantgrün',
+    'e140':'Chlorophyll','e141':'Kupferchlorophyll','e141i':'Chlorophyll-Kupferkomplexe','e141ii':'Chlorophyllin-Kupferkomplexe','e142':'Brilliantgrün',
     'e150':'Zuckerkulör','e150a':'Zuckerkulör (einfach)','e150b':'Sulfitlaugen-Zuckerkulör',
     'e150c':'Ammoniak-Zuckerkulör','e150d':'Ammoniumsulfit-Zuckerkulör',
     'e151':'Brilliantschwarz','e153':'Pflanzenkohle','e155':'Braun HT',
@@ -15184,7 +15296,7 @@ const E_NAMES = {
     'e249':'Kaliumnitrit','e250':'Natriumnitrit','e251':'Natriumnitrat',
     'e252':'Kaliumnitrat','e280':'Propionsäure','e281':'Natriumpropionat',
     'e282':'Calciumpropionat','e283':'Kaliumpropionat',
-    'e296':'Apfelsäure (Äpfelsäure)','e300':'Ascorbinsäure (Vitamin C)',
+    'e296':'Apfelsäure','e300':'Ascorbinsäure (Vitamin C)',
     'e301':'Natriumascorbat','e302':'Calciumascorbat','e304':'Ascorbylpalmitat',
     'e306':'Tocopherol (Vitamin E)','e307':'Alpha-Tocopherol','e308':'Gamma-Tocopherol',
     'e309':'Delta-Tocopherol','e310':'Propylgallat','e311':'Octylgallat',
@@ -15353,7 +15465,7 @@ function displayIngredientName(rawName, originalName) {
     let displayName = '';
 
     // Ist es eine E-Nummer? → Ausgeschriebener Name zuerst, E-Nummer in Klammern
-    const eMatch = n.match(/^e(\d{3,4}[a-d]?)$/);
+    const eMatch = n.match(/^e(\d{3,4}(?:[a-d]|i{1,3})?)$/);
     if (eMatch) {
         const key = 'e' + eMatch[1];
         const fullName = E_NAMES[key];
@@ -15364,8 +15476,8 @@ function displayIngredientName(rawName, originalName) {
         }
     }
     // Enthält ein „e" gefolgt von Ziffern irgendwo im Namen?
-    else if (n.match(/\be(\d{3,4}[a-d]?)\b/)) {
-        const eInName = n.match(/\be(\d{3,4}[a-d]?)\b/);
+    else if (n.match(/\be(\d{3,4}(?:[a-d]|i{1,3})?)\b/)) {
+        const eInName = n.match(/\be(\d{3,4}(?:[a-d]|i{1,3})?)\b/);
         const key = 'e' + eInName[1].toLowerCase();
         const fullName = E_NAMES[key];
         if (fullName) {
