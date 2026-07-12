@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v13.42<br>
+                Histaminscanner v13.55<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1198,8 +1198,7 @@ const DB = {
         'orange','apfelsine','orangensaft','blutorange','orangen',  // ❌ S3 A L (SIGHI)
         // mandarine/clementine/grapefruit → liberator[] S2 A L (SIGHI: nicht S3!)
         // orange → high[] S3 A L (SIGHI: S3)
-        'jod','iod','iodine','kaliumiodid','kaliumjodid','kaliumiodat','jodtabletten',  // ❌ S3 L
-        'kaliumjodat','natriumjodat','jodat',  // ❌ S3 L — alle Jodverbindungen (SIGHI!)
+        // jod/kaliumjodat/natriumjodat/jodat → liberator[] S3 L (reiner Liberator, kein direkter Histamingehalt — siehe SIGHI_DB[3] für explizite S3-Registrierung)
         'walnuss','walnut','walnüsse',  // ❌ SIGHI S3
         'rotwein','weißwein','rosé','rosewein','sekt','champagner','prosecco',
         'bier','ale','lager','stout','porter','weizenbier','malzbier',
@@ -1354,6 +1353,7 @@ const DB = {
     // HISTAMINLIBERATOREN — regen Histaminausschüttung an
     // ═══════════════════════════════════════════════════════
     liberator: [
+        'jod','iod','iodine','kaliumiodid','kaliumjodid','kaliumiodat','jodtabletten','kaliumjodat','natriumjodat','jodat',  // S3 L — reiner Liberator, kein direkter Histamingehalt (SIGHI_DB[3] für explizite S3-Einstufung)
         'kapern',
         'durian',
         'sojajoghurt',
@@ -3987,7 +3987,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         .replace(/[;:\n]/g, ',')
         .replace(/[()[\]]/g, ',')
         .split(',')
-        .map(p => p.trim().replace(/[.!?]+$/, ''))  // trailing punct
+        .map(p => p.trim().replace(/[.!?]+$/, '').replace(/^\*+|\*+$/g, '').trim())  // trailing punct + Bio-Sternchen (führend/nachgestellt)
         .filter(p => p.length > 1);
 
     const usedRawParts = new Set();
@@ -4301,7 +4301,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v13.42');
+    dbg('VERSION: v13.55');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4770,6 +4770,7 @@ function parseIngredients(inputText) {
         [/\bcitronensäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472c'],  // vor generischem E471-Fallback!
         [/\bessigsäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472a'],  // vor generischem E471-Fallback!
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
+        [/\bcalciumsalze?\s+(?:der|von)\s+speisefettsäuren?\b|\bkalziumsalze?\s+(?:der|von)\s+speisefettsäuren?\b/gi, 'e470'],  // Calciumsalze der Speisefettsäuren = E470
         [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
         [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
         [/\bmono-?\s*und\s+diacetylweinsäureester\b|\bdiacetylweinsäureester\b/gi, 'e472e'],
@@ -5419,8 +5420,8 @@ function parseIngredients(inputText) {
         [/\bhirschhornsalz\b|\bammoniumhydrogencarbonat\b|e503ii\b/gi, 'e503'],
         [/\bspeisenatron\b|\bbacknatron\b|\bnatriumhydrogencarbonat\b|e500ii\b/gi, 'e500'],
         [/\bpottasche\b|\bkaliumcarbonat\b|e501i?\b/gi, 'e501'],
-        [/\bätznatron\b|\bnatriumhydroxid\b|e524\b/gi, 'e524'],
-        [/\bätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],
+        [/(?<![a-zäöüß])ätznatron\b|\bnatriumhydroxid\b|e524\b/gi, 'e524'],  // ä-Fix: \b vor ä schlägt fehl
+        [/(?<![a-zäöüß])ätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],  // ä-Fix: \b vor ä schlägt fehl
         [/\bschokoladenpulver\b|\bschokogeschmack\b|\bschokoladengeschmack\b/gi, 'kakao'], // → kakao → Liberator
         [/\binvertzuckersirup\b|\binvertsirup\b|\binvertzucker\b/gi, 'zucker'],
         [/\bfruktosesirup\b|\bfructosesirup\b/gi, 'fructose'],  // S1 — eigener Token
@@ -5429,7 +5430,7 @@ function parseIngredients(inputText) {
         [/\bgerstenmalz\b(?!extrakt|sirup)/gi, 'malz'],              // Gerstenmalz standalone → S2
         [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
-        [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
+        [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
@@ -5615,7 +5616,7 @@ function parseIngredients(inputText) {
         [/\bmodifizierte\s+stärke\b|\bmodifiziertes?\s+\w+stärke\b/gi, 'stärke'],
         [/\btriebmittel\b/gi, 'backtriebmittel'],  // nur generisches "Triebmittel" umbenennen, NICHT "Backpulver" (eigener DB-Eintrag!)
         [/\bjodiertes?\s+speisesalz\b|\bjodiertes?\s+salz\b|\bjodsalz\b|\biodsalz\b/gi, 'jodsalz'],  // → liberator S2 L (SIGHI!)
-        [/\bspeisesalz\b|\btafelsalz\b|\bmeeressalz\b|\bmeersalz\b/gi, 'salz'],
+        [/\bspeisesalz\b|\btafelsalz\b|\bmeeressalz\b|\bmeersalz\b|\bsiedesalz\b/gi, 'salz'],  // Siedesalz: durch Siedeverfahren gewonnenes Salz, S0 wie Speisesalz
         [/\bnatives?\s+olivenöl\s+extra\b|\bextra\s+vergine\b|\bnativ\s+extra\b/gi, 'olivenöl'],
         [/\bpflanzliche[sr]?\s+öl(?:e)?\b|\bpflanzliches?\s+fett\b/gi, 'pflanzenöl'],
         [/\bpflanzenöl\s*\([^)]+\)\b/gi, 'pflanzenöl'],   // "Pflanzenöl (Raps, Sonnenblume)"
@@ -6153,7 +6154,7 @@ function parseIngredients(inputText) {
         // [/magermilch\w*pulver\b/gi, 'milchpulver'],  // DEAKTIVIERT — eigener Token
 
         // ── Sonstige Compounds ────────────────────────────────
-        [/bienenwachs(?:\s+[\wäöüÄÖÜß]+)*\b/gi,  'e901'],   // 'bienenwachs weiß und gelb' → e901
+        [/bienenwachs(?:\s+(?:und\s+)?(?:weiß|gelb|natur|naturfarben|gebleicht|ungebleicht))*(?![a-zäöüß])/gi,  'e901'],   // begrenzt auf bekannte Farbwörter statt beliebiger Wortfolge (verhinderte Überfressen von 'und Trennmittel: Talkum')
         [/holunderbeer\w*extrakt\b/gi,     'holunderbeeren'],
         [/saflor\b/gi,                     'distelöl'],
         // Protein-Compound-Zutaten → Basislebensmittel
@@ -6718,6 +6719,7 @@ function parseIngredients(inputText) {
         [/\bcitronensäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472c'],  // vor generischem E471-Fallback!
         [/\bessigsäureester(?:\s+von)?\s+mono\s*-?\s*und\s*diglyceriden?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e472a'],  // vor generischem E471-Fallback!
         [/\bmono\s*-?\s*und\s*diglyceride[n]?\s+(?:von\s+)?speisefettsäuren?\b/gi, 'e471'],
+        [/\bcalciumsalze?\s+(?:der|von)\s+speisefettsäuren?\b|\bkalziumsalze?\s+(?:der|von)\s+speisefettsäuren?\b/gi, 'e470'],  // Calciumsalze der Speisefettsäuren = E470
         [/\bpropylenglycolester(?:n)?\s+(?:von\s+)?speisefettsäuren?\b|\be477\b/gi, 'e477'],  // S0 Emulgator
         [/\bmono-\s*und\s+di(?!acetylweinsäureester)|\bdi-\s*und\s+triphosphat/gi, ''],    // "Di- und Triphosphate" komplett
         [/\bmono-?\s*und\s+diacetylweinsäureester\b|\bdiacetylweinsäureester\b/gi, 'e472e'],
@@ -7367,8 +7369,8 @@ function parseIngredients(inputText) {
         [/\bhirschhornsalz\b|\bammoniumhydrogencarbonat\b|e503ii\b/gi, 'e503'],
         [/\bspeisenatron\b|\bbacknatron\b|\bnatriumhydrogencarbonat\b|e500ii\b/gi, 'e500'],
         [/\bpottasche\b|\bkaliumcarbonat\b|e501i?\b/gi, 'e501'],
-        [/\bätznatron\b|\bnatriumhydroxid\b|e524\b/gi, 'e524'],
-        [/\bätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],
+        [/(?<![a-zäöüß])ätznatron\b|\bnatriumhydroxid\b|e524\b/gi, 'e524'],  // ä-Fix: \b vor ä schlägt fehl
+        [/(?<![a-zäöüß])ätzkali\b|\bkaliumhydroxid\b|e525\b/gi, 'e525'],  // ä-Fix: \b vor ä schlägt fehl
         [/\bschokoladenpulver\b|\bschokogeschmack\b|\bschokoladengeschmack\b/gi, 'kakao'], // → kakao → Liberator
         [/\binvertzuckersirup\b|\binvertsirup\b|\binvertzucker\b/gi, 'zucker'],
         [/\bfruktosesirup\b|\bfructosesirup\b/gi, 'fructose'],  // S1 — eigener Token
@@ -7377,7 +7379,7 @@ function parseIngredients(inputText) {
         [/\bgerstenmalz\b(?!extrakt|sirup)/gi, 'malz'],              // Gerstenmalz standalone → S2
         [/\bgerste(?:flocken|mehl)?\b/gi, 'gerste'],                  // Gerste/Gerstenflocken → safe (ohne Malz!)
         [/\btomatenstücke?\b|\btomaten\s*(?:stücke?|würfel|scheiben)\b/gi, 'tomate'],
-        [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomate'],  // → high S3
+        [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
         [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
@@ -7563,7 +7565,7 @@ function parseIngredients(inputText) {
         [/\bmodifizierte\s+stärke\b|\bmodifiziertes?\s+\w+stärke\b/gi, 'stärke'],
         [/\btriebmittel\b/gi, 'backtriebmittel'],  // nur generisches "Triebmittel" umbenennen, NICHT "Backpulver" (eigener DB-Eintrag!)
         [/\bjodiertes?\s+speisesalz\b|\bjodiertes?\s+salz\b|\bjodsalz\b|\biodsalz\b/gi, 'jodsalz'],  // → liberator S2 L (SIGHI!)
-        [/\bspeisesalz\b|\btafelsalz\b|\bmeeressalz\b|\bmeersalz\b/gi, 'salz'],
+        [/\bspeisesalz\b|\btafelsalz\b|\bmeeressalz\b|\bmeersalz\b|\bsiedesalz\b/gi, 'salz'],  // Siedesalz: durch Siedeverfahren gewonnenes Salz, S0 wie Speisesalz
         [/\bnatives?\s+olivenöl\s+extra\b|\bextra\s+vergine\b|\bnativ\s+extra\b/gi, 'olivenöl'],
         [/\bpflanzliche[sr]?\s+öl(?:e)?\b|\bpflanzliches?\s+fett\b/gi, 'pflanzenöl'],
         [/\bpflanzenöl\s*\([^)]+\)\b/gi, 'pflanzenöl'],   // "Pflanzenöl (Raps, Sonnenblume)"
@@ -8101,7 +8103,7 @@ function parseIngredients(inputText) {
         // [/magermilch\w*pulver\b/gi, 'milchpulver'],  // DEAKTIVIERT — eigener Token
 
         // ── Sonstige Compounds ────────────────────────────────
-        [/bienenwachs(?:\s+[\wäöüÄÖÜß]+)*\b/gi,  'e901'],   // 'bienenwachs weiß und gelb' → e901
+        [/bienenwachs(?:\s+(?:und\s+)?(?:weiß|gelb|natur|naturfarben|gebleicht|ungebleicht))*(?![a-zäöüß])/gi,  'e901'],   // begrenzt auf bekannte Farbwörter statt beliebiger Wortfolge (verhinderte Überfressen von 'und Trennmittel: Talkum')
         [/holunderbeer\w*extrakt\b/gi,     'holunderbeeren'],
         [/saflor\b/gi,                     'distelöl'],
         // Protein-Compound-Zutaten → Basislebensmittel
@@ -8579,7 +8581,7 @@ function parseIngredients(inputText) {
         [/vanillinzucker\b/gi, 'vanille'],
         [/hagelzucker\b|puderzucker\b|rohrzucker\b|rohrohrzucker\b|vollrohrzucker\b/gi, 'zucker'],
         [/\bbackfett\b|\bfett\b(?!\s*\w{3})/gi, 'pflanzenöl'],     // Backfett/Fett → Öl
-        [/(?<!\w)\böl\b(?![\wäöüÄÖÜ])/gi, 'pflanzenöl'],           // bare "Öl" → pflanzenöl (not compound)
+        [/(?<![a-zäöüßA-ZÄÖÜ])öl(?![\wäöüÄÖÜ])/gi, 'pflanzenöl'],           // bare "Öl" → pflanzenöl (ä/ö/ü-Fix: \b davor schlägt fehl)
         [/\böl,?\s*neutrales?\b/gi, 'pflanzenöl'],                  // "Öl, neutrales" → pflanzenöl
         [/\böl(?:kleine|große|mittlere)\b\s*/gi, 'pflanzenöl'],     // "Ölkleine Tasse" artifact
         // ── Frischhefe ──
@@ -8595,7 +8597,7 @@ function parseIngredients(inputText) {
         [/\bkarottenkonzentrat\b|\bkarottensaft(?:pulver|konzentrat)?\b|\bkarottenpulver\b|\bkarottenpüree\b|\bmöhrenkonzentrat\b/gi, 'karotte'],
         [/\brote-bete-konzentrat\b|\brote?\s*-?\s*beete?-?konzentrat\b|\bfärbendes?\s+rote-?bete?\s+konzentrat\b/gi, 'rote bete'],
         // ── Äpfel ──
-        [/\bäpfel\b/gi, 'apfel'],
+        [/(?<![a-zäöüß])äpfel\b/gi, 'apfel'],   // ä-Fix: \b vor ä schlägt fehl (ä ist kein \w in JS-Regex), negative Lookbehind statt \b
         // ── Zitronenabrieb ──
         [/zitronenabrieb\b|zitronenzeste[n]?\b|zitronenschale[n]?\b/gi, 'zitronenschale'],
         // ── Kuvertüre ──
@@ -8898,7 +8900,7 @@ function parseIngredients(inputText) {
         [/\bjunger?\s+gouda\b|\bgouda\s+jung\b/gi, 'gouda jung'],  // S0 → early-return
         [/\bjunger?\s+\w{4,}käse\b/gi, 'milchkäse'],  // junger Käse S1-2
         [/\bcheddar\b|\bgauda\b/gi, 'cheddar'],
-        [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomate'],
+        [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\bschmelzkäse\w*\b/gi, 'schmelzkäse'],  // DAO-hemmend S3
         [/\bpanko\s*paniermehl\b|\bpaniermehl\b|\bsemmelbrös[e]?l\b/gi, 'mehl'],
         // ── Fleisch-Varianten ──
@@ -9293,7 +9295,7 @@ function parseIngredients(inputText) {
         // ── Granatapfelmelasse ──
         [/\bpomegranate\s+molasses\b|\bgranatapfelsirup\b|\bgranatapfelmelasse\b/gi, 'granatapfel'],
         [/\bgranatapfelsaft(?:konzentrat)?\b|\bgranatapfelkonzentrat\b|\bpomegranate\s*(?:juice|extract)\b/gi, 'granatapfel'],  // → Liberator S1
-        [/\btomatenfruchtfleisch\b|\btomaten?fruchtfleisch\b/gi, 'tomate'],          // → high S3
+        [/\btomatenfruchtfleisch\b|\btomaten?fruchtfleisch\b/gi, 'tomatenmark'],          // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\bsauerkirschmark\b|\bsauerkirsch(?:saft|püree|konzentrat)?\b/gi, 'kirsche'],  // → Liberator S1
         [/\bspätzle\b|\bschwäbische\s+spätzle\b/gi, 'nudeln'],                       // → safe S0
         // ── HelloFresh "Hello X" Marken-Gewürze → generic ──
@@ -9377,7 +9379,7 @@ function parseIngredients(inputText) {
         [/\brauchsalz\b/gi, 'salz'],                        // S0 (Salz mit Rauchgeschmack)
         // ── Tomaten/Paprika-Produkte ──
         [/\bpaprikamark\b|\bpaprikapaste\b/gi, 'paprika'],
-        [/\btomatenconfit\b|\bgetrocknete\s+tomaten\b/gi, 'tomate'],
+        [/\btomatenconfit\b|\bgetrocknete\s+tomaten\b/gi, 'tomatenmark'],  // getrocknet = konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         // ── Gewürz-Öle ──
         [/\bknoblauch(?:granulat|pulver|öl)?\b/gi, 'knoblauch'],
         [/\bzwiebel(?:granulat|pulver|öl)?\b/gi, 'zwiebel'],
@@ -9610,7 +9612,7 @@ function parseIngredients(inputText) {
         [/\bdosen(?:champignons?|pilze?)\b/gi, 'champignon'],
         [/\bdosenerbsen?\b|\berbsen\s+(?:aus\s+der\s+)?dose\b/gi, 'erbsen'],
         [/\bdosen(?:bohnen?|linsen?)\b|\bbohnen\s+(?:aus\s+der\s+)?dose\b/gi, 'bohnen'],
-        [/\bdosentomate[n]?\b/gi, 'tomate'],
+        // Dosentomaten NICHT zu 'tomate' normalisieren — eigene Identität behalten (S3, siehe DB.high['dosentomaten'])
         [/\bdosen(?:spargel|mais)\b/gi, 'gemüse'],
         [/\bbambus(?:\s+(?:dose|sprossen|schossen?))?\b/gi, 'bambussprossen'],
         [/\bwasserkastanien?\b|\bwasserchestnut\b/gi, 'wasserkastanie'],
@@ -9633,12 +9635,12 @@ function parseIngredients(inputText) {
         // ── Dips ──
         [/\bbaba\s+ganoush\b|\bbaba\s+ghanoush\b|\bmelanzane\b/gi, 'aubergine'],  // S0-1
         [/\bajvar\b/gi, 'ajvar'],                 // fermentierte Paprika S1-2
-        [/\bletscho\b|\blecso\b/gi, 'tomate'],   // Paprika-Tomaten-Gemüse S3
+        [/\bletscho\b|\blecso\b/gi, 'tomatenmark'],   // Paprika-Tomaten-Gemüse, konzentriert/gekocht S3
         // ── Eingelegtes / Konserviertes ──
         [/\bkapern?\b(?!\s*apfel)/gi, 'kapern'],                       // S2 eingelegt+Essig
         [/\bkapernsud\b|\bkapernsaft\b/gi, 'essig'],                  // S3 reiner Essig
         [/\bartischocken(?:herzen?)?\s*(?:glas|dose|eingelegt)?\b/gi, 'artischocke'],  // S0
-        [/\bsundried\s+tomatoes?\b|\bgetrocknete\s+tomaten\s+(?:in\s+)?öl\b/gi, 'tomate'],
+        [/\bsundried\s+tomatoes?\b|\bgetrocknete\s+tomaten\s+(?:in\s+)?öl\b/gi, 'tomatenmark'],  // getrocknet = konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         // ── Aufstriche ──
         [/\btapenade\b/gi, 'oliven'],             // S2 Olivenpaste
         [/\banchopaste\b|\banchovipaste\b/gi, 'fischsoße'],  // S3 konzentrierte Sardellen
@@ -10064,7 +10066,7 @@ function parseIngredients(inputText) {
         // Trailing Bindestrich: 'orangen-' → 'orange'
         p = p.replace(/-$/, '').trim();
         // Stabilisatoren/Farbstoff Präfix: 'stabilisatoren guarkernmehl' → 'guarkernmehl'
-        p = p.replace(/^(?:stabilisator(?:en)?|farbstoff)\s+/gi, '').trim();
+        p = p.replace(/^(?:stabilisator(?:en)?|farbstoff|süßungsmittel|säuerungsmittel?|säurungsmittel?|konservierungsstoff[e]?|konservierungsmittel|antioxidationsmittel|geschmacksverstärker|emulgator(?:en)?|trennmittel|verdickungsmittel|geliermittel|feuchthaltemittel|backtriebmittel|säureregulator(?:en)?|mehlbehandlungsmittel)\s+/gi, '').trim();
         // Färbende Lebensmittel Sektionsheader komplett verwerfen — ABER NUR wenn nichts danach folgt!
         // "färbendes Lebensmittel:" (Header allein) → verwerfen
         // "färbendes Lebensmittel: Rote-Bete-Pulver" → "Rote-Bete-Pulver" behalten
@@ -10767,6 +10769,9 @@ function findFuzzyMatch(term) {
     // Ab 4 Zeichen sinnvoll (kritische kurze Trigger: hefe/soja/wein/bier/käse);
     // bei 4 Zeichen nur Distanz 1 erlaubt, sonst zu viele Fehltreffer
     if (term.length < 4) return null;
+    // Bewusst als 'unknown' klassifizierte Sammelwörter NICHT per Fuzzy-Match "korrigieren"
+    // (z.B. "Aroma" → "Aromat" hätte Distanz 1, ist aber ein anderes, spezifisches Produkt!)
+    if (/^(?:aroma|aromen|aromastoffe|natürliches aroma|süßungsmittel|säuerungsmittel|gewürze|gewürzmischung|kräuter|kräutermischung)$/i.test(term.trim())) return null;
     const maxDist = term.length === 4 ? 1 : (term.length <= 5 ? 1 : 2);
     let bestMatch = null, bestDist = Infinity, bestCat = null;
     const catMap = [
@@ -10943,9 +10948,10 @@ function calcScore(analyzed) {
 const SIGHI_DB = {
     3: [
         'amaretto',  // S3 — Batch1-Check: fehlte in SIGHI_DB
+        'jod','iod','iodine','kaliumiodid','kaliumjodid','kaliumiodat','jodtabletten','kaliumjodat','natriumjodat','jodat',  // S3 L — explizite Registrierung, damit Kategorie-Fallback (liberator→2) nicht greift
         'muschel','miesmuschel',  // S3
         // ── Histaminreiche Lebensmittel ──
-        'tomate','tomatenmark','tomatensoße','tomatensauce',  // S3 H+L
+        'tomatenmark','tomatensoße','tomatensauce',  // S3 H+L (Tomatenmark/-soße = konzentriert, NICHT frische Tomate — siehe SIGHI_DB[2] für 'tomate')
         'parmesan','gran padano','grana padano','granapadano','pecorino','pecorino sardo','emmentaler','bergkäse','roquefort','camembert','brie','tilsiter',
         'cheddar','edamer','gouda gereift','gouda','stilton','gruyère','harzer','schimmelkäse',
         'schmelzkäse','käse gereift',
@@ -11022,6 +11028,7 @@ const SIGHI_DB = {
     ],
 
     2: [
+        'tomate',  // S2 H L — Frische Tomate (siehe getIngredientInfo-Text), Tomatenmark/-soße/-sauce/Dosentomaten bleiben S3
         'sonnenblumenöl','sunflower oil','sonnenblumenfett',  // S2 L SIGHI — von S0-Liste entfernt, hier korrekt registriert
         'milder cheddar','mild cheddar',  // S2 — Batch-Check: deutlich weniger Histamin als gereifter Cheddar, aber nicht sicher
         'buchweizen','buchweizenmehl','buckwheat',  // S2 — Batch1-Check: Token normalisiert zu buchweizenmehl
@@ -12059,8 +12066,7 @@ if (cat === 'high') {
             return 'Austernsauce. Fermentation von Austernextrakten und Soja macht sie sehr histaminreich.';
         if (n.match(/^natriumethyl-p-hydroxybenzoat$|^natriummethyl-p-hydroxybenzoat$/i))
             return 'Konservierungsstoff aus der Paraben-Familie (E215/E219). Hohes Risiko für Reaktionen.';
-        if (n.match(/^natriumjodat$/i))
-            return 'Jodquelle für Speisesalz. Laut SIGHI gilt Jod als Liberator, trotz wichtiger Funktion für die Schilddrüse.';
+        // natriumjodat → jetzt liberator[]-Kategorie, Text im liberator-Zweig (siehe unten)
         if (n.match(/^misosauce$/i))
             return 'Fermentierte Sojabohnenwürze. Monatelange Reifung macht sie extrem histaminreich.';
         if (n.match(/^mortadella$/i))
@@ -12087,8 +12093,7 @@ if (cat === 'high') {
             return 'Getrocknete, gehobelte Bonitoflocken. Der monatelange Fermentationsprozess macht sie extrem histaminreich.';
         if (n.match(/^kippers$/i))
             return 'Gesalzener und kalt geräucherter Hering. Traditionelle Haltbarmachung führt zu extremer Histaminlast.';
-        if (n.match(/^jodat$|^jodtabletten$|^kaliumjodat$|^kaliumiodid$|^kaliumjodid$/i))
-            return 'Jodquelle/-verbindung. Laut SIGHI gilt Jod als Liberator — kann bei Empfindlichkeit Reaktionen auslösen, trotz wichtiger Funktion für die Schilddrüse.';
+        // jodat/kaliumjodat/kaliumiodid/kaliumjodid → jetzt liberator[]-Kategorie, Text im liberator-Zweig (siehe unten)
         if (n.match(/^joghurtdrink$/i))
             return 'Fermentiertes Milchprodukt. Durch die bakterielle Reifung können geringe Mengen Histamin entstehen.';
         if (n.match(/^ibérico$/i))
@@ -12308,11 +12313,12 @@ if (cat === 'high') {
         if (n.match(/\bvanillin\b/))
             return 'Laut Histaminta verträglich — Vanillin (synthetisch) ist histaminarm. Anders als Vanilleextrakt';
         if (n.match(/\borange[ns]?\b/i))
-            return 'SIGHI 2-3 — Orange: Potenter Histaminliberator. Orangensaft durch Konzentration noch kritischer als die ganze Frucht.';
+            return 'SIGHI 3 — Orange: Potenter Histaminliberator. Orangensaft durch Konzentration noch kritischer als die ganze Frucht.';
         if (n.match(/orangensaft|o-saft/))
             return 'SIGHI 3 L — Orangensaft: Tyramin + Liberator. Getränke wirken schneller als feste Nahrung! Alternative: Apfel-, Trauben- oder Kirschsaft';
-        if (n.match(/zitronensaft|zitronensaftkonzentrat/))
-            return 'SIGHI 3 L — Zitronensaft laut SIGHI 2024 S3 — stark konzentrierter Liberator!';
+        // Hinweis: "zitronensaft" wird bereits in NORMALIZE zu 'zitrone' zusammengeführt (S2, siehe SIGHI_DB-Kommentar
+        // "zitronensaft → Level 2, NICHT S3!") — eine frühere widersprüchliche S3-Textzeile hier war daher toter,
+        // nie erreichbarer Code und wurde entfernt.
         if (n.match(/\bweintraube[ns]?\b|\btrauben\b|grape(?!fruit)/i))
             return 'SIGHI 0 — Weintrauben (frisch): Histaminarm und in der Regel völlig unbedenklich. Rosinen (getrocknet) dagegen beachten!';
         if (n.match(/datteln|dates/))
@@ -12855,7 +12861,7 @@ if (cat === 'high') {
         if (n.match(/\bapfelsäure\b|\be296\b|äpfelsäure/i))
             return 'SIGHI 1 — Natürliche Fruchtsäure als Säureregulator (E296). Weitgehend histaminneutral, laut SIGHI mit mildem Liberator-Potenzial in größeren Mengen.';
         if (n.match(/\baronia\b|aroniabeere/i))
-            return 'Histaminarm und reich an Antioxidantien. Der herbe Geschmack und die Gerbstoffe können auf nüchternen Magen leicht reizend wirken.';
+            return 'SIGHI 1-2 — Aronia (Apfelbeere): Reich an Antioxidantien, gilt aber als milder Histaminliberator. Der herbe Geschmack und die Gerbstoffe können zusätzlich auf nüchternen Magen reizend wirken.';
         if (n.match(/\barugula\b|\brauke\b(?!\s*öl)/i))
             return 'SIGHI 2 L — Rucola enthält Tyramin (biogenes Amin, das mit DAO um den Abbau konkurriert) und wirkt als Liberator. Löwenzahn als Ersatz empfohlen.';
         if (n.match(/\bazofarbstoff\b/i))
@@ -13052,7 +13058,7 @@ if (cat === 'high') {
         if (n.match(/himbeere|raspberry/))
             return 'SIGHI 2 — Himbeere: Klassischer Histaminliberator — setzt körpereigenes Histamin aus Mastzellen frei. Heidelbeeren (S0) sind eine gute Alternative.';
         if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/zitrone|lemon|zitrus|citrus/))
-            return 'SIGHI 2-3 L — Zitrone: Potenter Liberator. Saft wirkt stärker als Schale. Als Saft meiden, Zeste in kleinen Mengen manchmal toleriert.';
+            return 'SIGHI 2 L — Zitrone: Potenter Liberator. Saft wirkt stärker als Schale. Als Saft meiden, Zeste in kleinen Mengen manchmal toleriert.';
         if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/orange|pomelo/))
             return 'SIGHI 3 A L — Orange/Zitrusfrüchte: Histaminliberator + Tyramin (DAO-Blocker). SIGHI 2024: S3. Als Saft noch stärker. Alternative: Apfel, Birne, Mango.';
         if (n.match(/grapefruit/))
@@ -13148,7 +13154,7 @@ if (cat === 'high') {
         if (n.match(/\borange\b|apfelsine|orangensaft|blutorange/))
             return 'SIGHI 3 A L — Orange/Orangensaft: Potenter Histaminliberator + direkter Histamingehalt. SIGHI 2024: S3. Konzentrierter Saft noch problematischer als frische Frucht.';
         if (n.match(/\bzitrone\b|\blemon\b|zitronensaft/))
-            return 'SIGHI 2-3 L — Zitrone: Potenter Liberator. Saft wirkt stärker als Schale. Als Saft meiden, Zeste in kleinen Mengen manchmal toleriert.';
+            return 'SIGHI 2 L — Zitrone: Potenter Liberator. Saft wirkt stärker als Schale. Als Saft meiden, Zeste in kleinen Mengen manchmal toleriert.';
         if (n.match(/\bhimbeere\b|himbeeren/))
             return 'SIGHI 2 — Himbeeren sind laut SIGHI 2024 auf Stufe 2 (Warnung)';
         if (n.match(/mandarine|clementine|tangerine/))
@@ -13248,6 +13254,10 @@ if (cat === 'high') {
             return 'SIGHI 1 — Meerrettich/Kren: Reich an Senfölen. Wirkt stark schleimhautreizend und triggert bei sensiblen Anwendern die Histaminausschüttung.';
         if (n.match(/\be22[0-8]\b|schwefeldioxid|schweflige säure|sulfite|sulphit|sulfit|sulphite|natriumsulfit|kaliumsulfit|natriumdisulfit|kaliumdisulfit|natriummetabisulfit|kaliummetabisulfit|calciumsulfit|calciumhydrogensulfit|kaliumhydrogensulfit/))
             return 'SIGHI 2 — Sulfite/Schwefeldioxid: Potenter Histaminliberator! Triggert Mastzell-Degranulation und kann schwere pseudoallergische Reaktionen auslösen (Sulfit-Asthma, Weinkopfschmerz). Häufig in Wein und Trockenfrüchten.';
+        if (n.match(/^natriumjodat$/i))
+            return 'SIGHI 3 L — Jodquelle für Speisesalz: Laut SIGHI als potenter Liberator auf Stufe 3 eingestuft, trotz wichtiger Funktion für die Schilddrüse.';
+        if (n.match(/^jodat$|^jodtabletten$|^kaliumjodat$|^kaliumiodid$|^kaliumjodid$|^jod$|^iod$|^iodine$/i))
+            return 'SIGHI 3 L — Jodquelle/-verbindung: Laut SIGHI als potenter Liberator auf Stufe 3 eingestuft — kann bei Empfindlichkeit trotz fehlendem eigenen Histamingehalt starke Reaktionen auslösen. Wichtig für die Schilddrüse, aber bei HIT mit Vorsicht zu genießen.';
         {
             const _qualifierStripped = n.replace(/\b(?:eingelegt|geräuchert|gepökelt|mariniert|getrocknet|konzentriert|überreif|reif)e?[rns]?\s+/gi, '').trim();
             if (_qualifierStripped && _qualifierStripped !== n) {
@@ -15665,6 +15675,7 @@ const E_NAMES = {
     'e959':'Neohesperidindihydrochalkon','e960':'Steviol-Glycoside (Stevia)',
     'e961':'Neotam','e962':'Aspartam-Acesulfam-Salz','e965':'Maltit','e966':'Lactit',
     'e967':'Xylit','e968':'Erythrit',
+    'e917':'Kaliumjodat',
 };
 
 // Umgekehrtes Mapping: ausgeschriebener Name → E-Nummer
