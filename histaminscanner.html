@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v13.18<br>
+                Histaminscanner v13.42<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1175,7 +1175,7 @@ const DB = {
         'rote bete (eingelegt)','rote-bete-konserve',
         'bambussprossen (konserve)','bamboo shoots canned',
         'parmesan','parmigiano','cheddar','camembert','brie','gorgonzola',
-        'gereifter ziegenkäse','ziegenkäse',  // S3
+        'gereifter ziegenkäse',  // S3
         'harzer roller','handkäse','mainzer käse','sauermilchkäse',
         'roquefort','stilton',
         'blauschimmelkäse','harzer','limburger',
@@ -1354,6 +1354,7 @@ const DB = {
     // HISTAMINLIBERATOREN — regen Histaminausschüttung an
     // ═══════════════════════════════════════════════════════
     liberator: [
+        'kapern',
         'durian',
         'sojajoghurt',
         'ziegenkäse',
@@ -1789,6 +1790,10 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
+        'bami',
+        'xspicemixzzz',
+        'kartoffelchips',
+        'fenchel',
         'sharon','rambutan','longan','nitrat',
         'aquafaba','nutritionalyeast',
         'cashewmilch','erbsenmilch',
@@ -4055,7 +4060,8 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
                 const score = 55;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             } else if (!normToken.includes(' ') && normToken.length >= 4 && normToken.length <= 7 &&
-                rawLower.length > normToken.length + 2 && rawLower.includes(normToken)) {
+                rawLower.length > normToken.length + 2 && rawLower.includes(normToken) &&
+                !(normToken === 'brot' && rawLower.endsWith('kernmehl'))) {
                 const score = 40;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
@@ -4182,7 +4188,7 @@ async function runAnalysis(product, ingredientsText) {
         for (const item of analyzed) {
             if (item.cat === 'unknown' && aiMap[item.name]) {
                 item.cat   = aiMap[item.name].cat  || 'unknown';
-                item.sighi = typeof aiMap[item.name].sighi === 'number' ? aiMap[item.name].sighi : null;
+                item.sighi = (item.cat !== 'unknown' && typeof aiMap[item.name].sighi === 'number') ? aiMap[item.name].sighi : null;
                 item.ai    = true;
 
                 // ── KI-Konsistenz: cat und sighi harmonisieren ──
@@ -4295,7 +4301,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v13.18');
+    dbg('VERSION: v13.42');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4327,6 +4333,7 @@ function parseIngredients(inputText) {
     inputText = inputText.replace(/\bkamille\(nblüten\)/gi, 'Kamille');
     inputText = inputText.replace(/([A-ZÄÖÜ][a-zäöüß]+)\(([a-zäöüß]+)\)(?=[,;.\s]|$)/g, '$1');
     inputText = inputText.replace(/\borangenschale\b/gi, 'Orangenschale');
+    inputText = inputText.replace(/\bgyros\s*gewürz\b/gi, 'Xspicemixzzz');
     inputText = inputText.replace(/\bsonnenblumenöl\s+mit\s+hohem\s+ölsäureanteil\b/gi, 'Sonnenblumenöl');
     inputText = inputText.replace(/\bkakopulver\b/gi, 'Kakaopulver');
     inputText = inputText.replace(/\bcochiealrot\b/gi, 'Cochenillerot');
@@ -4506,6 +4513,18 @@ function parseIngredients(inputText) {
     let text = inputText;
     // ── Normierung bekannter Verbundnamen ───────────────────
     const NORMALIZE = [
+        [/\brambutans\b/gi, 'rambutan'],
+        [/\blongans\b/gi, 'longan'],
+        [/\bkakis\b/gi, 'kaki'],
+        [/\bpitahaya\b|\bdragon\s*fruit\b/gi, 'Drachenfrucht'],
+        [/\blachsfilet\b(?!.*räuch)/gi, 'lachs'],
+        [/\bmangos\b/gi, 'mango'],
+        [/\bpapayas\b/gi, 'papaya'],
+        [/\bkiwis\b/gi, 'kiwi'],
+        [/\blitschis\b/gi, 'litschi'],
+        [/\brote[nr]?\s+beten\b/gi, 'rote bete'],
+        // gyros gewürz-Fix: siehe frühe Vorverarbeitung (mehrere konkurrierende gyros/döner-Regeln)
+        [/\bfenchel(?:knolle)?\b(?!\s*tee)/gi, 'fenchel'],
         [/\bsharon(?:frucht)?\b/gi, 'sharon'],
         [/\brambutan\b/gi, 'rambutan'],
         [/\blongan\b/gi, 'longan'],
@@ -4695,7 +4714,7 @@ function parseIngredients(inputText) {
         // ── E471 vollständige Phrase ──
         // ── Backzutaten ──
         [/\bweinsteinpulver\b|\bweinsteinbackpulver\b|\bkremertartar\b|\bcream\s+of\s+tartar\b/gi, 'e334'],
-        [/\bagar-?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
+        [/\bagar[\s-]?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
         // ── Getreide / Malz ──
         [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
         [/\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token S0
@@ -4817,6 +4836,7 @@ function parseIngredients(inputText) {
         [/\bauternextrakt\b/gi, 'garnele'],
         [/\bziegenmilch\b/gi, 'milch'],  // S0
         [/\bziegenjoghurt\b/gi, 'joghurt'],  // S1
+        [/\bgereift(?:er|e)?\s+ziegenkäse\b/gi, 'gereifter ziegenkäse'],
         [/\bziegenkäse\b(?!\s+\w)/gi, 'ziegenkäse'],
         [/\blaktase\b/gi, 'lactase'],  // Enzym für laktosefreie Milch
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
@@ -5456,7 +5476,7 @@ function parseIngredients(inputText) {
 
         [/\bkamillentee\b|\bchamomile\s+tea\b|\bchamomile\s+tee\b/gi, 'kamillentee'],  // eigener Token S0
         [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kamille'],  // standalone → kräuter, aber nicht chamomile tea!
-        [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
+        [/\bfenchel(?:samen|früchte?|körner|tee)\b/gi, 'kräuter'],
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'pfefferminze'],
         [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
         // ── Getreidezutaten ──
@@ -6484,7 +6504,7 @@ function parseIngredients(inputText) {
         [/\bbirnen?\b/gi, 'birne'],
         [/\btrauben?\b/gi, 'traube'],
         [/\blöslicher?\s+kaffee\b/gi, 'kaffee'],
-        [/\bkokosblüten(?:zucker|sirup)\b/gi, 'kokos'],
+        // kokosblütenzucker behält eigene Identität, siehe eigene Registrierung
 
         // ── Produktformen → Grundzutat (Apfelstücke = Apfelpulver = Apfel) ──
         [/\b(apfel|birn|dattel|erdbeer|blaubeer|cranberry|himbeer|stachelbeer|johannisbeer|mandel|kokos|zitronenschal|orange|mango|ananas)(stücke?|pulver|püree|chips|raspel|mus|kompott|saft|konzentrat|mark|scheiben|ringe?|würfel)/gi, '$1'],
@@ -6528,8 +6548,8 @@ function parseIngredients(inputText) {
         [/\be\s+(\d{3,4}[a-d]?)\b/gi, 'e$1'],
         // ── Geliermittel ──
         [/carrageen\b|carageen\b|e407\b/gi, 'carrageen'],
-        [/agar.?agar\b|e406\b/gi, 'agar'],
-        [/pektin\b|e440\b/gi, 'pektin'],
+        // entfernt: destruktive Regel, die e406 wieder in bloßes 'agar' zurückwandelte (Konflikt mit obiger Regel)
+        // entfernt: destruktive Regel, die e440 wieder in bloßes 'pektin' zurückwandelte (Konflikt mit anderen Regeln)
         // ── Stabilisatoren ──
         [/calciumlactat\b|e327\b/gi, 'e327'],
         [/natriumlactat\b|e325\b/gi, 'e325'],
@@ -6642,7 +6662,7 @@ function parseIngredients(inputText) {
         [/\bvanillearoma\b/gi, 'vanillin'],
         // ── Backzutaten ──
         [/\bweinsteinpulver\b|\bweinsteinbackpulver\b|\bkremertartar\b|\bcream\s+of\s+tartar\b/gi, 'e334'],
-        [/\bagar-?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
+        [/\bagar[\s-]?agar\b|\bagar\b(?!\s+\w{4})/gi, 'e406'],  // E406 = Agar-Agar
         // ── Getreide / Malz ──
         [/\broggenmalz\b|\bdinkelmalz\b|\bweizenmalz(?:extrakt|mehl|sirup)?\b/gi, 'malz'],  // Malze → S2 Liberator (nicht hafer!)
         [/\bmalzmehl\b/gi, 'malzmehl'],  // eigener Token S0
@@ -6764,6 +6784,7 @@ function parseIngredients(inputText) {
         [/\bauternextrakt\b/gi, 'garnele'],
         [/\bziegenmilch\b/gi, 'milch'],  // S0
         [/\bziegenjoghurt\b/gi, 'joghurt'],  // S1
+        [/\bgereift(?:er|e)?\s+ziegenkäse\b/gi, 'gereifter ziegenkäse'],
         [/\bziegenkäse\b(?!\s+\w)/gi, 'ziegenkäse'],
         [/\blaktase\b/gi, 'lactase'],  // Enzym für laktosefreie Milch
         [/\blaktosefrei(?:e)?\s+\w+\b/gi, 'milch'],  // "Laktosefreie Sahne" → milch
@@ -7403,7 +7424,7 @@ function parseIngredients(inputText) {
 
         [/\bkamillentee\b|\bchamomile\s+tea\b|\bchamomile\s+tee\b/gi, 'kamillentee'],  // eigener Token S0
         [/\bkamillenblüten?\b|\bchamomile\b(?!\s+te?a?)/gi, 'kamille'],  // standalone → kräuter, aber nicht chamomile tea!
-        [/\bfenchel(?:samen?|früchte?|körner?|tee)?\b/gi, 'kräuter'],
+        [/\bfenchel(?:samen|früchte?|körner|tee)\b/gi, 'kräuter'],
         [/\bpfefferminze?\b|\bpepermint\b/gi, 'pfefferminze'],
         [/\bholunder(?:beeren?|saft|extrakt)?\b/gi, 'holunderbeere'],  // S1 Liberator — NICHT kräuter! (Blüten separat, siehe eigene Regel)
         // ── Getreidezutaten ──
@@ -8424,7 +8445,7 @@ function parseIngredients(inputText) {
         [/\bbirnen?\b/gi, 'birne'],
         [/\btrauben?\b/gi, 'traube'],
         [/\blöslicher?\s+kaffee\b/gi, 'kaffee'],
-        [/\bkokosblüten(?:zucker|sirup)\b/gi, 'kokos'],
+        // kokosblütenzucker behält eigene Identität, siehe eigene Registrierung
 
         // ── Produktformen → Grundzutat (Apfelstücke = Apfelpulver = Apfel) ──
         [/\b(apfel|birn|dattel|erdbeer|blaubeer|cranberry|himbeer|stachelbeer|johannisbeer|mandel|kokos|zitronenschal|orange|mango|ananas)(stücke?|pulver|püree|chips|raspel|mus|kompott|saft|konzentrat|mark|scheiben|ringe?|würfel)/gi, '$1'],
@@ -8468,8 +8489,8 @@ function parseIngredients(inputText) {
         [/\be\s+(\d{3,4}[a-d]?)\b/gi, 'e$1'],
         // ── Geliermittel ──
         [/carrageen\b|carageen\b|e407\b/gi, 'carrageen'],
-        [/agar.?agar\b|e406\b/gi, 'agar'],
-        [/pektin\b|e440\b/gi, 'pektin'],
+        // entfernt: destruktive Regel, die e406 wieder in bloßes 'agar' zurückwandelte (Konflikt mit obiger Regel)
+        // entfernt: destruktive Regel, die e440 wieder in bloßes 'pektin' zurückwandelte (Konflikt mit anderen Regeln)
         // ── Stabilisatoren ──
         [/calciumlactat\b|e327\b/gi, 'e327'],
         [/natriumlactat\b|e325\b/gi, 'e325'],
@@ -9227,7 +9248,7 @@ function parseIngredients(inputText) {
         
         // ── Internationale Gewürzmischungen ──
         [/\bras\s+el\s+han[o0]ut\b/gi, 'gewürze'],           // S0-1 (Gewürzmischung)
-        [/\bgaram\s+masala\b/gi, 'gewürze'],                  // S0-1
+        // garam masala behält eigene Identität (bereits direkt registriert), keine Umleitung zu 'gewürze'
         [/\btandoori\s+masala\b|\btandoori\b/gi, 'gewürze'],
         [/\bberbere\b/gi, 'gewürze'],                          // S0-1 äthiopisch
         [/\bpanang\s+curry\b|\bmassaman\s+curry\b/gi, 'curry'],
@@ -9235,7 +9256,7 @@ function parseIngredients(inputText) {
         [/\bmadras\s+curry\b|\bpalak\b/gi, 'curry'],
         [/\bbaharat\b/gi, 'gewürze'],                          // arabische Mischung
         [/\bshawarma\s+(?:gewürz|mix)?\b|\bdöner\s+(?:gewürz|mix)?\b/gi, 'gewürze'],
-        [/\bgyros\s+(?:gewürz|mix)?\b/gi, 'gewürze'],
+        [/\bgyros\s+mix\b/gi, 'gewürze'],  // nur 'gyros mix', NICHT 'gyros gewürz' (eigene Registrierung)
         [/\bcajun\s+(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\bchimichurri\b/gi, 'gewürze'],                     // Kräuter+Essig S2 → liberal
         [/\bpul\s+biber\b|\bisot\b/gi, 'chiliflocken'],        // türk. Chiliflocken S1
@@ -9683,7 +9704,8 @@ function parseIngredients(inputText) {
         [/\bafter\s+eight\b|\bmerci\b(?!\s+\w+ähnlich)|\bschogetten?\b|\bmon\s+chéri\b/gi, 'schokolade'],
         [/\britter\s+sport\b(?:\s+\w+)?\b/gi, 'schokolade'],
         [/\blindt\b(?:\s+\d+%)?\b|\bsprüngli\b/gi, 'schokolade'],
-        [/\b(\w+)chips?\b/gi, '$1'],  // "Karottenchips" → "Karotte", "Gemüsechips" → "Gemüse"
+        [/\bkartoffelchips\b/gi, 'kartoffelchips'],
+        [/\b(?!kartoffelchips\b)(\w+)chips?\b/gi, '$1'],  // "Karottenchips" → "Karotte", "Gemüsechips" → "Gemüse"
         [/\b(\w+)waffeln?\b/gi, '$1'],  // "Reiswaffeln" → "Reis"
         [/\b(\w+)pops?\b/gi, '$1'],
         // ── Tee-Varianten ──
@@ -9708,7 +9730,8 @@ function parseIngredients(inputText) {
         [/\b(?:orangen|zitronen|himbeer|johannisbeer|rhabarber|holunder)limonade\b/gi, 'limonade'],
         [/\b(?:rhabarber|holunder|apfel|beeren)schorle\b/gi, 'limonade'],
         [/\bmultivitamin(?:saft|drink|nektar)?\b/gi, 'fruchtsaft'],
-        [/\bguaven(?:saft|nektar)?\b/gi, 'fruchtsaft'],
+        [/\bguaven(?:saft|nektar)\b/gi, 'fruchtsaft'],
+        [/\bguaven\b/gi, 'guave'],
         [/\blitschi(?:saft|nektar)\b/gi, 'fruchtsaft'],
         // ── Shots / Funktionsdrinks ──
         [/\baloe\s+vera\s+(?:drink|saft|gel)?\b/gi, 'aloe vera'],
@@ -10569,10 +10592,12 @@ function parseIngredients(inputText) {
         'sardinen': /sardelle/i,
         'miso':     /misopaste/i,
         'champagner': /sekt/i,       // Sekt/Champagner → sekt
+        'prosecco': /sekt/i,         // Prosecco → sekt
         'blauschimmel': /gorgonzola/i,  // Blauschimmelkäse → gorgonzola
         'kalmar':   /tintenfisch/i,
         'fleischbrühe': /knochenbrühe/i,
         'lang':     /knochenbrühe|gemüsebrühe/i,  // "lang gekocht" Qualifier
+        'bifi':     /\bwurst\b/i,  // bifi normalisiert korrekt zu wurst (S3)
     };
     const lostSignals = [];
     S3_SIGNAL_WORDS.forEach(re => {
@@ -11709,7 +11734,7 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n === 'kerbel')
             return 'Kerbel, mildes Küchenkraut. Histaminarm.';
         if (n === 'lauch')
-            return 'Lauch(pulver), milde Zwiebelgewächs-Würze. Histaminarm, im Gegensatz zu Zwiebel/Knoblauch kein bekannter Liberator.';
+            return 'Lauch/Frühlingszwiebel, milde Zwiebelgewächs-Würze. Histaminarm, im Gegensatz zu Zwiebel/Knoblauch kein bekannter Liberator.';
         if (n === 'moringa')
             return 'Moringa(-pulver), nährstoffreiches Blattpulver. Histaminarm, gilt als gut verträglich.';
         if (n === 'orangenschale')
@@ -11824,6 +11849,14 @@ function getIngredientInfo(name, cat, aiGuess) {
             return 'Gelatine, tierisches Geliermittel. Histaminarm, SIGHI 1 aus Vorsicht (Herstellungsprozess).';
         if (n === 'sweet chili')
             return 'Sweet Chili Sauce: milde, süß-scharfe Chilisauce. SIGHI 1 durch Chili-Anteil, meist gut verträglich.';
+        if (n === 'xspicemixzzz')
+            return 'Gyrosgewürz (Trockengewürzmischung: Paprika, Oregano, Knoblauch, Zwiebel u.a.). Histaminarm. Achtung: Das FERTIGE Gyros-Fleisch (warmgehalten/mehrfach erhitzt) ist unabhängig davon oft kritisch.';
+        if (n === 'kartoffelchips')
+            return 'Kartoffelchips: frittierte, gesalzene Kartoffelscheiben. Histaminarm, Würzung (z.B. Paprika) separat prüfen.';
+        if (n.match(/\bgaram\s+masala\b|\bras\s+el\s+hanout\b|\bberbere\b|\bbaharat\b|\btandoori\b/i))
+            return 'Gewürzmischung (Kreuzkümmel, Koriander, Kardamom, Zimt, Nelken u.ä.). Histaminarm, überwiegend milde Einzelgewürze.';
+        if (n === 'bami')
+            return 'Bami, asiatische Eiernudeln (z.B. für Bami Goreng). Histaminarm, ähnlich wie andere Weizennudeln.';
         if (n === 'schutzkultur' || n === 'schutzkulturen')
             return 'Gezielt ausgewählte Bakterienkultur zur natürlichen Haltbarmachung (hemmt Verderb-Keime) — anders als Fermentationskulturen nicht auf Aromabildung ausgelegt, meist in geringer Menge dosiert. Histaminbildung ist hier unwahrscheinlich, aber nicht wissenschaftlich vollständig ausgeschlossen.';
         if (n === 'säuerungsmittel')
@@ -11839,7 +11872,7 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n === 'kräuter' || n === 'kräutermischung')
             return '⚠️ Keine Einschätzung möglich: "Kräuter" ohne Aufschlüsselung — die meisten Küchenkräuter sind unproblematisch, einzelne Mischungen können aber kritische Zusätze enthalten. Hersteller ggf. direkt kontaktieren.';
         if (n.match(/\bkefir\b/i))
-            return 'SIGHI 2-3 — Kefir: Hefe- und Bakterienfermentation bildet erheblich Histamin und Alkohol. Absolut ungeeignet.';
+            return 'SIGHI 2 — Kefir: Hefe- und Bakterienfermentation bildet erheblich Histamin und Alkohol. Absolut ungeeignet.';
         if (n.match(/\bschafskäse\b|\bfeta\b/i))
             return 'SIGHI 2-3 — Schafskäse/Feta: Mehrmonatige Reifung in Salzlake — hohe Histamin- und Tyraminmengen. Unverträglich.';
         if (n.match(/\btofu.*geräuch|geräucherter.*tofu/i))
@@ -11888,7 +11921,7 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n.match(/sülze|aspik|presskopf/i))
             return 'SIGHI 3 — Sülze/Aspik: Kombiniert verarbeitetes, oft länger gelagertes Fleisch mit Gelatine (selbst Liberator). Meist sehr histaminreich.';
         if (n.match(/walnussöl|walnut oil/i))
-            return 'SIGHI 1-2 — Walnussöl: Kann Rückstände biogener Amine aus den Walnüssen enthalten. Distel- oder Kokosöl sind bessere Alternativen.';
+            return 'SIGHI 2 — Walnussöl: Kann Rückstände biogener Amine aus den Walnüssen enthalten. Distel- oder Kokosöl sind bessere Alternativen.';
         if (n.match(/balsamico(?!.*essig)|aceto balsamico/i))
             return 'SIGHI 3 — Balsamico-Essig: Wird durch Essigvergärung aus Traubenmost gewonnen, oft jahrelang gelagert. Extrem histaminreich. Alternative: Branntweinessig.';
         if (n.match(/fischöl|fish oil/i))
@@ -11898,7 +11931,7 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n.match(/bierhefe|brewer.?s yeast/i))
             return 'SIGHI 3 — Bierhefe: Extrem hohe Histaminkonzentration, blockiert den Abbau massiv. Als Nahrungsergänzung oder Würzmittel bei HIT ungeeignet!';
         if (n.match(/\bweißwein\b|white wine|riesling|chardonnay/i))
-            return 'SIGHI 1-2 — Weißwein: Deutlich weniger Histamin als Rotwein, aber Alkohol blockiert dennoch den Abbau. Nur junge, histamingeräumte Sorten manchmal verträglich.';
+            return 'SIGHI 2 — Weißwein: Deutlich weniger Histamin als Rotwein, aber Alkohol blockiert dennoch den Abbau. Nur junge, histamingeräumte Sorten manchmal verträglich.';
 if (cat === 'high') {
         if (n.match(/^e142$/i))
             return 'Grün S, künstlicher Farbstoff. Kann pseudoallergische Reaktionen begünstigen.';
@@ -12182,22 +12215,27 @@ if (cat === 'high') {
             return 'SIGHI 3 — Parmesan: Extrem lange Reifezeit, massive Mengen Histamin und Tyramin. Schon kleinste Mengen können Reaktionen auslösen!';
         if (n.match(/käse|parmesan|cheddar|camembert|brie|gorgonzola|roquefort|emmental|gruyère|greyerzer|manchego|pecorino|harzer|limburger|bergkäse|raclette|tilsiter|appenzeller|sbrinz|comté|asiago|provolone/))
             return 'Gereifter Käse: Histamingehalt steigt mit der Reifedauer. Hartkäse/Schimmelkäse meiden. Nur frische, junge Sorten (4-6 Wochen max) in kleinen Mengen testen';
-        if (n.match(/\bkabeljau\b|\bscholle\b|\bzander\b|\bhecht\b|\bforelle\b(?!.*geräuch)|\blachs\b(?!.*geräuch)|frischer fisch|fischfilet(?!.*geräuch)/i))
+        if (n.match(/\bkabeljau\b|\bscholle\b|\bzander\b|\bhecht\b|\bforelle\b(?!.*geräuch)|frischer fisch|fischfilet(?!.*geräuch)/i))
             return 'SIGHI 0 — Frischer Fisch: Frisch gefangener oder schockgefrorener weißer Fisch ist histaminarm. Lückenlose Kühlkette einhalten!';
+        if (n.match(/\blachs\b(?!.*räuch)/i))
+            return 'SIGHI 3 — Lachs: Fettreicher Fisch, bildet ähnlich wie Makrele schnell Histamin, auch frisch. Lückenlose Kühlkette einhalten, in der Karenzphase meiden.';
         if (n.match(/\bthunfisch\b|\btuna\b|thunfischdose|thunfischkonserve/i))
             return 'SIGHI 3 — Thunfisch (Dose): Durch Verarbeitung und Lagerung extrem hohe Histaminkonzentrationen — einer der häufigsten HIT-Auslöser!';
-        if (n.match(/\bfrischer lachs\b|\blachsfilet\b(?!.*räuch)/i))
-            return 'SIGHI 0 — Frischer Lachs: Fangfrisch oder schockgefrostet histaminfrei. Nach Auftauen sofort zubereiten!';
+        // "Frischer Lachs" behandelt wie bares "Lachs" — siehe eigene Regel oben (S3, fettreicher Fisch)
         if (n.match(/räucherlachs|smoked salmon|lachs.*räuch|räuch.*lachs/i))
             return 'SIGHI 3 — Räucherlachs: Bildet während Transport, Verarbeitung und Räuchern extrem schnell Histamin. Der Rauch überdeckt nur den Geschmack, stoppt aber nicht die Histaminbildung!';
         if (n.match(/\bmakrele[n]?\b|mackerel/i))
             return 'SIGHI 3 — Makrele: Fettreicher Fisch, bildet extrem schnell Histamin. Selbst frisch für HIT-Betroffene hochgradig riskant!';
-        if (n.match(/räuch|smoked|bückling|matjes|\bhering\b|sardelle|anchovis|anchovy|makrele|sardine|ölsardin|kaviar|roe|fischrogen/))
+        if (n.match(/\bkaviar\b|\broe\b|fischrogen/))
+            return 'SIGHI 3 — Kaviar/Fischrogen: Salzkonserviert, sehr hoher Histamingehalt durch Reifung. Für HIT-Betroffene ungeeignet!';
+        if (n.match(/räuch|smoked|bückling|matjes|\bhering\b|sardelle|anchovis|anchovy|makrele|sardine|ölsardin/))
             return 'SIGHI 3 — Hering/Matjes: Durch Reifung in Salzlake oder Räucherung extrem hohe Histaminwerte. Für HIT-Betroffene ungeeignet!';
         if (n.match(/\bgarnele[ns]?\b|shrimp|prawn|hummer|krabben|muscheln|austern|tintenfisch|calamari/i))
             return 'SIGHI 2-3 — Meeresfrüchte/Garnelen: Verderben extrem schnell und bilden rasch biogene Amine. Nur absolut frische Ware, sofort zubereiten!';
-        if (n.match(/salami|chorizo|pepperoni|mettwurst|cervelatwurst|leberwurst|blutwurst|landjäger|biltong|jerky|bresaola|coppa|pancetta|prosciutto|serrano|parma/))
-            return 'SIGHI 3 H — Salami: sehr hoher Histamingehalt (bis 300 mg/kg). Feste Salami = länger gereift = noch problematischer. Absolut meiden!';
+        if (n.match(/salami|chorizo|pepperoni|mettwurst|cervelatwurst|landjäger|biltong|jerky|bresaola|coppa|pancetta|prosciutto|serrano|parma/))
+            return 'SIGHI 3 H — Salami/Rohwurst: sehr hoher Histamingehalt durch lange Reifung/Fermentation (bis 300 mg/kg). Absolut meiden!';
+        if (n.match(/leberwurst|blutwurst/))
+            return 'SIGHI 3 — Leber-/Blutwurst: Innereien und Blut sind von Natur aus histaminreich, unabhängig von Reifung. Absolut meiden.';
         if (n.match(/räucherschinken|schinken|ham|speck|bacon/))
             return 'Räuchern und Pökeln erhöhen den Histamingehalt und Tyramingehalt stark';
         if (n.match(/\bmiso\b/i))
@@ -12301,8 +12339,12 @@ if (cat === 'high') {
             return 'Edamer: Junger Edamer (Blockform, <4 Wo.) = S0-1 oft ok! Gereifter Edamer von der Theke = S2-3. Immer nach Reifezeit fragen!';
         if (n.match(/morcheln|morchel|morel/))
             return 'Morcheln gehören laut SIGHI zu den zu meidenden Pilzarten';
-        if (n.match(/algen|spirulina|chlorella|nori|wakame|hijiki|kombu/))
-            return 'Algen/Meeresprodukte oft histaminreich (Nori, Wakame, Hijiki). ABER Spirulina: mastzellstabilisierend, enthält DAO-Cofaktoren (B6, C, Zn, Cu, Mg) — individuell testen!';
+        if (n.match(/\bkombu\b/))
+            return 'Kombu, Braunalge (Basis für Dashi-Brühe). Histaminreich, zudem sehr jodhaltig — bei Empfindlichkeit meiden.';
+        if (n.match(/\bwakame\b/))
+            return 'Wakame, Braunalge (typisch in Miso-Suppe/Salat). Histaminreich — bei Empfindlichkeit meiden.';
+        if (n.match(/\bnori\b|\bhijiki\b|\bseetang\b/))
+            return 'Seetang/Algen: können Histamin enthalten oder binden — Verträglichkeit ist artabhängig.';
         if (n.match(/sauermilch/))
             return 'Sauermilchprodukte entstehen durch Fermentation — histaminrelevant';
         if (n.match(/brennesseltee|nettle tea|brennessel/))
@@ -12933,15 +12975,15 @@ if (cat === 'high') {
         if (n.match(/guarkernmehl|\be412\b/i))
             return 'SIGHI 1 — Guarkernmehl (E412): Strukturell histaminarm, kann aber bei geschädigter Darmflora oder MCAS pseudoallergische Symptome triggern.';
         if (n.match(/\bfeta\b|schafskäse/i))
-            return 'SIGHI 1-2 — Feta: Monatelang in Salzlake gereift, erhebliche Histaminbildung. Frischkäse oder junger Paneer als Alternative.';
+            return 'SIGHI 2 — Feta: Monatelang in Salzlake gereift, erhebliche Histaminbildung. Frischkäse oder junger Paneer als Alternative.';
         if (n.match(/schweinefleisch\s*\(?frisch\)?/i))
             return 'SIGHI 1 — Schweinefleisch (frisch): Gilt auch frisch als milder Liberator. Verdirbt schneller als Geflügel — nur absolut frisch verarbeiten.';
         if (n.match(/sherryessig/i))
             return 'SIGHI 3 — Sherryessig: Fermentiert aus Sherry, oft jahrelang in Holzfässern gereift. Extrem histaminreich wie Balsamico.';
         if (n.match(/\bguave\b|guava/i))
-            return 'SIGHI 1-2 — Guave: Gilt als Histaminliberator, der gespeichertes Histamin freisetzt. Unzureichende Datenlage bei Exoten — in der Testphase lieber meiden.';
+            return 'SIGHI 2 — Guave: Gilt als Histaminliberator, der gespeichertes Histamin freisetzt. Unzureichende Datenlage bei Exoten — in der Testphase lieber meiden.';
         if (n.match(/\bmango\b/i))
-            return 'SIGHI 1-2 — Mango: Datenlage uneinheitlich, viele Betroffene reagieren als Histaminliberator. In kleinen Mengen testen, in der Anfangsphase meiden.';
+            return 'SIGHI 1 — Mango: Datenlage uneinheitlich, viele Betroffene reagieren als Histaminliberator. In kleinen Mengen testen, in der Anfangsphase meiden.';
         if (n.match(/grüne erbsen|green peas?(?!.*protein)/i))
             return 'SIGHI 1 — Grüne Erbsen: Hülsenfrucht, gilt als Histaminliberator. Kann die körpereigene Ausschüttung triggern.';
         if (n.match(/carrageen|e407/i))
@@ -12987,7 +13029,7 @@ if (cat === 'high') {
         if (n.match(/\bzwiebel[n]?\b|\bonion[s]?\b/i))
             return 'SIGHI 1 L — Zwiebel: Histaminarm, aber milder Liberator. Enthält Quercetin (natürlicher Mastzellstabilisator). Meist gut verträglich.';
         if (n.match(/joghurt|yogurt|skyr/i))
-            return 'SIGHI 1-2 — Joghurt: Durch Säuerungsbakterien entsteht Histamin. Naturjoghurt oft tolerierbar; Fruchtjoghurt und lang gereifter Joghurt meiden.';
+            return 'SIGHI 1 — Joghurt: Durch Säuerungsbakterien entsteht Histamin. Naturjoghurt oft tolerierbar; Fruchtjoghurt und lang gereifter Joghurt meiden.';
         if (n.match(/gewürzgurken|essiggurken|pickles|cornichons/i))
             return 'SIGHI 2 — Gewürzgurken: Durch Einlegen und Lagerung entstehen biogene Amine. Enthaltene Gewürze können zusätzlich als Liberatoren wirken.';
         if (n.match(/\bkiwi\b/i))
@@ -13075,7 +13117,7 @@ if (cat === 'high') {
         if (n.match(/keime|sprossen|alfalfa/))
             return 'Keime und Sprossen können laut DKV die Histaminfreisetzung begünstigen';
         if (n.match(/saure sahne|sauerrahm/))
-            return 'SIGHI 1 H — Milchsäuregärung: schwach histaminhaltig. Kleine Mengen meist verträglich ⚠️ Fertige Sahne oft mit E407 (Carrageen) oder E410 (Johannisbrotkernmehl) stabilisiert — beide S2 L!';
+            return 'SIGHI 1 H — Milchsäuregärung: schwach histaminhaltig. Kleine Mengen meist verträglich.';
         if (n.match(/crème fraîche|creme fraiche|schmand/))
             return 'SIGHI 1 H — Milchsäuregärung: schwach histaminhaltig. In kleinen Mengen oft ok';
         if (n.match(/\bjoghurt\b|naturjoghurt|yogurt/))
@@ -15640,6 +15682,8 @@ const TOKEN_DISPLAY_NAMES = {
     'piment': 'Piment',  // verhindert 'Kurkuma' im Label
     'pfeffer': 'Pfeffer',  // verhindert 'Verdickungsmittel' im Label
     'bcaa': 'BCAA', 'uht': 'UHT', 'cbd': 'CBD', 'gmo': 'GMO', 'nrv': 'NRV',
+    'nutritionalyeast': 'Nutritional Yeast',
+    'xspicemixzzz': 'Gyrosgewürz',
     'vitamina': 'Vitamin A', 'vitaminb1': 'Vitamin B1', 'vitaminb2': 'Vitamin B2',
     'vitaminb3': 'Vitamin B3', 'vitaminb5': 'Vitamin B5', 'vitaminb6': 'Vitamin B6',
     'vitaminb7': 'Vitamin B7', 'vitaminb9': 'Vitamin B9', 'vitaminb12': 'Vitamin B12',
@@ -15719,7 +15763,9 @@ function displayIngredientName(rawName, originalName) {
         } else {
             const eNum = NAME_TO_E[nameKey];
             if (eNum) {
-                displayName = `${cap(rawName)} <span class="e-fullname">(${eNum})</span>`;
+                const ACRONYMS = { 'bht':'BHT', 'bha':'BHA' };
+                const properName = ACRONYMS[nameKey.toLowerCase()] || cap(rawName);
+                displayName = `${properName} <span class="e-fullname">(${eNum})</span>`;
             } else {
                 displayName = cap(rawName);
             }
