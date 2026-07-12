@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v13.55<br>
+                Histaminscanner v13.56<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -3952,6 +3952,10 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
     inputText = inputText.replace(/\.\s*(?=\d+[,.]?\d*\s*%)/g, ', ');
     inputText = inputText.replace(/\bdas\s+produkt\s+kann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '');
     inputText = inputText.replace(/\bkann\s+spuren\s+von\s+[^.]*enthalten\.?/gi, '');
+    // Dezimalkomma in Prozentangaben (z.B. "5,0%") schützen — sonst zerreißt der spätere
+    // Komma-Split die Zahl selbst und lässt Fragmente wie "0% weiße Schokolade" zurück.
+    // Platzhalter statt Punkt, damit die Anzeige weiterhin das deutsche Komma zeigt.
+    inputText = inputText.replace(/(\d+),(\d+)(\s*%)/g, '$1\u0001$2$3');
 
     // ── Schritt 1: Eltern-Kontext aus Klammern extrahieren ──
     // z.B. "Savoiardi Biskotten (11%) (Mehl, Zucker, Eier)" → parent="Savoiardi Biskotten", children=[Mehl, Zucker, Eier]
@@ -3987,7 +3991,7 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         .replace(/[;:\n]/g, ',')
         .replace(/[()[\]]/g, ',')
         .split(',')
-        .map(p => p.trim().replace(/[.!?]+$/, '').replace(/^\*+|\*+$/g, '').trim())  // trailing punct + Bio-Sternchen (führend/nachgestellt)
+        .map(p => p.trim().replace(/[.!?]+$/, '').replace(/^\*+|\*+$/g, '').replace(/\u0001/g, ',').trim())  // trailing punct + Bio-Sternchen (führend/nachgestellt) + Dezimalkomma-Platzhalter zurück
         .filter(p => p.length > 1);
 
     const usedRawParts = new Set();
@@ -4301,7 +4305,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v13.55');
+    dbg('VERSION: v13.56');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
