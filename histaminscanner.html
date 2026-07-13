@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v13.56<br>
+                Histaminscanner v13.70<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -2891,7 +2891,7 @@ const DB = {
         // Vitamine & Mineralstoffe (Anreicherung Cerealien)
         'vitamine','mineralstoffe',       // S0
         'niacinamid','pyridoxin',  // folsäure → liberator[] S2 L (SIGHI)
-        'eisen',        // Saucen-Zutaten
+        'eisen','mangan','chrom','molybdaen',        // Saucen-Zutaten; Mangan/Chrom/Molybdän analog zur Vitamin-Familie einzeln aufgetrennt (statt Mineralstoffe-Sammelbecken)
         'senföl',                         // S1-2 Senf-Derivat
         // natriumbenzoat/e211 → liberator[] S2 L (SIGHI!)
         'kohlensäure',                    // S0
@@ -4019,6 +4019,35 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
             if (new RegExp(`^vitamin\\s*${vitMatch[1]}\\d*$`, 'i').test(rawLower)) usedRawParts.add(raw);
         }
     }
+    // Vitamin-Synonyme ohne gemeinsame Buchstabenfolge (z.B. "Niacin" ↔ "vitaminb3",
+    // "Folsäure" ↔ "vitaminb9") — die normale Infix/Suffix-Fuzzy-Zuordnung kann das
+    // strukturell nicht finden, da keine Textähnlichkeit besteht. Explizite Zuordnung.
+    const VITAMIN_SYNONYMS = {
+        'vitaminb1': /^thiamin(?:hydrochlorid)?$/i,
+        'vitaminb2': /^riboflavin$/i,
+        'vitaminb3': /^(?:niacin|nicotinamid|niacinamid|nicotinsäureamid)$/i,
+        'vitaminb5': /^pantothen(?:säure|at)?$/i,
+        'vitaminb6': /^pyridoxin(?:hydrochlorid)?$/i,
+        'vitaminb7': /^biotin$/i,
+        'vitaminb9': /^fols(?:äure|at)$/i,
+        'vitaminb12': /^(?:cobalamin|cyanocobalamin|methylcobalamin)$/i,
+        'vitamine': /^tocopherol(?:e)?$/i,
+        'vitamine2': /^(?:stark\s+)?tocopherolhaltige?\s+extrakte?$/i,
+        'vitamind': /^(?:ergocalciferol|cholecalciferol|calciferol)$/i,
+        'vitamina': /^(?:retinol|retinylacetat|retinylpalmitat)$/i,
+        // weitere Sammel-/Synonym-Token ohne gemeinsame Buchstabenfolge zum Rohtext
+        'ballaststoff': /^(?:citrusfasern?|zitronenfasern?|zitrusfasern?)$/i,
+        'weinessig': /^gepufferter\s+essig$/i,  // "gepufferter" wird jetzt als Deskriptor entfernt → Token ist bare 'weinessig' (normalerweise trivial/ohne Pfeil), hier aber bewusst Herkunft zeigen
+    };
+    for (const normToken of normalizedTokens) {
+        if (map[normToken] || usedRawParts.has(normToken)) continue;
+        const synRe = VITAMIN_SYNONYMS[normToken];
+        if (!synRe) continue;
+        for (const raw of rawParts) {
+            if (usedRawParts.has(raw)) continue;
+            if (synRe.test(raw.trim())) { map[normToken] = raw.trim(); usedRawParts.add(raw); break; }
+        }
+    }
     for (const normToken of normalizedTokens) {
         if (map[normToken]) continue;
         // Triviale Zutaten brauchen keinen Original-Label
@@ -4070,6 +4099,14 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
             if (!normToken.includes(' ') && normToken.length > 7 && rawLower.startsWith(normToken.substring(0, Math.floor(normToken.length * 0.8))) && normToken.substring(0, Math.floor(normToken.length * 0.8)).length >= 5) {
+                const score = 50;
+                if (score > bestScore) { bestScore = score; bestOriginal = raw; }
+            }
+            // Präfix-Vergleich nochmal OHNE führenden Farb-/Mengen-Deskriptor (z.B. "schwarzes
+            // Johannisbeersaftkonzentrat" → "johannisbeersaftkonzentrat"), da ein vorangestelltes
+            // Farbwort den startsWith-Vergleich sonst grundlos blockiert.
+            const rawLowerNoDescriptor = rawLower.replace(/^(?:schwarze[rs]?|weiße[rs]?|rote[rs]?|grüne[rs]?|gelbe[rs]?|braune[rs]?|helle[rs]?|dunkle[rs]?)\s+/i, '');
+            if (!normToken.includes(' ') && normToken.length > 7 && rawLowerNoDescriptor !== rawLower && rawLowerNoDescriptor.startsWith(normToken.substring(0, Math.floor(normToken.length * 0.8))) && normToken.substring(0, Math.floor(normToken.length * 0.8)).length >= 5) {
                 const score = 50;
                 if (score > bestScore) { bestScore = score; bestOriginal = raw; }
             }
@@ -4305,7 +4342,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v13.56');
+    dbg('VERSION: v13.70');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4453,6 +4490,11 @@ function parseIngredients(inputText) {
             const preTrimmed = pre.trim().replace(/^\d+[\s%]*|[\s%\d-]+$/g, '').trim();
             const KEEP_NAME = /^(?:mozzarella|provolone|emmentaler|gouda|cheddar|parmesan|camembert|brie|pecorino|ricotta|gorgonzola|feta|mascarpone|gruyère|bergkäse|scamorza|käse|chorizo|salami|speck|schinken|tofu|tempeh|seitan|rahm|quark|joghurt|kefir|curry|pfeffer|chili|habanero|paprika|gewürz|gewürzmischung|senf|soße|sauce|marinade|paste|würze|thunfisch|lachs|hering|makrele|sardine|sardellen?|anchovis|hühnerbrühe|rinderbrühe|gemüsebrühe|brühe|bouillon|rindfleisch|schweinefleisch|hähnchen|pute|lamm|kalb|fischöl|lebertran|omega|\w*fleischextrakt|\w*extrakt)\b/i;
             const EXTRAKT_ONLY = /^\w*extrakt$/i;
+            // Hydrolysiertes (Pflanzen-)Protein: Prozess = Risiko (freie Glutamate/biogene Amine),
+            // NICHT die harmlos aussehenden Sub-Zutaten (Wasser, Weizenprotein, Kochsalz) behalten!
+            // Beide Wortstellungen: "hydrolysierte Pflanzenproteine" UND "Pflanzenproteine hydrolysiert"
+            const HYDROLYSAT_RE = /^(?:hydrolysierte[rs]?\s+(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?|(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?\s+hydrolysiert)$/i;
+            if (HYDROLYSAT_RE.test(preTrimmed)) return 'proteinhydrolysat';
             if (EXTRAKT_ONLY.test(preTrimmed)) return preTrimmed;  // Zusammensetzung offengelegt, aber Prozess = Risiko, nicht Rohstoffe
             if (KEEP_NAME.test(preTrimmed)) return preTrimmed + ', ' + inner;
             // Einzel-Deskriptor-Phrasen: Hauptwort behalten, Klammer verwerfen
@@ -4485,6 +4527,9 @@ function parseIngredients(inputText) {
             const KEEP_PRE = /(?:^|[\s-])(?:curry|pfeffer|chili|habanero|paprika|gewürz|senf|soße|thunfisch|lachs|hering|makrele|sardine|brühe|hühnerbrühe|rinderbrühe|gemüsebrühe|sauce|marinade|paste|würze|mozzarella|käse|chorizo|salami|speck|schinken|tofu|joghurt)\b/i;
             const preClean = pre.trim().replace(/[\s(]+enthält\s+.*$/i, '').replace(/[\s(]+$/,'').trim();
             if (KEEP_PRE.test(preClean)) return preClean + (inner.trim() ? ', ' + inner.trim() : '');
+            // Allergen-Hinweis zum Trägerstoff: 'Aroma (mit Weizen)' → 'Aroma' behalten, NICHT als eigene Weizen-Zutat listen
+            // (sonst landet ein sachfremder Text über Backwaren-Sauerteig bei einer reinen Aroma-Deklaration)
+            if (/^mit\s+(?:weizen|gluten|milch|ei(?:ern?)?|soja|nüssen?|erdnüssen?|sesam(?:samen)?|senf|sellerie|krebstieren?|fisch|schalentieren?|lupinen?|mandeln?|haselnüssen?|walnüssen?|cashewkernen?|pistazien?|paranüssen?|macadamianüssen?|pekannüssen?|molluske?n?|schwefeldioxid|sulfiten?)\b/i.test(inner.trim())) return preClean;
             // Einzel-Phrasen die Hauptterm erhalten sollen
             const KEEP_PHRASES_S = /^(?:in\s+wasser|in\s+öl|in\s+eigenem\s+saft|in\s+lake|in\s+salzlake|selbst\w*|hausgemacht|mit\s+hefeextrakt|mit\s+kräutern|mit\s+gewürzen|mit\s+\w+extrakt)$/i;
             if (KEEP_PHRASES_S.test(inner.trim())) return pre.trim() + ', ' + inner.trim();
@@ -4664,6 +4709,7 @@ function parseIngredients(inputText) {
         [/\bl[+-]?\s*weinsäure\b|\bweinsäure\s*\([^)]*\)/gi, 'e334'],  // "Weinsäure (L+)" → e334 vor Klammer-Split
         // Proteinhydrolysate zuerst (vor pflanzliches protein S0!) — freie Glutamate + biogene Amine!
         [/\bhydrolysierte[rs]?\s+(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?\b/gi, 'proteinhydrolysat'],  // ❌ S3!
+        [/\b(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?\s+hydrolysiert\b/gi, 'proteinhydrolysat'],  // ❌ S3! umgekehrte Wortstellung: "Pflanzenproteine hydrolysiert"
         [/\bpflanzenproteinehydrolysat\b|\bhydrolysiertes?\s+\w+protein\b/gi, 'proteinhydrolysat'],  // ❌ S3!
         [/\bpflanzliche[sr]?\s+protein(?:e|mix|blend|isolat|konzentrat|quelle)?(?:\s+\d+\s*%)?(?:\s*\([^)]*\))?/gi, 'pflanzenprotein'],  // → safe S0
         [/\bpflanzen(?:basiert[es]*|basiertes?)\s+protein\b/gi, 'pflanzenprotein'],
@@ -4933,17 +4979,17 @@ function parseIngredients(inputText) {
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
-        [/\beisen-?iii-?\w+\b/gi, 'mineralstoffe'],
+        [/\beisen-?iii-?\w+\b/gi, 'eisen'],
         // ── Spurenelemente / Mineralien ──────────────────────────────────
-        [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mineralstoffe'],          // Mangan → safe
-        [/\bchrom(?:chlorid|picolinat|iii)?\b/gi, 'mineralstoffe'],             // Chrom → safe
-        [/\bmolybdän(?:\w+)?\b/gi, 'mineralstoffe'],                            // Molybdän → safe
-        [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'mineralstoffe'],       // Zink → safe
-        [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'mineralstoffe'],                  // Kupfer → safe
+        [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mangan'],          // Mangan → safe, eigene Identität
+        [/\bchrom(?:chlorid|picolinat|iii)?\b/gi, 'chrom'],             // Chrom → safe, eigene Identität
+        [/\bmolybdän(?:\w+)?\b/gi, 'molybdaen'],                            // Molybdän → safe, eigene Identität
+        [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'zink'],       // Zink → safe, eigene Identität
+        [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'kupfer'],                  // Kupfer → safe, eigene Identität
         // 'Jod' bleibt eigenständig — SIGHI stuft Jod als Liberator ein (siehe DB-Registrierung, wie Iod/Iodine)
         [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'sauerkirsche'],
         [/\beisen\s*\(?ii\)?\s*-?gluconat\b|\beisen\s*ii\s*gluconat\b|e579\b/gi, 'e579'],
-        [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'mineralstoffe'],  // andere Eisenverbindungen
+        [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'eisen'],  // andere Eisenverbindungen
         [/\bpflaumenmus\b|\btrockenpflaumen?\b|\bpflaumensaft\b/gi, 'pflaume'],
         [/\bpflaumen?\b(?!\s*(?:likör))/gi, 'pflaume'],
         [/\bfeigenmus\b|\btrockenfeigen?\b|\bfeigensaft\b/gi, 'feige'],
@@ -5331,11 +5377,11 @@ function parseIngredients(inputText) {
         [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitaminb6'],
         [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitaminb9'],
         [/\bvitamin\s+(?!a\b|b1\b|b2\b|b3\b|b5\b|b6\b|b7\b|b9\b|b12\b|d\d?\b|e\b)[a-e]\d?\b/gi, 'vitamine'],  // NUR echte Restfälle ohne eigene Regel
-        [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
-        [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'eisen'],
+        [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'zink'],
         [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
-        [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
-        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'calcium'],
+        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'magnesium'],
         // ── Glasnudeln / Asiatische Zutaten ──
         [/\bglasnudeln?\b|\bcellophannudeln?\b|\breisvermicelli\b/gi, 'nudeln'],
         [/\bedamame\b/gi, 'edamame'],                                // Edamame (geschält/grün) → S1
@@ -6091,7 +6137,7 @@ function parseIngredients(inputText) {
         [/natriumstearoyl\w*/gi,              ''],  // Emulgator → skip
         [/propylenglykolester\w*/gi,          ''],  // Emulgator → skip
         [/mono.und\s*diglyceride\w*/gi,      ''],  // Emulgator → skip
-        [/citrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden
+        [/citrusfasern?\b|zitronenfasern?\b|zitrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden; Zitronen-/Zitrusfaser = Synonym für Citrusfaser
         [/\bbambusfasern?\b|\bbamboo\s*fi(?:ber|bre)s?\b/gi, ''],          // Ballaststoff S0 → leer = safe
         [/\bcondensed\s+whey\b|\bkondensierte\s+molke\b/gi, 'molke'],      // S0 Molkenprodukt
         [/\blean\s+cocoa\b|\bentöltes?\s+kakaopulver\b/gi, 'kakao'],        // entöltes Kakao → Liberator
@@ -6174,7 +6220,11 @@ function parseIngredients(inputText) {
         [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
         [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
         // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
-        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],
+        [/\b(heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaumen?)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m, prefix) => {
+            const p = prefix.toLowerCase();
+            const BEEREN_MAP = { heidelbeer:'heidelbeere', blaubeer:'heidelbeere', aronia:'aronia', holunder:'holunderbeere', himbeer:'himbeere', johannisbeer:'johannisbeere', kirsch:'kirsche', pflaume:'pflaume', pflaumen:'pflaume' };
+            return BEEREN_MAP[p] || p;
+        }],  // ROOT-FIX: capture group statt buggy re-strip (fraß sich vorher in Präfixe wie 'johannisbeer' hinein -> 'Johannis' verstümmelt)
         [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],
         [/\bgranatapfelsaft(?:konzentrat)?\b|\bgranatapfelkonzentrat\b/gi, 'granatapfel'],  // VOR generischem Strip!
         [/\bkiwikonzentrat\b|\bkiwisaftkonzentrat\b/gi, 'kiwi'],
@@ -6253,8 +6303,9 @@ function parseIngredients(inputText) {
 
         [/sojalecithine?\b/gi,            'lecithin'],
         [/vanillearoma\b/gi,              'vanille'],
-        [/natürliche\s+aromen?\b/gi,     'aromen'],
-        [/naturaromen?\b/gi,              'aromen'],
+        [/natürliche\s+aromen?\b/gi,     'aroma'],  // Singular/Plural vereinheitlicht, damit 'Aroma' + 'natürliche Aromen' im selben Produkt korrekt dedupliziert werden
+        [/naturaromen?\b/gi,              'aroma'],
+        [/\baromen\b/gi, 'aroma'],  // bare Plural → Singular vereinheitlicht
         [/anisöl\b/gi,                    'anis'],
         [/e(\d+[a-z]?)\s+pflanzlich\b/gi, 'e$1'],
         [/e(\d+[a-z]?)\s+(?:pflanzlich|modifiziert|oxidiert|acetyliert|hydroxyliert|gehärtet)\b/gi, 'e$1'],  // nur echte Adjektive, NICHT andere Zutaten!
@@ -6882,17 +6933,17 @@ function parseIngredients(inputText) {
         // ── Eisen-II Varianten ──
         [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
-        [/\beisen-?iii-?\w+\b/gi, 'mineralstoffe'],
+        [/\beisen-?iii-?\w+\b/gi, 'eisen'],
         // ── Spurenelemente / Mineralien ──────────────────────────────────
-        [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mineralstoffe'],          // Mangan → safe
-        [/\bchrom(?:chlorid|picolinat|iii)?\b/gi, 'mineralstoffe'],             // Chrom → safe
-        [/\bmolybdän(?:\w+)?\b/gi, 'mineralstoffe'],                            // Molybdän → safe
-        [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'mineralstoffe'],       // Zink → safe
-        [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'mineralstoffe'],                  // Kupfer → safe
+        [/\bmangan(?:sulfat|gluconat|chlorid)?\b/gi, 'mangan'],          // Mangan → safe, eigene Identität
+        [/\bchrom(?:chlorid|picolinat|iii)?\b/gi, 'chrom'],             // Chrom → safe, eigene Identität
+        [/\bmolybdän(?:\w+)?\b/gi, 'molybdaen'],                            // Molybdän → safe, eigene Identität
+        [/\bzink(?:sulfat|gluconat|oxid|chlorid)?\b/gi, 'zink'],       // Zink → safe, eigene Identität
+        [/\bkupfer(?:sulfat|gluconat)?\b/gi, 'kupfer'],                  // Kupfer → safe, eigene Identität
         // 'Jod' bleibt eigenständig — SIGHI stuft Jod als Liberator ein (siehe DB-Registrierung, wie Iod/Iodine)
         [/\bsauerkirschen?\s*(?:gefriergetrocknet|tiefgekühlt|getrocknet|halbiert)?\b/gi, 'sauerkirsche'],
         [/\beisen\s*\(?ii\)?\s*-?gluconat\b|\beisen\s*ii\s*gluconat\b|e579\b/gi, 'e579'],
-        [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'mineralstoffe'],  // andere Eisenverbindungen
+        [/\beisen\s*\(?iii\)?\s*-?\w+\b/gi, 'eisen'],  // andere Eisenverbindungen
         [/\bpflaumenmus\b|\btrockenpflaumen?\b|\bpflaumensaft\b/gi, 'pflaume'],
         [/\bpflaumen?\b(?!\s*(?:likör))/gi, 'pflaume'],
         [/\bfeigenmus\b|\btrockenfeigen?\b|\bfeigensaft\b/gi, 'feige'],
@@ -7280,11 +7331,11 @@ function parseIngredients(inputText) {
         [/\bpyridoxin(?:hydrochlorid)?\b|\bvitamin\s*b6\b/gi, 'vitaminb6'],
         [/\bfolsäure\b|\bfolat\b|\bvitamin\s*b9\b/gi, 'vitaminb9'],
         [/\bvitamin\s+(?!a\b|b1\b|b2\b|b3\b|b5\b|b6\b|b7\b|b9\b|b12\b|d\d?\b|e\b)[a-e]\d?\b/gi, 'vitamine'],  // NUR echte Restfälle ohne eigene Regel
-        [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'mineralstoffe'],
-        [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\beisen(?:gluconat|sulfat|fumarat|carbonat)?\b(?!\s*[a-z]{4})/gi, 'eisen'],
+        [/\bzink(?:oxid|sulfat|gluconat)?\b(?!\s*[a-z]{3})/gi, 'zink'],
         [/\bcalcium-?dinatrium-?edta\b|\bcalcium\s+dinatrium\s+edta\b|\bedta\b|\be385\b/gi, 'e385'],  // VOR calcium-norm!
-        [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
-        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'mineralstoffe'],
+        [/\bcalcium(?:carbonat|chlorid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'calcium'],
+        [/\bmagnesium(?:oxid|sulfat)?\b(?!\s*[a-z]{3})/gi, 'magnesium'],
         // ── Glasnudeln / Asiatische Zutaten ──
         [/\bglasnudeln?\b|\bcellophannudeln?\b|\breisvermicelli\b/gi, 'nudeln'],
         [/\bedamame\b/gi, 'edamame'],                                // Edamame (geschält/grün) → S1
@@ -8040,7 +8091,7 @@ function parseIngredients(inputText) {
         [/natriumstearoyl\w*/gi,              ''],  // Emulgator → skip
         [/propylenglykolester\w*/gi,          ''],  // Emulgator → skip
         [/mono.und\s*diglyceride\w*/gi,      ''],  // Emulgator → skip
-        [/citrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden
+        [/citrusfasern?\b|zitronenfasern?\b|zitrusfasern?\b/gi, 'ballaststoff'],  // Ballaststoff S0 — sichtbar statt verschwunden; Zitronen-/Zitrusfaser = Synonym für Citrusfaser
         [/\bbambusfasern?\b|\bbamboo\s*fi(?:ber|bre)s?\b/gi, ''],          // Ballaststoff S0 → leer = safe
         [/\bcondensed\s+whey\b|\bkondensierte\s+molke\b/gi, 'molke'],      // S0 Molkenprodukt
         [/\blean\s+cocoa\b|\bentöltes?\s+kakaopulver\b/gi, 'kakao'],        // entöltes Kakao → Liberator
@@ -8123,7 +8174,11 @@ function parseIngredients(inputText) {
         [/\bsüßkartoffel(?:konzentrat|saft|pulver|mehl|stärke)?\b/gi, 'süßkartoffel'],  // vor generischem \w+konzentrat
         [/\blila\s+(?=süßkartoffel|rübe|möhre)/gi, ''],                                  // Farbadjektiv "lila" vor Gemüse
         // ── Frucht-Konzentrate: zuerst spezifisch, DANN generisch strippen ──
-        [/\b(?:heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaum|pflaume|pflaume)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m) => m.replace(/(?:beere?n?)?(?:saft)?konzentrat/gi, '').trim()],
+        [/\b(heidelbeer|blaubeer|aronia|holunder|himbeer|johannisbeer|kirsch|pflaumen?)(?:beere?n?)?(?:saft)?konzentrat\b/gi, (m, prefix) => {
+            const p = prefix.toLowerCase();
+            const BEEREN_MAP = { heidelbeer:'heidelbeere', blaubeer:'heidelbeere', aronia:'aronia', holunder:'holunderbeere', himbeer:'himbeere', johannisbeer:'johannisbeere', kirsch:'kirsche', pflaume:'pflaume', pflaumen:'pflaume' };
+            return BEEREN_MAP[p] || p;
+        }],  // ROOT-FIX: capture group statt buggy re-strip (fraß sich vorher in Präfixe wie 'johannisbeer' hinein -> 'Johannis' verstümmelt)
         [/\b(?:erdbeer|cranberry|brombeere?)(?:saft)?konzentrat\b/gi, 'erdbeere'],
         [/\bgranatapfelsaft(?:konzentrat)?\b|\bgranatapfelkonzentrat\b/gi, 'granatapfel'],  // VOR generischem Strip!
         [/\bkiwikonzentrat\b|\bkiwisaftkonzentrat\b/gi, 'kiwi'],
@@ -8195,8 +8250,8 @@ function parseIngredients(inputText) {
 
         [/sojalecithine?\b/gi,            'lecithin'],
         [/vanillearoma\b/gi,              'vanille'],
-        [/natürliche\s+aromen?\b/gi,     'aromen'],
-        [/naturaromen?\b/gi,              'aromen'],
+        [/natürliche\s+aromen?\b/gi,     'aroma'],  // Singular/Plural vereinheitlicht, damit 'Aroma' + 'natürliche Aromen' im selben Produkt korrekt dedupliziert werden
+        [/naturaromen?\b/gi,              'aroma'],
         [/anisöl\b/gi,                    'anis'],
         [/e(\d+[a-z]?)\s+pflanzlich\b/gi, 'e$1'],
         [/e(\d+[a-z]?)\s+(?:pflanzlich|modifiziert|oxidiert|acetyliert|hydroxyliert|gehärtet)\b/gi, 'e$1'],  // nur echte Adjektive, NICHT andere Zutaten!
@@ -8945,6 +9000,7 @@ function parseIngredients(inputText) {
         [/\bchilipulver\b|\bchiliflocken\b/gi, 'chili'],
         [/\bsenfsaat\b|\bsenfkörner?\b|\bsenfsamen\b/gi, 'senf'],
         [/\bgerstenmalzessig\b|\bmalzessig\b/gi, 'weinessig'],  // Malzessig: fermentiert
+        [/\bgepuffert(?:e[mnrs]?)?\s+(?=essig\b)/gi, ''],  // rein technischer Deskriptor (pH-Pufferung), keine HIT-Relevanz — Essig-Typ-Erkennung soll trotzdem greifen
         [/(?<!apfel|obst|branntwein|tisch|weißwein|rotwein|wein|balsamico|synthetisch|sherry|reis|bier|malz|gerstenmalz)\bessig\b(?!\s*(?:essenz|säure))/gi, 'weinessig'],  // bare 'Essig' → weinessig S3
         // weißweinessig/apfelessig/reisessig/branntweinessig → bereits durch spezifische Normen oben behandelt
         // dinkelmehl → eigener Token (bereits oben)
@@ -9781,7 +9837,7 @@ function parseIngredients(inputText) {
         // ── Nahrungsergänzung → alle 'supplement' ──
         [/\bbranched\s+chain\b/gi, 'bcaa'],
         [/\bkreatin(?:\s*(?:monohydrat|hcl|ethyl))?\b/gi, 'supplement'],
-        [/\bmagnesium(?:citrat|glycinat|oxid|sulfat)?\s*(?:pulver|kapseln?)?\b/gi, 'supplement'],
+        [/\bmagnesium(?:citrat|glycinat|oxid|sulfat)?\s+(?:pulver|kapseln?)\b/gi, 'supplement'],
         [/\bvitamin\s+[cde](?!\w)\s*(?:pulver|kapseln?|tabletten?|tropfen)?\b/gi, 'supplement'],  // \s+ verhindert 'vitamine'
         [/\bomega.?3[\s-]*(?:kapseln?|öl|fettsäuren)?\b/gi, 'fischöl'],
         [/\bkollagen(?:\s*(?:pulver|peptide|hydrolysat))?\b/gi, 'supplement'],
@@ -10120,6 +10176,7 @@ function parseIngredients(inputText) {
         p = p.replace(/\bpolyoxyethylensorbitanmonooleat\b/gi, 'e433');
         p = p.replace(/\bpecorino(?:\s+romano|\s+sardo|\s+toscano)?\b/gi, 'pecorino');
         p = p.replace(/\bhydrolysierte[rs]?\s+(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?\b/gi, 'proteinhydrolysat');
+        p = p.replace(/\b(?:pflanzliche[rs]?\s+)?(?:pflanzen)?proteine?\s+hydrolysiert\b/gi, 'proteinhydrolysat');  // umgekehrte Wortstellung: "Pflanzenproteine hydrolysiert"
         p = p.replace(/\bproteinhydrolysat\b|\bpflanzenproteinhydrolysat\b/gi, 'proteinhydrolysat');
         return p;
     }
@@ -14481,7 +14538,23 @@ if (cat === 'high') {
         if (n.match(/^eis$/i))
             return 'Speiseeis. Verträglichkeit hängt komplett von den Zutaten ab — Milcheis/Vanille oft verträglich, Schokolade/Erdbeere eher meiden.';
         if (n.match(/^mineralstoffe$/i))
-            return 'Mineralstoff (z.B. Eisen). In reiner Form histaminneutral, kann auf nüchternen Magen unspezifische Beschwerden verursachen.';
+            return 'Mineralstoff (unspezifiziert). In reiner Form histaminneutral, kann auf nüchternen Magen unspezifische Beschwerden verursachen.';
+        if (n.match(/^eisen$/i))
+            return 'Eisen (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Hohe Einzeldosen können auf nüchternen Magen Übelkeit verursachen.';
+        if (n.match(/^zink$/i))
+            return 'Zink (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Wichtig für Immunsystem und Wundheilung.';
+        if (n.match(/^kupfer$/i))
+            return 'Kupfer (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Nur in Spuren benötigt.';
+        if (n.match(/^calcium$/i))
+            return 'Calcium (Nahrungsergänzung/Anreicherung). Mineralstoff, histaminneutral. Wichtig für Knochen und Zähne.';
+        if (n.match(/^magnesium$/i))
+            return 'Magnesium (Nahrungsergänzung/Anreicherung). Mineralstoff, histaminneutral. Wichtig für Muskel- und Nervenfunktion.';
+        if (n.match(/^mangan$/i))
+            return 'Mangan (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Nur in Spuren benötigt.';
+        if (n.match(/^chrom$/i))
+            return 'Chrom (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Spielt eine Rolle im Zuckerstoffwechsel.';
+        if (n.match(/^molybdaen$/i))
+            return 'Molybdän (Nahrungsergänzung/Anreicherung). Spurenelement, histaminneutral. Nur in sehr geringen Mengen benötigt.';
         if (n.match(/^eisenkrauttee$/i))
             return 'Kräutertee aus Verbena. Gilt als histaminarm und darmberuhigend.';
         if (n.match(/^endiviensalat$/i))
@@ -15686,7 +15759,7 @@ const E_NAMES = {
 const NAME_TO_E = {};
 for (const [e, name] of Object.entries(E_NAMES)) {
     // Normalize: lowercase, nur bis erstem Klammern/Schrägstrich
-    const key = name.toLowerCase().replace(/\s*[(/].*$/, '').trim();
+    const key = name.toLowerCase().replace(/\s+[(/].*$/, '').trim();
     if (!NAME_TO_E[key]) NAME_TO_E[key] = e.toUpperCase();
 }
 NAME_TO_E['hirschhornsalz'] = 'E503';  // eigenständiges Token, nicht über E_NAMES-Reverse-Lookup erreichbar
@@ -15702,7 +15775,8 @@ const TOKEN_DISPLAY_NAMES = {
     'vitamina': 'Vitamin A', 'vitaminb1': 'Vitamin B1', 'vitaminb2': 'Vitamin B2',
     'vitaminb3': 'Vitamin B3', 'vitaminb5': 'Vitamin B5', 'vitaminb6': 'Vitamin B6',
     'vitaminb7': 'Vitamin B7', 'vitaminb9': 'Vitamin B9', 'vitaminb12': 'Vitamin B12',
-    'vitamind': 'Vitamin D',
+    'vitamind': 'Vitamin D', 'vitamine': 'Vitamin E', 'vitamine2': 'Vitamin E',
+    'molybdaen': 'Molybdän',
     'leucin': 'L-Leucin', 'isoleucin': 'L-Isoleucin', 'valin': 'L-Valin',
     'carnitin': 'L-Carnitin', 'glutamin': 'L-Glutamin', 'arginin': 'L-Arginin',
     'lysin': 'L-Lysin', 'tryptophan': 'L-Tryptophan',
