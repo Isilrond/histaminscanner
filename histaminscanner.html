@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v13.120<br>
+                Histaminscanner v13.127<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1723,7 +1723,7 @@ const DB = {
         'e339','natriumphosphat',  // e340/e341 → dao_blocker[]
         'phosphat',        'e951','aspartam','aspartame',
         'e952','cyclamat','cyclamic acid',
-        'e955','sucralose',
+        // e955/sucralose → safe (S0, "gut verträglich" laut Quelle), nicht dao_blocker
         // steviosid → remove_from_dao: 'steviosid',
         // daher kein 'erythrit' in safe_hints
 
@@ -1828,7 +1828,7 @@ const DB = {
         'wachsbohne','rohkost',  // S0 — Nachtrag nach DESCRIPTOR_RE-Fix
         'camu','calciumascorbat','e302','e101a','e552','calciumsilicat','e470a','e470b','polyglycerol-polyricinoleat',
         'e1413','e1451','e960a','e966','e938','e948','anistee','eisenkrauttee','verveinetee','kümmelitee',
-        'mannit','e421','reisgoldsirup','dinkelsirup','kupferkomplexe','pflanzenkohle','e462','guanylat','e650',
+        'mannit','e421','reisgoldsirup','dinkelsirup','kupferkomplexe','pflanzenkohle','e462','e650',
         'zinkacetat','natriumtartrate','kaliumtartrate','hydroxypropylmethylcellulose','e464','e465','ethylmethylcellulose',
         'e900','dimethylpolysiloxan','e902',  // S0 — Orphans Runde 2 (Zusatzstoffe + Reste)
         'weißreis','amarant','weintraube','weintrauben','golden delicious','marille','marillen','persimone','sharonfrucht',
@@ -2857,6 +2857,8 @@ const DB = {
         'wasserkastanien',                      // S0
         'sojasprossen',// S0-1
         'chayote','mungbohnen','mungobohnen',  // SIGHI 2024: Quelle selbst unklar ("?"), S0 als neutraler Default (mild, ähnlich Zucchini/Sprossen)
+        'sucralose','e955',  // S0 laut SIGHI 2024, "gut verträglich"
+        'guanylat',  // S0+Warntext-Muster (wie Aroma/Gewürze) — Sammelbegriff, Stufe schwankt je nach Salz S0-S2
         'e242','dimethyldicarbonat','e284','borsäure','e285','borax',  // Quelle selbst unklar ("?"), S0 als neutraler Default
         'alkoholfreier wein','alkoholfreier sekt',  // S0 — kein Alkohol, kein Histaminproblem (Kategorie muss zur Stufe passen!)
         'schweinebrühe',                        // S1-2 (Brühe)
@@ -4370,7 +4372,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v13.120');
+    dbg('VERSION: v13.127');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -5014,7 +5016,7 @@ function parseIngredients(inputText) {
         [/\bentölt(?:es?)?\b\s*/gi, ''],                                         // "entöltes" allein
         [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine2'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
-        [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
+        [/\beisen(?:-?ii)?-?gluconat\b|e579\b/gi, 'e579'],  // "II" oft weggelassen auf echten Etiketten
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
         [/\beisen-?iii-?\w+\b/gi, 'eisen'],
         // ── Spurenelemente / Mineralien ──────────────────────────────────
@@ -5082,7 +5084,7 @@ function parseIngredients(inputText) {
         [/\ballulose\b|\bd-allulose\b/gi, 'allulose'],
         [/\berythrit(?:ol)?\b|\be968\b/gi, 'erythrit'],
         [/\bxylit(?:ol)?\b|\bbirkenzucker\b|\be967\b/gi, 'xylit'],
-        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\be960\b/gi, 'stevia'],
+        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\bsteviosid\b|\be960\b/gi, 'stevia'],  // Steviosid = Stevia-Glykosid, vereinheitlicht
         [/\baspartam(?:e)?\b|\be951\b/gi, 'aspartam'],
         [/\bsucralose\b|\be955\b/gi, 'sucralose'],
         [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltit'],
@@ -5205,6 +5207,15 @@ function parseIngredients(inputText) {
         [/\be330\b/gi, 'zitronensäure'],  // E330 mit Zitronensäure vereinheitlichen
         [/\btbhq\b|\btertiär-butylhydrochinon\b|e319\b/gi, 'e319'],  // TBHQ mit E319 vereinheitlichen
         [/\bammoniumcitrat\b|e380\b/gi, 'e380'],  // mit E380 vereinheitlichen
+        [/\bglutaminsäure\b|e620\b/gi, 'e620'],  // mit E620 vereinheitlichen
+        [/\bmonokaliumglutamat\b|e622\b/gi, 'e622'],  // mit E622 vereinheitlichen
+        [/\bcalciumdiglutamat\b|e623\b/gi, 'e623'],  // mit E623 vereinheitlichen
+        [/\bmonoammoniumglutamat\b|e624\b/gi, 'e624'],  // mit E624 vereinheitlichen
+        [/\bmagnesiumdiglutamat\b|e625\b/gi, 'e625'],  // mit E625 vereinheitlichen
+        [/\bguanylsäure\b|e626\b/gi, 'e626'],  // mit E626 vereinheitlichen
+        [/\binosinsäure\b|e630\b/gi, 'e630'],  // mit E630 vereinheitlichen
+        [/\bzinkacetat\b|e650\b/gi, 'e650'],  // mit E650 vereinheitlichen
+        [/\bdimethylpolysiloxan\b|e900\b/gi, 'e900'],  // mit E900 vereinheitlichen
         [/\bhydroxypropylcellulose\b|e463\b/gi, 'e463'],
         // ── Agavendicksaft ──
         [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'agavendicksaft'],  // S0 — eigener Token (Kommentar war falsch: S2→S0)
@@ -5568,7 +5579,7 @@ function parseIngredients(inputText) {
         [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
-        [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
+        [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'e621'],  // eigener Token wie E622-E625, kein Sammelbecken
         [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
         [/\bnatriumsesquicarbonat\b/gi, 'e500iii'],
         [/\bbabymais\b|\bjungmais\b|\bmaiskölbchen\b/gi, 'mais'],
@@ -7018,7 +7029,7 @@ function parseIngredients(inputText) {
         [/\bentölt(?:es?)?\b\s*/gi, ''],                                         // "entöltes" allein
         [/\bstark\s+tocopherolhaltige?\s+extrakte?\b|\btocopherolhaltige?\s+extrakte?\b/gi, 'vitamine2'], // Vit-E-Extrakt → safe
         // ── Eisen-II Varianten ──
-        [/\beisen-?ii-?gluconat\b|e579\b/gi, 'e579'],
+        [/\beisen(?:-?ii)?-?gluconat\b|e579\b/gi, 'e579'],  // "II" oft weggelassen auf echten Etiketten
         [/\beisen-?ii-?lactat\b|\beisenlactat\b|\beisen\s*ii\s*lactat\b/gi, 'eisenlactat'],  // → safe S0
         [/\beisen-?iii-?\w+\b/gi, 'eisen'],
         // ── Spurenelemente / Mineralien ──────────────────────────────────
@@ -7086,7 +7097,7 @@ function parseIngredients(inputText) {
         [/\ballulose\b|\bd-allulose\b/gi, 'allulose'],
         [/\berythrit(?:ol)?\b|\be968\b/gi, 'erythrit'],
         [/\bxylit(?:ol)?\b|\bbirkenzucker\b|\be967\b/gi, 'xylit'],
-        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\be960\b/gi, 'stevia'],
+        [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\bsteviosid\b|\be960\b/gi, 'stevia'],  // Steviosid = Stevia-Glykosid, vereinheitlicht
         [/\baspartam(?:e)?\b|\be951\b/gi, 'aspartam'],
         [/\bsucralose\b|\be955\b/gi, 'sucralose'],
         [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltit'],
@@ -7209,6 +7220,15 @@ function parseIngredients(inputText) {
         [/\be330\b/gi, 'zitronensäure'],  // E330 mit Zitronensäure vereinheitlichen
         [/\btbhq\b|\btertiär-butylhydrochinon\b|e319\b/gi, 'e319'],  // TBHQ mit E319 vereinheitlichen
         [/\bammoniumcitrat\b|e380\b/gi, 'e380'],  // mit E380 vereinheitlichen
+        [/\bglutaminsäure\b|e620\b/gi, 'e620'],  // mit E620 vereinheitlichen
+        [/\bmonokaliumglutamat\b|e622\b/gi, 'e622'],  // mit E622 vereinheitlichen
+        [/\bcalciumdiglutamat\b|e623\b/gi, 'e623'],  // mit E623 vereinheitlichen
+        [/\bmonoammoniumglutamat\b|e624\b/gi, 'e624'],  // mit E624 vereinheitlichen
+        [/\bmagnesiumdiglutamat\b|e625\b/gi, 'e625'],  // mit E625 vereinheitlichen
+        [/\bguanylsäure\b|e626\b/gi, 'e626'],  // mit E626 vereinheitlichen
+        [/\binosinsäure\b|e630\b/gi, 'e630'],  // mit E630 vereinheitlichen
+        [/\bzinkacetat\b|e650\b/gi, 'e650'],  // mit E650 vereinheitlichen
+        [/\bdimethylpolysiloxan\b|e900\b/gi, 'e900'],  // mit E900 vereinheitlichen
         [/\bhydroxypropylcellulose\b|e463\b/gi, 'e463'],
         // ── Agavendicksaft ──
         [/\bagaven(?:dicksaft|sirup|nektar|mark)?\b/gi, 'agavendicksaft'],  // S0 — eigener Token (Kommentar war falsch: S2→S0)
@@ -7572,7 +7592,7 @@ function parseIngredients(inputText) {
         [/\btomaten?extrakt\b|\btomatenkonzentrat\b|\btomaten?püree\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         [/\blimetten(?:saft|öl)?\b|\blimettenöl\b/gi, 'limette'],
         // koriander NICHT → kräuter — bleibt als 'koriander'
-        [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'glutamat'],
+        [/\bgeschmacksverstärker\s*\(?e?621\)?\b|\bnatriumglutamat\b|e621\b/gi, 'e621'],  // eigener Token wie E622-E625, kein Sammelbecken
         [/\be?503\b|\bammoniumcarbonat\b/gi, 'e503'],
         [/\bnatriumsesquicarbonat\b/gi, 'e500iii'],
         [/\bbabymais\b|\bjungmais\b|\bmaiskölbchen\b/gi, 'mais'],
@@ -8874,7 +8894,7 @@ function parseIngredients(inputText) {
         [/schlagsahne\b|crema\b/gi, 'sahne'],
         // ── Gemüse ──
         [/\bspinat(?:pulver|extrakt|püree|blätter?)?\b/gi, 'spinat'],  // alle Spinat-Komposita
-        [/\bmsg\b|\be621\b|\bnatriumglutamat\b|\bmono-?natriumglutamat\b|\bdinatriumglutamat\b/gi, 'glutamat'],  // alle Glutamat-Formen
+        [/\bmsg\b|\be621\b|\bnatriumglutamat\b|\bmono-?natriumglutamat\b|\bdinatriumglutamat\b/gi, 'e621'],  // eigener Token wie E622-E625, kein Sammelbecken
         [/\bspitzkohl\b|\bweißkohl\b|\brotkohl\b|\bwirsing\b|\bsavoy\b/gi, 'kohl'],
         [/\blauchzwiebel[n]?\b|\bfrühlingszwiebel[n]?\b/gi, 'frühlingszwiebel'],
         [/\bsüßkartoffel(?:würfel|stücke|scheiben)?\b/gi, 'süßkartoffel'],
@@ -8987,7 +9007,7 @@ function parseIngredients(inputText) {
         // Zuckeralkohole (Tagatose/Erythrit/Xylit/Isomalt/Sorbit/Mannitol/Lactit/Maltit) haben
         // bereits eigene, vollständige Registrierung mit E-Nummer — keine Sammelbecken-Regel nötig.
         [/\bstevioglycoside\b|\bstevia\b|\bsteviolglycosid\b/gi, 'stevia'],
-        [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b|\bsucralose\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, nicht süßungsmittel!
+        [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, sucralose→eigener Token, nicht süßungsmittel!
         [/\bethyl[- ]?vanillin\b/gi, 'vanillin'],  // Ethylvanillin stärker als Vanillin, S1-2   // stärker als Vanillin, gleiches Problem S1
         // ── Proteine / Ballaststoffe ──
         [/\bseitan\b|\bvitalweizengluten\b/gi, 'seitan'],  // S3 — fertige Seitan-Produkte
@@ -9205,7 +9225,7 @@ function parseIngredients(inputText) {
         [/\bbuttermilchpulver\b/gi, 'milchpulver'],
         [/\bmolkenpermeatpulver\b/gi, 'molke'],
         // ── Glutamat-Varianten ──
-        [/\bmonosodiumglutamat\b|\bmononatriumglutamat\b|\bmsg\b|e621\b/gi, 'glutamat'],
+        [/\bmonosodiumglutamat\b|\bmononatriumglutamat\b|\bmsg\b|e621\b/gi, 'e621'],  // eigener Token wie E622-E625, kein Sammelbecken
         [/\bdinatrium-?5.?-?ribonuk(?:leotide?|leotid)\b|\bdinatrium-?5.?-?ribonuc(?:leotide?|leotid)\b|e635\b/gi, 'e635'],
         [/\bdinatriumguanylat\b|e627\b/gi, 'e627'],
         [/\bdinatriuminosinat\b|e631\b/gi, 'e631'],
@@ -10798,6 +10818,7 @@ function parseIngredients(inputText) {
         'fleischbrühe': /knochenbrühe/i,
         'lang':     /knochenbrühe|gemüsebrühe/i,  // "lang gekocht" Qualifier
         'bifi':     /\bwurst\b/i,  // bifi normalisiert korrekt zu wurst (S3)
+        'glutamat': /e62[0-9]|guanylat/i,  // Glutamat normalisiert korrekt zu den einzelnen E62x-Tokens
     };
     const lostSignals = [];
     S3_SIGNAL_WORDS.forEach(re => {
@@ -12104,6 +12125,8 @@ function getIngredientInfo(name, cat, aiGuess) {
             return '⚠️ Als reines Wort "Zucker" ohne weitere Angabe meist Haushaltszucker (Saccharose) und damit histaminfrei — bei Fertigprodukten kann sich dahinter aber auch ein Sirup oder Zuckeraustauschstoff verbergen. Zutatenliste auf genauere Angaben prüfen.';
         if (n === 'gewürze' || n === 'gewürzmischung')
             return '⚠️ Keine Einschätzung möglich: "Gewürze" ohne Aufschlüsselung kann harmlose Kräuter ebenso wie kritische Zutaten (z.B. Chili, Senf, Hefeextrakt) enthalten. Hersteller ggf. direkt kontaktieren.';
+        if (n.match(/^guanylat$/i))
+            return '⚠️ Keine Einschätzung möglich: "Guanylat" ohne Angabe des konkreten Salzes kann von unbedenklich (Guanylsäure, S0) bis kritisch (Natrium-/Kalium-/Calciumguanylat, S2) variieren. Zutatenliste auf die konkrete Verbindung in Klammern prüfen.';
         if (n === 'kräuter' || n === 'kräutermischung')
             return '⚠️ Keine Einschätzung möglich: "Kräuter" ohne Aufschlüsselung — die meisten Küchenkräuter sind unproblematisch, einzelne Mischungen können aber kritische Zusätze enthalten. Hersteller ggf. direkt kontaktieren.';
         if (n.match(/\bkefir\b/i))
@@ -13606,6 +13629,7 @@ if (cat === 'high') {
             return 'Glutaminsäure, Geschmacksverstärker. Wirkt als Trigger für Mastzellen und kann histaminähnliche Beschwerden auslösen.';
         if (n.match(/^e626$/i))
             return 'Guanylsäure, Geschmacksverstärker. Kann die Histaminfreisetzung aktivieren.';
+        // guanylat → jetzt safe[]-Kategorie (S0+Warntext-Muster), Text im safe-Zweig ergänzen
         if (n.match(/^e628$/i))
             return 'Kaliumguanylat, Geschmacksverstärker. Wie andere Guanylate ein möglicher Mastzell-Trigger.';
         if (n.match(/^e629$/i))
@@ -14575,8 +14599,7 @@ if (cat === 'high') {
             return 'Unspezifische Angabe. Verträglichkeit hängt von den konkret verwendeten Kräutern/Gemüsesorten ab — Zutatenliste prüfen.';
         if (n.match(/^kohl$/i))
             return 'Wintergemüse (z.B. Grünkohl). Histaminarm, frisch zubereitet meist sehr gut verträglich.';
-        if (n.match(/^guanylat$/i))
-            return 'Geschmacksverstärker (E626-629). Kann pseudoallergische Reaktionen verstärken.';
+        // guanylat → jetzt dao_blocker[]-Kategorie, Text im dao_blocker-Zweig ergänzen
         if (n.match(/^gummi$/i))
             return 'Oberbegriff für pflanzliche Verdickungsmittel. Meist histaminarm, genaue Quelle zur Sicherheit prüfen.';
         if (n.match(/^gummibase$/i))
@@ -15555,7 +15578,9 @@ if (cat === 'high') {
         if (n.match(/birkenzucker|\bxylit\b/i))
             return 'SIGHI 0 — Birkenzucker (Xylit): Histaminarm, blockiert DAO nicht. Größere Mengen können osmotisch Blähungen verursachen.';
         if (n.match(/\bstevia\b/i))
-            return 'SIGHI 0 — Stevia: Reines Extrakt histaminneutral. Bei Fertigprodukten auf Trägerstoffe achten.';
+            return 'SIGHI 0 — Stevia (E960): Reines Extrakt histaminneutral. Bei Fertigprodukten auf Trägerstoffe achten.';
+        if (n.match(/^sucralose$/i))
+            return 'SIGHI 0 — Sucralose (E955): Künstlicher Süßstoff, laut SIGHI 2024 gut verträglich. Histaminneutral.';
         if (n.match(/steinsalz|meersalz(?!.*jod)/i))
             return 'SIGHI 0 — Steinsalz (unverarbeitet): Ohne Rieselhilfen/Zusätze vollkommen histaminneutral.';
         if (n.match(/heidelbeersaft|blueberry juice/i))
@@ -15864,7 +15889,7 @@ const E_NAMES = {
     'e941':'Stickstoff (Schutzgas)','e942':'Distickstoffmonoxid','e943a':'Propan','e944':'Propan/Butan','e948':'Sauerstoff',
     'e955':'Sucralose','e960':'Steviosid (Stevia)','e961':'Neotam',
     'e965':'Maltit','e966':'Lactit','e967':'Xylit','e968':'Erythrit',
-    'e620':'Glutaminsäure','e621':'Mononatriumglutamat (MSG)','e622':'Monokaliumglutamat',
+    'e620':'Glutaminsäure','e621':'Mononatriumglutamat','e622':'Monokaliumglutamat',
     'e623':'Calciumdiglutamat','e624':'Monoammoniumglutamat','e625':'Magnesiumdiglutamat',
     'e626':'Guanylsäure','e627':'Dinatriumguanylat','e628':'Dikaliumguanylat',
     'e629':'Calciumguanylat','e630':'Inosinsäure','e631':'Dinatriuminosinat',
@@ -15947,6 +15972,7 @@ const TOKEN_DISPLAY_NAMES = {
     'xspicemixzzz': 'Gyrosgewürz',
     'vitamina': 'Vitamin A', 'vitaminb1': 'Vitamin B1', 'vitaminb2': 'Vitamin B2 (E101/E101a)',
     'paprikaextrakt': 'Paprikaextrakt (E160c)',
+    'stevia': 'Stevia (E960)',
     'vitaminb3': 'Vitamin B3', 'vitaminb5': 'Vitamin B5', 'vitaminb6': 'Vitamin B6',
     'vitaminb7': 'Vitamin B7', 'vitaminb9': 'Vitamin B9', 'vitaminb12': 'Vitamin B12',
     'vitamind': 'Vitamin D', 'vitamine': 'Vitamin E', 'vitamine2': 'Vitamin E',
