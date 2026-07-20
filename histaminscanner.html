@@ -1036,7 +1036,7 @@ window._hlog = function(...a) {
         <div class="settings-sec-title">Über die App</div>
         <div class="settings-box">
             <div class="settings-about">
-                Histaminscanner v15.31<br>
+                Histaminscanner v16.23<br>
                 Wissensbasis: alles-essen.de, TU München, SIGHI, NDR<br>
                 Produktdaten: Open Food Facts<br>
                 KI: Anthropic Claude / Mistral AI<br><br>
@@ -1138,6 +1138,7 @@ const DB = {
     // Quellen: SIGHI 2024, alles-essen.de, kochenohne.de
     // ═══════════════════════════════════════════════════════
     high: [
+        'schwarzer knoblauch','schwarzknoblauch',  // Fermentiert/gereift — deutlich kritischer als frischer Knoblauch (S1), siehe eigener Text
         'wurstwaren',  // SIGHI 2024: "2 H ? ?" (korrekt hierher verschoben, war fälschlich in safe_hints bei S0)
         'gouda','granapadano',
         'trockenfleisch','trockenpilze',  // S3 — Nachtrag nach DESCRIPTOR_RE-Fix
@@ -1163,7 +1164,7 @@ const DB = {
         'mettwurst','teewurst','cervelatwurst','fleischwurst','jagdwurst',
         'leberwurst','blutwurst','schwarzwurst','zungenwurst',
         'landjäger','biltong','beef jerky','jerky',
-        'rohschinken','salami','tiroler speck','schinken roh',
+        'rohschinken','salami','tiroler speck','schinken roh','mettenden','pinkelwurst',  // Mettenden/Pinkelwurst = geräucherte Grünkohlwurst
         'räucherschinken','parmaschinken','serranoschinken','ibérico',
         'schwarzwälder schinken','westfälischer schinken',
         'bresaola','coppa','mortadella','lardo','pancetta',
@@ -1175,16 +1176,20 @@ const DB = {
         'eingelegte oliven','oliven',
         'rote bete (eingelegt)','rote-bete-konserve',
         'bambussprossen (konserve)','bamboo shoots canned',
-        'parmesan','parmigiano','cheddar','camembert','brie','gorgonzola','gruyère',
+        'parmesan','parmigiano','cheddar','camembert','brie','gorgonzola','gruyère','vacherin','sbrinz','zamorano','kefalotyri','tête de moine','tete de moine','etivaz','alpkäse','berner alpkäse','urner alpkäse','glarner alpkäse','hobelkäse','formaggio d alpe',
         'gereifter ziegenkäse',  // S3
         'harzer roller','handkäse','mainzer käse','sauermilchkäse',
         'roquefort','stilton',
-        'blauschimmelkäse','harzer','limburger',
-        'emmentaler','gruyère','greyerzer','manchego','pecorino',
+        'blauschimmelkäse','harzer','limburger','fontina','feta','feta-käse','schafskäse feta','cambozola','reblochon','danish blue','taleggio','münster','asiago','mimolette','cotija','bavaria blu','bergader','graviera','colby','crottin de chavignol','crottin',
+        'weinbergkäse','romadur','backsteinkäse','steinbuscher','quargel','chiemgauer','frühstückskäse','weißlacker','bierkäse',  // Deutsche Rotschmiere-/Sauermilchkäse
+        'saint-nectaire','époisses','morbier','chaource','livarot','cantal','tomme de savoie','saint marcellin','saint félicien','coulommiers','rocamadour','valençay','selles-sur-cher','banon','pont l evêque','fourme dambert','bleu dauvergne',  // Französische Rotschmiere-/Weich-/Ziegenkäse
+        'schabziger','sapsago','tomme vaudoise','belper knolle','bloderkäse','werdenberger sauerkäse','bündnerkäse','toggenburger','schüttelkäse','vacherin fribourgeois','vacherin mont d or',  // Schweizer Weich-/Sauermilch-/Kräuterkäse
+        // SIGHI 2024: Feta "1 H A" — eigener Eintrag, war fälschlich in liberator[]; alle anderen: Analogie zu Blauschimmel-/Weichkäse
+        'emmentaler','gruyère','greyerzer','manchego','pecorino','jarlsberg','caciocavallo',
         'münster','appenzeller','bergkäse','tilsiter','gouda (alt)',
         'raclette','sbrinz','comté','beaufort','asiago','provolone',
-        'mahon','idiazábal','ossau-iraty',
-        'kraftkäse','schmelzkäse','processed cheese','velveeta',
+        'mahon','mahón','idiazábal','ossau-iraty',
+        'kraftkäse','schmelzkäse','processed cheese','velveeta','schmelzkäsezubereitung',
         'himbeere','himbeer','raspberry','himbeeren',  // ❌ S2 (SIGHI 2024!)
         'sauerteig','sauerteigkulturen',
         'hefebrot',  // S1-2 (Hefe-Fermentation)
@@ -1276,13 +1281,13 @@ const DB = {
         'fruchtjoghurt','fruit yogurt','joghurtdrink',   // S2 — Zusätze/Aromen
         // buttermilch → liberator[] S1 (SIGHI H, Milchsäuregärung, nicht S2-3)
         'sauermilch',
-        'kräuterfrischkäse','frischkäse mit kräutern','boursin',
+        // kräuterfrischkäse/frischkäse mit kräutern/boursin entfernt — frische, ungereifte Frischkäse, keine Histaminreich-Kandidaten, siehe safe_hints
         // eiernudeln/eierteigwaren → liberator[] S1 (Ei-Anteil S1)
-        'ravioli','tortellini','maultaschen','gefüllte pasta',
+        // ravioli/tortellini/maultaschen/gefüllte pasta entfernt — jetzt Sperrliste (Füllung variiert zu stark für ehrliche Einzelstufe), siehe NICHT_ZUTAT_BLOCKLIST
         'dosenmais',
         'eingelegte rote beete','rote beete aus der dose',
         'hefegebäck','hefezopf','hefebrötchen',
-        'melasse',
+        // melasse entfernt — Mechanismus ist Kupfer/DAO-Hemmung, nicht Histaminreichtum, siehe dao_blocker[]
 
         // ── Fertigmüsli (Kiel-Liste) ──
         // fertigmüsli/müsliriegel/granola → liberator[] S1 (Komposit-Produkte)
@@ -1341,7 +1346,7 @@ const DB = {
         'bouillabaisse',  // S3 — Fischsuppe konzentriert
         'camembert paniert','mozzarella sticks',  // S2 — Käse gereizt/aufgeheizt
         'tiramisu',  // S2-3 — Kaffee (DAO-Hemmer) + Mascarpone S2
-        'pökelsalz','nitritpökelsalz','e250','natriumnitrit','kaliumnitrit','e249',  // S2-3 — Pökelsalz/Nitrit-Marker (siehe auch E-Nummer-Sonderregel E249-252)
+        'pökelsalz','nitritpökelsalz',  // S2-3 — Pökelsalz-Kontext impliziert Fleisch (siehe auch E-Nummer-Sonderregel E249-252); reine Additiv-Namen (e250/e249) jetzt separat bei safe (S0)
         // e407/carrageen bereits via safe_hints (S0-1) klassifiziert; e451 → dao_blocker (Triphosphat)
         // essigsäure/e260 (isolierter Zusatzstoff) → S0 lt. SIGHI 2024, siehe safe_hints
         // apfelessig → liberator[] S1 (milder, oft toleriert), NICHT high!
@@ -1353,18 +1358,20 @@ const DB = {
     // HISTAMINLIBERATOREN — regen Histaminausschüttung an
     // ═══════════════════════════════════════════════════════
     liberator: [
+        'orangeat',  // Kandierte Orangenschale — Basis (Orangenschale) ist SIGHI S3 L, durch Kandieren/Verdünnung mit Zucker vorsichtig etwas niedriger angesetzt
+        'benzoesäure','e210','natriumbenzoat','e211','kaliumbenzoat','e212','calciumbenzoat','e213',  // SIGHI 2024: S2 L — war NIE als Kategorie registriert (nur Kommentare behaupteten das), nur E210 funktionierte zufällig über Zahlen-Sonderregel
         'glutamat','e621','mononatriumglutamat','natriumglutamat','msg','e620','glutaminsäure','e622','monokaliumglutamat','e623','calciumdiglutamat','e624','monoammoniumglutamat','e625','magnesiumdiglutamat',  // SIGHI 2024: S2 L, mehrfach bestätigt (korrekt hierher verschoben, war fälschlich in dao_blocker)
         'bha','e320','butylhydroxyanisol','bht','e321','butylhydroxytoluol',  // SIGHI 2024: S2 L (korrekt hierher verschoben, war fälschlich in dao_blocker)
         'e239','hexamethylentetramin','urotropin','methenamin',  // SIGHI 2024: S2 L (korrekt hierher verschoben, war fälschlich in safe_hints)
         'orangenschale',  // SIGHI 2024: S3 L (korrekt hierher verschoben, war fälschlich nur in safe_hints registriert)
-        'mandel','mandeln','mandelmus',  // S2 L — Histaminliberator, siehe SIGHI_DB[2] und Hint-Text (DEA 2025)
+        // mandel/mandeln/mandelmus entfernt — SIGHI zeigt "1" OHNE Marker (kein L!), fälschlich als Liberator S2 registriert, siehe safe_hints
         'jod','iod','iodine','kaliumiodid','kaliumjodid','kaliumiodat','jodtabletten','kaliumjodat','natriumjodat','jodat',  // S3 L — reiner Liberator, kein direkter Histamingehalt (SIGHI_DB[3] für explizite S3-Einstufung)
         'kapern',
         'durian',
         'sojajoghurt',
         'ziegenkäse',
         'ackerbohne','saubohne','favabohne','dicke bohne',
-        'schafskäse','feta','fetakäse',  // S2 — Präventiv-Scan: aus high verschoben, passend zu SIGHI_DB S2
+        // feta entfernt — SIGHI "1 H A" bedeutet Histaminreich+andere Amine, NICHT Liberator, war fälschlich hierher verschoben (siehe high[]); schafskäse normalisiert ohnehin zu 'feta'
         'rohkakao','rohschokolade',  // S2 — Nachtrag nach DESCRIPTOR_RE-Fix (wie Kakao)
         'limonensaft','limonen','rohmilchkäse','kreuzkümmelpulver','speisewürze','suppenwürze','colagetränke','colagetr‰nke','rot 2g','braun fk','extrascharfe chilis','braunalgen',  // S2 — Orphans Runde 2
         'e418','gellan','tertiär-butylhydrochinon','e962','e1060',  // S2 — Zusatzstoffe (e417/tarakernmehl entfernt — falsch mit unverwandten Stoffen gruppiert, siehe eigene Registrierung)
@@ -1417,7 +1424,7 @@ const DB = {
         // ── Obst ──
         'erdbeere','erdbeer','strawberry','wild strawberry',
         // himbeere → high[] S2 (SIGHI 2024: Himbeeren S2!)
-        'zitrone','lemon','zitrus','citrus','grapefruit',  // orange/apfelsine → high[] S3! (zitronensaft/orangensaft → liberator, siehe dort)
+        'zitrone','lemon','grapefruit',  // orange/apfelsine → high[] S3! (zitronensaft/orangensaft → liberator, siehe dort); zitrus/citrus entfernt — zu generisch, siehe eigener Unsicherheits-Text
         'mandarine','clementine','tangerine','satsuma',  // ❌ S2 A L (SIGHI)
         // limette → high[] S3 A L (SIGHI: sehr schlecht verträglich!)
         'ananas','pineapple','kiwi','kiwifruit',
@@ -1484,8 +1491,8 @@ const DB = {
         'piment','pimentkörner','allspice','neugewürz',  // S2 — eugenolreich wie Nelke
         'amchur','mango pulver',  // S2 — Säure + Liberator (unreife Mango)
         'tonkabohne','tonkabohnen','tonka',  // S2 — Cumarin, Histaminliberator
-        'sellerie','celery','knollensellerie','staudensellerie','selleriewurzel','selleriesalz',
-        'sesam','sesamkörner','sesamsamen','sesame','tahini','sesampaste','tahin','tahina',  // S1
+        // sellerie entfernt — SIGHI zeigt "0" OHNE L-Marker für alle Sorten, war fälschlich hier registriert (siehe safe_hints)
+        // sesam entfernt — SIGHI zeigt "1" OHNE L-Marker, war fälschlich hier registriert (siehe safe_hints)
         'sesamöl','sesame oil',  // S1-2 L
         'erdnussöl',  // S1-2
         'sojaöl','soybean oil',  // S1 SIGHI (nicht S2)
@@ -1501,7 +1508,7 @@ const DB = {
         // kasein/casein → safe (Milchprotein, kein Histaminproblem per se)
         'sonnenblumen',        'lakritz','liquorice','süßholz','lakritze',
         // Crème fraîche & fermentierte Sahne → leicht S1, kein safe_hint
-        'marzipan','persipan','marzipanrohmasse','marzipanmasse',  // ⚠️ S1 — Mandel-/Aprikosenkern-Basis, Liberator
+        // marzipan/persipan/marzipanrohmasse/marzipanmasse entfernt — SIGHI zeigt "1" ohne Marker (kein L!), war fälschlich Liberator, siehe safe_hints (analog zur Mandel-Korrektur)
         'keime','sprossen','alfalfa','bohnenkeimlinge',
         'überreifes obst','overripe',
         'marinade','mariniert',
@@ -1614,7 +1621,7 @@ const DB = {
         'malzmehlzusatz',  // S1 — Gerstenmalzmehl als Backzusatz, milder als Malzextrakt aber Restrisiko
         // malzmehlzusatz → liberator S1 (siehe liberator-Array), NICHT safe_hints!
         'gegrillte zwiebel','gegrillte zwiebeln','grillzwiebel','gegrilltes gemüse',  // S1 — Röststoffe/Maillard-Reaktion
-        'rote bete','rote beete','beete','bete','randen','ringelbete',  // S1 — Betain
+        // rote bete entfernt — SIGHI zeigt "0" OHNE L-Marker (kein Liberator), war fälschlich hier registriert (siehe safe_hints, bereits korrekt bei S0)
         'reishi','chaga',  // S1-2 — Heilpilze (Histaminfreisetzung möglich)
         'kondensmilch','dosenmilch','evaporated milk',  // S1-2 konzentrierte Milch
         'pizza','fertigpizza',  // S2-3 Tomaten+Käse+oft Salami
@@ -1646,6 +1653,7 @@ const DB = {
     // DAO-HEMMER — blockieren den Histaminabbau
     // ═══════════════════════════════════════════════════════
     dao_blocker: [
+        'melasse',  // Basis meist histaminarm — Hauptsorge ist hoher Kupfergehalt, der die kupferabhängige DAO beeinträchtigen kann; manche Berater nennen zusätzlich konzentrierte Sirupe als möglichen milden Liberator
         // Glutamat-Familie entfernt — SIGHI bestätigt mehrfach explizit "2 L" (Liberator, NICHT DAO-Hemmer), siehe liberator[]
         // ── Alkohol (stark DAO-hemmend) ──
         'alkohol','alcohol','ethanol','methanol','ethanol','ethylalkohol',
@@ -1773,7 +1781,7 @@ const DB = {
         'ammoniumchlorid',
         // 'acesulfam'/'acesulfam-k'/'e950' → safe_hints[] S1 (SIGHI 2024: generischer Eintrag "Künstliche Süssstoffe", kein B/L-Marker)
         // sorbit/maltit → safe_hints S0 (SIGHI: 0, nur abführend nicht Histamin)
-        'schmelzkäsezubereitung','schmelzkäsescheiben',
+        'schmelzkäsescheiben',  // schmelzkäsezubereitung entfernt — jetzt eigener Token in high[] (ganzes Produkt statt E450-Reduktion)
         'phosphorsäure','e338',  // DAO-hemmend
         'zitronensäure',// S1 — laut SIGHI Vorsicht
         'cola','cola zero','pepsi',  // ⚠️ Phosphorsäure (E338) + Koffein = doppelter DAO-Hemmer
@@ -1785,7 +1793,18 @@ const DB = {
     // SAFE HINTS — schneller Unbedenklich-Check
     // ═══════════════════════════════════════════════════════
     safe_hints: [
-        'fisch','fleisch','extrakt',  // generisch ohne Spezifizierung — Unsicherheits-Hinweis statt "Unbekannt"/Verschwinden
+        'burrata','queso blanco','neufchâtel','monterey jack','panela',  // Frische, ungereifte Käse — eigener Token statt Mozzarella/Paneer-Verschmelzung
+        'kräuterfrischkäse','frischkäse mit kräutern','boursin',  // Frische, ungereifte Frischkäse — war fälschlich in high[] (Fallback-Stufe 3 völlig unpassend)
+        'essig',  // Zu generisch — könnte harmloser Branntweinessig (destilliert) oder kritischer Weinessig/Fruchtessig (fermentiert, S3) sein, siehe eigener Unsicherheits-Text
+        'zitrus','citrus',  // Zu generisch — könnte Zitrone (S2), Orange (S3) oder Grapefruit (S2) meinen, siehe eigener Unsicherheits-Text
+        'sellerie','celery','knollensellerie','staudensellerie','selleriewurzel','selleriesalz','schnittsellerie','würzsellerie','stangensellerie','bleichsellerie',  // SIGHI 2024: S0, kein L-Marker — war fälschlich in liberator[]
+        'sesam','sesamkörner','sesamsamen','sesame','tahini','sesampaste','tahin','tahina',  // SIGHI 2024: S1, kein L-Marker — war fälschlich in liberator[]
+        'rote bete','rote bete frisch','rote beete','randen','beetroot','ringelbete',  // SIGHI 2024: S0 — war nur im Stufen-Array registriert, nie in einer Kategorie-Tabelle (echte Lücke)
+        'e250','e249','natriumnitrit','kaliumnitrit',  // Nutzerentscheidung: kochenOHNE (fachlich geprüft) listet Natriumnitrit explizit als geeignet/histaminarm — reiner Zusatzstoff, kein Pökelfleisch-Kontext
+        'mandel','mandeln','mandelmus',  // SIGHI 2024: "1" ohne Marker (korrekt hierher verschoben, war fälschlich Liberator S2 mit erfundenem "DEA 2025"-Zitat)
+        'menthol','eukalyptus','rose','rosen','waldmeister',  // Kräuter/Blüten, allgemein histaminarm
+        'marzipan','persipan','marzipanrohmasse','marzipanmasse',  // SIGHI 2024: "1" ohne Marker (war fälschlich Liberator, analog zu Mandel)
+        'fisch','fleisch','extrakt','käse unspezifisch',  // generisch ohne Spezifizierung — Unsicherheits-Hinweis statt "Unbekannt"/Verschwinden
         'e150','e150a','e150b','e150c','e150d','zuckercouleur','karamellfarbstoff',  // SIGHI 2024: ALLE Varianten (auch b/c/d Sulfit/Ammoniak) explizit S0, nur Vorsichtshinweis "möglicherweise etwas weniger verträglich"
         'guanylsäure','e626','inosinsäure','e630',  // SIGHI 2024: S0, kein Marker (korrekt hierher verschoben, war fälschlich in dao_blocker)
         'erythorbinsäure','e315','natriumerythorbat','e316',  // SIGHI 2024: S0, kein L-Marker (korrekt hierher verschoben, war fälschlich in liberator[])
@@ -1825,7 +1844,7 @@ const DB = {
         'schutzkultur','schutzkulturen',  // Bakterienkultur zur Haltbarmachung, gezielt dosiert (nicht Fermentation)
         'säuerungsmittel',  // S0 Kategorie-Label, konkrete Säure oft in Klammern — siehe Hint-Text-Warnung
         'xantangummi','xanthan',  // S0 SIGHI (Kategorie-Registrierung, siehe auch SIGHI_DB[0])
-        'aufstrich','braten','hülsenfrüchte','hülsenfrucht','legumes','käseprodukt','fruchtmark',  // S0 — Nachtrag (generische, aber übliche Bezeichnungen); wurstwaren entfernt — SIGHI bestätigt "2 H" (Histaminreich), siehe high[]
+        'aufstrich','braten','hülsenfrüchte','hülsenfrucht','legumes','käseprodukt','fruchtmark','getreide',  // S0 — Nachtrag (generische, aber übliche Bezeichnungen); wurstwaren entfernt — SIGHI bestätigt "2 H" (Histaminreich), siehe high[]
         'borretsch',  // S0-1 — gilt als histaminarmer Spinat-Ersatz (Batch4-Check korrigiert)
         // ── Grundzutaten ──
         'wachsbohne','rohkost',  // S0 — Nachtrag nach DESCRIPTOR_RE-Fix
@@ -1837,7 +1856,7 @@ const DB = {
         'weißreis','amarant','weintraube','weintrauben','golden delicious','marille','marillen','persimone','sharonfrucht',
         'kohle','weichselkirsche','weichsel','alkoholfrei',  // S0 — Orphans Runde 2 Nachtrag
         'kapstachelbeere','moosbeere','kronsbeere','sanddorn','boysenbeere','carambola','sternfrucht','acerolakirsche','camu camu','camu-camu',  // S0 — Alltags-Orphans nachgetragen
-        'wasser','water','mineralwasser','leitungswasser','heilquellen-wasser','heilquellenwasser','kürbiskernöl','pumpkin seed oil','nachtkerzenöl','evening primrose oil','margarine','tannenschoss','tannenschösse',
+        'wasser','water','mineralwasser','leitungswasser','heilquellen-wasser','heilquellenwasser','kürbiskernöl','pumpkin seed oil','nachtkerzenöl','evening primrose oil','margarine','tannenschoss','tannenschösse','mandelöl',
         // REMOVED (conflict): 'alkoholfreier wein','alkoholfreier sekt','alkoholfreies bier',  // ✅ S0 — kein Alkohol
         // REMOVED (conflict): 'acesulfam','acesulfam k','e950',  // ✅ S0 (SIGHI: verträglich)
         'salz','salt','meersalz','sea salt','kochsalz',  // jodsalz → liberator[] S2 L (SIGHI!)
@@ -1967,7 +1986,7 @@ const DB = {
         'milch','milk','vollmilch','halbfettmilch','magermilch',
         'frischmilch','pasteurisierte milch','uht-milch','h-milch',
         'sahne','cream','schlagsahne','whipping cream','kaffeesahne',
-        'frischkäse','cream cheese',        'gouda jung','junger gouda',  // S0 SIGHI
+        'frischkäse','cream cheese',        'gouda jung','junger gouda','käse jung',  // S0 SIGHI (käse jung: eigener Token, keine Sorte behauptet)
         // reismilch → liberator[] (S1, siehe dort) — Konsistenzregel verbietet safe+Stufe>0
         'reissahne','reiskochcreme',  // S0
         'galiamelone',  // S0
@@ -1987,7 +2006,7 @@ const DB = {
         'in salzlake','salzlake','lang gelagert',  // Qualifier-Fallbacks
         'ganzes korn','ganzes',  // Qualifier S0
         'mozzarella','büffelmozzarella','fresh mozzarella',  // S0
-        'butterkäse','edamer','tilsiter jung',  // S0 SIGHI
+        'butterkäse','edamer','tilsiter jung','geheimratskäse','havarti','leerdammer','babybel',  // S0 SIGHI (Geheimratskäse: SIGHI 2024 explizit "0"; Havarti/Leerdammer/Babybel: milde Schnittkäse, Analogie zu Butterkäse/Edamer)
         'quark','magerquark','topfen','fromage blanc',
         // ── Eier ──
         'eigelb','egg yolk','eidotter','dotter',  // S0 (SIGHI: Eigelb verträglich)
@@ -2296,7 +2315,7 @@ const DB = {
         'wachteleier','quail eggs','wachtelei',
         'schichtkäse','ziegenfrischkäse',
         // feta/schafskäse → liberator[] S1 (SIGHI H A, leicht histaminhaltig)
-        'ziegenkäse frisch','chevre',
+        'ziegenkäse frisch','chevre','chèvre',
         'endiviensalat',
         'backwaren mit natron','backwaren mit backpulver',
     
@@ -2401,7 +2420,7 @@ const DB = {
         // spinat/babyspinat → liberator[] S2 (SIGHI H), safe_hints entfernt
         'spitzkohl',// S0
         'pesto',                                    // S1 (Öl+Basilikum, manchmal mit Käse)
-        'burrata','stracciatella',                  // S0 Frischkäse
+        'burrata',                  // S0 Frischkäse (stracciatella entfernt — mehrdeutig mit Suppe/Dessert gleichen Namens)
     
         // S0
     
@@ -2713,7 +2732,7 @@ const DB = {
         'ingwershot',                                        // S0-1
     
         'jackfruit',                         // S0-1 (unreife Frucht, mild)
-        'supplement','kreatin','probiotika',  // S0 Nahrungsergänzung
+        'supplement','kreatin','probiotika','kollagen',  // S0 Nahrungsergänzung
         'quorn',                             // S0-1 Mykoprotein
         'haferfleisch',                      // S0
         'eiweißbrot','proteinbrot',          // S0-1
@@ -2864,6 +2883,7 @@ const DB = {
         'sojasprossen',// S0-1
         'chayote','mungbohnen','mungobohnen',  // SIGHI 2024: Quelle selbst unklar ("?"), S0 als neutraler Default (mild, ähnlich Zucchini/Sprossen)
         'sucralose','e955',  // S0 laut SIGHI 2024, "gut verträglich"
+        'saccharin','e954',  // Von SIGHI nicht separat geführt, aber wie andere synthetische Süßstoffe (Sucralose S0) allgemein als histaminneutral eingestuft
         'zitrusfrüchte',  // S0+Warntext-Muster — Sammelbegriff, Stufe schwankt je nach Frucht S2 (Mandarine) bis S3 (Zitrone/Orange)
         'spirituosen',  // S0+Warntext-Muster — SIGHI: "2 klar" vs "3 nicht klar", Bandbreite je nach Sorte
         'kräuterteemischungen',  // S0+Warntext-Muster — SIGHI: "Unverträgliche Zutat noch nicht identifiziert"
@@ -4068,8 +4088,8 @@ function buildOriginalTokenMap(inputText, normalizedTokens) {
         'minze': /^(?:pfeffer)?minz(?:e)?(?:blätter?)?(?:öl)?$/i,  // "minze" ist kein Substring von "Pfefferminzöl" (kein "e" vor "öl")
         'e476': /^(?:polyglycerin-?polyricinoleat|polyglycerol-?polyricinoleat|pgpr)$/i,  // Anzeigename "Polyricinolsäureglycerinester" teilt keine Buchstabenfolge mit gängigen Synonymen
         'e410': /^carubin$|^carubenmehl$/i,  // Carubin/Carubenmehl = Synonyme für Johannisbrotkernmehl/E410, keine gemeinsame Buchstabenfolge
-        'parmesan': /^taleggio$|^fontina$|^provolone$|^asiago$|^sbrinz$/i,  // spezifische Hartkäsesorten, die auf den Parmesan-Prototyp-Token fallen
-        'gruyère': /^appenzeller$/i,  // Appenzeller fällt auf Gruyère-Token
+        // 'parmesan': /^taleggio$|^provolone$|^asiago$|^sbrinz$/i, entfernt — alle haben jetzt eigene Tokens
+        // 'gruyère': /^appenzeller$/i, entfernt — Appenzeller hat jetzt eigenen Token
         'edamer': /^edammer$/i,  // Schreibvariante
         'feldsalat': /^vogerlsalat$|^nüsslisalat$|^ackersalat$/i,  // Regionalismen ohne gemeinsame Buchstabenfolge mit "feldsalat"
         'kefen': /^kaiserschote$|^zuckererbse$/i,  // Regionalismen ohne gemeinsame Buchstabenfolge mit "kefen"
@@ -4362,8 +4382,9 @@ function parseIngredients(inputText) {
         'diclofenac','furosemid','metamizol','ciprofloxacin',
         // Komplette Gerichte/Rezepte
         'ratatouille','nicoise','niçoise','käsespätzle','gulasch','okonomiyaki','frikadelle','köttbullar',
-        'obatzda','obazda','pesto','rösti','reibekuchen','kartoffelknödel','nudelsalat','kirschgrütze','bouillabaisse','samosa','frühlingsrolle','frühlingsrollen','okroschka','wonton','wantan','gyoza','potsticker','potstickers',
+        'obatzda','obazda','pesto','rösti','reibekuchen','kartoffelknödel','nudelsalat','kirschgrütze','bouillabaisse','samosa','frühlingsrolle','frühlingsrollen','okroschka','wonton','wantan','gyoza','potsticker','potstickers','lasagne','lasagna',
         'kartoffelsuppe','kürbissuppe','gemüsesuppe','eintopf','eintopf mit fleisch','fischsalat',
+        'tortellini','ravioli','tortelloni','maultaschen','cappelletti','pansotti','fiorelli','gefüllte pasta',  // Füllung variiert extrem (Käse/Spinat mild ↔ Fleisch/Gorgonzola kritischer) — keine ehrliche Einzelstufe möglich
         'heringssalat','krautsalat','griechischer salat','gefüllte pasta','mozzarella sticks',
         'frühlingsrolle','hasenpfeffer','rouladen','tiramisu','tom yum','tzatziki','waldorf salat',
         'waldorf salad','solyanka',
@@ -4386,7 +4407,7 @@ function parseIngredients(inputText) {
     const dbg = window._hlog;
     // Unicode NFC-Normalisierung: löst zerlegte Umlaute (z.B. OpenFoodFacts liefert
     // manchmal "u" + Combining Diaeresis U+0308 statt vorkomponiertem "ü" U+00FC)
-    dbg('VERSION: v15.31');
+    dbg('VERSION: v16.23');
     dbg('0_RAW:', JSON.stringify(inputText.slice(0,120)));
     inputText = inputText.normalize('NFC');
     // Pragmatischer Fix: 'Biotin' bricht aus unbekanntem Grund tief in der Pipeline (Ergebnis 'tin'),
@@ -4712,6 +4733,7 @@ function parseIngredients(inputText) {
         [/\bapfelsaft\s+direktsaft\b/gi, 'apfelsaft'],
         [/\bflohsamen\s+ganze\s+samen\b/gi, 'flohsamen'],
         [/\bgouda\s+jung\b/gi, 'gouda jung'],
+        [/\bkäse\s*[,\-(]?\s*(?:jung|mild)(?:e[mnrs]?)?\)?\b|\b(?:jung|mild)(?:e[mnrs]?)?\s+käse\b/gi, 'käse jung'],  // robust: jung/mild (beide Wortstellungen), alle Trenner (Komma/Bindestrich/Klammer), alle Deklinationsformen — eigener, ehrlicher Token, behauptet keine konkrete Sorte
         [/synthetischer?\s+essig\b/gi, 'essigessenz'],  // vor der allgemeinen Essig-Weinessig-Regel
         [/\s*\/\s*/g, ', '],  // Slash als Trenner behandeln (z.B. "Mandarine/Clementine")
         // Spezifische Nachgestellt-Formen VOR der generischen eingelegt-Entfernung behandeln!
@@ -4857,11 +4879,11 @@ function parseIngredients(inputText) {
         [/\bvanilleextrakt\b/gi, 'vanilleextrakt'],  // eigener Token — S2 (alkoholhaltig, fermentiert), NICHT wie Vanille/Vanillearoma (S0) behandeln
         [/\bvanille(?:aroma|essenz)\b/gi, 'vanillearoma'],  // Vanillearoma → S0
         // Fleisch/Schinken-Aromen → Hefeextrakt-Verdacht
-        [/\bsahnearoma\b/gi, 'sahne'],
-        [/\bchampignonaroma\b/gi, 'champignon'],
-        [/\bzwiebelaroma\b/gi, 'zwiebel'],
-        [/\bknoblaucharoma\b/gi, 'knoblauch'],
-        [/\b(?:käse|fleisch|pilz|obst|frucht)aroma\b/gi, 'aroma'],  // Basis-Zutat selbst zu unspezifisch
+        // sahnearoma → generischer Aroma-Mechanismus
+        // champignonaroma → generischer Aroma-Mechanismus
+        // zwiebelaroma → generischer Aroma-Mechanismus
+        // knoblaucharoma → generischer Aroma-Mechanismus
+        // käse/fleisch/pilz/obst/frucht-aroma: alte Blockade entfernt, laufen jetzt über generischen Aroma-Vererbungsmechanismus (siehe KNOWN_AROMA_FRUITS)
         [/\bnelken?aroma\b/gi, 'nelkenaroma'],  // Nelke = S2 Liberator, aber als Aroma stark verdünnt → eigenes Token S1
         // ── Käse-Spezifisch ──
         [/(?<![a-zäöü])ährige\s+minze\b|\bgrüne\s+minze\b|\bkrause\s+minze\b|\bmarokkanische\s+minze\b|\bspeer-?minze\b|\bnana-?minze\b/gi, 'minze'],  // alle Mentha-spicata-Sorten vollständig vereinen (Lookbehind statt \b wegen ä-Anlaut)
@@ -4929,7 +4951,8 @@ function parseIngredients(inputText) {
         [/\bbirnensaft\b|\bbirnenmark\b/gi, 'birne'],
         [/\bbirnen?\b(?!\s*(?:saft|mark|nektar))/gi, 'birne'],
         // ── Käse-Schmelzsalze ──
-        [/\bschmelzsalze?\b|\bschmelzkäsezubereitung\b/gi, 'e450'],
+        [/\bschmelzsalze?\b/gi, 'e450'],
+        [/\bschmelzkäsezubereitung\b/gi, 'schmelzkäsezubereitung'],  // eigener Token — ganzes Produkt, nicht nur der Zusatzstoff E450
         [/\bmilcheiweiß\b|\bmilcheiweis\b|\bmilcheiweib\b|\bmilchprotein\b(?!\s+\w)/gi, 'milchprotein'],
         // ── Bärlauch ──
         [/\bbärlauch\b|\bbär\s*lauch\b|\bwild\s*knoblauch\b/gi, 'bärlauch'],  // S1 L
@@ -5014,7 +5037,7 @@ function parseIngredients(inputText) {
         [/\bgänse(?:brust|keule|filet|schmalz)?\b|\bgans\b/gi, 'geflügel'],
         [/\bputen(?:brust|filet|keule|schnitzel)?\b/gi, 'pute'],
         [/\btrüffelöl\b/gi, 'trüffelöl'],
-        [/\btrüffel\b|\bsommertrüffel\b|\bschwarztrüffel\b/gi, 'pilze'],
+        [/\btrüffel\b(?!öl|aroma|salz)|\bsommertrüffel\b(?!öl)|\bschwarztrüffel\b(?!öl)/gi, 'pilze'],  // öl/aroma/salz ausgenommen — Umlaut-Wortgrenzen-Bug (JS \w erkennt ö nicht), sonst eigene Regeln überschrieben
         // ── Getreide-Varianten ──
         [/\bdinkelkorn\b|\bdinkel(?:körner|graupen|grieß)?\b/gi, 'dinkel'],
         [/\bquinoa(?:flocken|korn|gepufft)?\b/gi, 'quinoa'],
@@ -5089,7 +5112,7 @@ function parseIngredients(inputText) {
         [/\bkonjakmehl\b|\bglucomann?an\b|\bkonjak(?:wurzel)?\b/gi, 'konjakmehl'],
         [/\berdmandelmehl\b|\bchufa\b|\btigernut\b/gi, 'erdmandelmehl'],
         [/\bteffmehl\b|\bteff\b/gi, 'teffmehl'],
-        [/\\bhirsemehl\\b|\\bhirseflocken\\b/gi, 'hirsemehl'],  // bare 'hirse' bleibt hirse
+        [/\bhirsemehl\b|\bhirseflocken\b/gi, 'hirse'],  // Backslash-Verdopplung behoben (Regel war komplett wirkungslos) + mit Hirse vereint (SIGHI führt keine getrennte Stufe für Mehlform)
         [/\bsojamehl\b|\bsoya?\s*flour\b/gi, 'sojamehl'],
         [/\bkichererbsenmehl\b|\bbesan\b|\bgram(?:mehl)?\b/gi, 'kichererbsenmehl'],
         [/\blinsenmehl\b|\blentil\s*flour\b/gi, 'linsenmehl'],
@@ -5104,7 +5127,7 @@ function parseIngredients(inputText) {
         [/\bstevia(?:glycoside)?\b|\bsteviolglycoside\b|\bsteviolglykosid\b|\bsteviolglykoside?\b|\bsteviosid\b|\be960\b/gi, 'stevia'],  // Steviosid = Stevia-Glykosid, vereinheitlicht
         [/\baspartam(?:e)?\b|\be951\b/gi, 'aspartam'],
         [/\bsucralose\b|\be955\b/gi, 'sucralose'],
-        [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltit'],
+        [/\bmaltit(?:ol)?\b|\be965\b/gi, 'maltitol'],  // vereinheitlicht auf 'maltitol' — war zirkulär mit anderer Regel (maltit<->maltitol Pingpong)
         [/\bsorbit(?:ol)?\b|\be420\b/gi, 'sorbit'],
         [/\byacon\s*syrup\b|\byacon(?:sirup)?\b|\byakon(?:sirup)?\b/gi, 'yakonsirup'],
         [/\bkokosblütensirup\b|\bkokosblütenzucker\b|\bcoconut(?:\s*(?:blossom\s*))?sugar\b/gi, 'kokosblütenzucker'],
@@ -5130,7 +5153,8 @@ function parseIngredients(inputText) {
         [/\bweißtee\b|\bweißer\s+tee\b|\bwhite\s+tea\b/gi, 'weißtee'],  // compound → DESCRIPTOR_RE-sicher
         [/\bmatetee\b|\bmate\s+tee\b|\byerba\s+mate\b/gi, 'matetee'],
         [/\bgranatapfelessig\b|\bpomegranate\s*vinegar\b/gi, 'granatapfelessig'],
-        [/\bpaneer\b|\bqueso\s*blanco\b/gi, 'paneer'],
+        [/\bpaneer\b/gi, 'paneer'],
+        [/\bqueso\s*blanco\b/gi, 'queso blanco'],  // eigener Token statt Paneer/Frischkäse-Verschmelzung
         [/\bhalloumi\b|\bgrillkäse\b/gi, 'halloumi'],
         [/\bharzer(?:\s*(?:roller|käse))?\b|\bhandkäse\b|\bmainzer\s*käse\b/gi, 'harzer roller'],
         [/\bgerstenmalzextrakt\b|\bmalzextrakt\b|\bmalt\s*extract\b/gi, 'gerstenmalzextrakt'],
@@ -5166,7 +5190,7 @@ function parseIngredients(inputText) {
         [/\bpfefferminzblätter?\b|\bpfefferminzkraut\b/gi, 'pfefferminze'],
         [/\bhagebutten?\b|\brose(?:nfrüchte|nhüften?)?\b/gi, 'hagebutte'],
         [/\bzitronengras\b/gi, 'zitronengras'],
-        [/\bzitronenverbene\b/gi, 'zitronenverbene'],
+        [/\bzitronenverbenen?\b/gi, 'zitronenverbene'],
         [/\bzitronenmelisse\b/gi, 'melisse'],
         [/\bzimt(?:rinde|stangen?|pulver|stücke?)?\b/gi, 'zimt'],  // Liberator S1-2 — NICHT zu gewürze!
         [/\borgangen?schale\b/gi, 'orangenschale'],
@@ -5175,7 +5199,7 @@ function parseIngredients(inputText) {
         [/\bsüßholz(?:wurzel|extrakt|pulver)?\b|\blakritz(?:wurzel)?\b/gi, 'süßholz'],  // DAO-Hemmer — NICHT kräuter!
         // ── Schokolade Spezifika ──
         [/\brosenwasser\b|\brose\s*water\b/gi, 'rosenwasser'],       // S0
-        [/\bmandelaroma\b|\bnatürliches?\s+mandelaroma\b/gi, 'aroma'],
+        // mandelaroma → jetzt generischer Aroma-Mechanismus (Mandel in KNOWN_AROMA_FRUITS), alte Sonderregel entfernt
         [/\bmarzipan(?:masse|rohmasse|füllung)?\b/gi, 'marzipan'],
         // ── Kulturen weitere ──
         [/\bbifidobacterium\s+\w+\b|\bbifidus\b|\bLactobacillus\s+\w+\b/gi, 'kulturen'],
@@ -5262,7 +5286,7 @@ function parseIngredients(inputText) {
         [/\be160c\b|\bcapsanthin\b|\bcapsorubin\b/gi, 'paprikaextrakt'],
         // ── Süßwarenzutaten ──
         [/\bfruchtgummi\b|\bfruchtsaft\s+[\wäöüßÄÖÜ]+\b/gi, 'frucht'],
-        [/\bpfefferminzaroma\b|\bpepperminzaroma\b/gi, 'pfefferminze'],
+        // pfefferminzaroma → generischer Aroma-Mechanismus
         // ── Onion / Zwiebel-Compound ──
         [/\bzwiebelpulver\b|\bgetrocknete?\s+zwiebeln?\b|\bröstszwiebeln?\b/gi, 'zwiebel'],
         [/\bknoblauchpulver\b|\bgetrockneter?\s+knoblauch\b/gi, 'knoblauch'],
@@ -5339,7 +5363,7 @@ function parseIngredients(inputText) {
         // koriander NICHT → gewürze (würde deduped!) — bleibt als 'koriander' (S0 safe_hints)
         [/\bpaprika\s+(?:edelsüß|rosenscharf|scharf|süß)(?![a-zäöüßA-ZÄÖÜ])/gi, 'paprika'],
         [/\bedelsüß(?![a-zäöüß])/gi, ''],  // Descriptor-Strip
-        [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b/gi, 'paprika'],  // S0
+        [/\bpaprika\s+gemahlen\b|\bpaprikapulver\b|\bpaprikagewürz\b/gi, 'paprika'],  // S0
         [/\brauch(?:pulver|aroma|extrakt)?\b|\bflüssigrauch\b/gi, 'rauchextrakt'],  // S1-2 Liberator
         // ── Öle (spezifisch) ──
         [/\bleinöl\b|\blein(?:samen)?öl\b|\bflachsöl\b/gi, 'leinöl'],  // S0-1 eigener Token
@@ -5455,7 +5479,7 @@ function parseIngredients(inputText) {
         [/\b(?:branntwein|tafel|weingeist|spirit)essig\b/gi, 'branntweinessig'],
         // natriumbenzoat stays as natriumbenzoat (in liberator[] directly)
         [/\be211\b/gi, 'natriumbenzoat'],  // E211 → ausgeschriebener Name               // Konservierungsstoff
-        [/\btamarinde(?:paste|extrakt|konzentrat)?\b/gi, 'essig'],  // S2-3 — hoher Säure-/Histamingehalt → essig-Kategorie
+        // tamarinde(paste/extrakt/konzentrat) → eigener Token 'tamarinde' (siehe Zeile ~3798/6744), NICHT 'essig'! War fälschliche Gleichsetzung mit Weinessig
         [/\banchovis(?:paste|extrakt|filet|öl)?\b/gi, 'sardelle'],  // S3!
         [/\bpassionsfrucht(?:saft|mark|konzentrat|aroma)?\b/gi, 'maracuja'],
         [/\bananassaft(?:konzentrat)?\b|\bananas\s+(?:saft|konzentrat)\b/gi, 'ananas'],
@@ -5528,6 +5552,7 @@ function parseIngredients(inputText) {
         [/\bsojalecithin\b|\bsonnenblumenlecithine?\b|\brapsöllecithin\b|e322\b/gi, 'e322'],
         [/\blecithin\b(?!\s*\w)/gi, 'e322'],  // generisches Lecithin → E322
         [/\bvanille(?:aroma|schote|pulver)\b/gi, 'vanille'],  // nur MIT Suffix! (extrakt separat behandelt, S2 statt S0)
+        [/\bkäsearoma\b/gi, 'käse unspezifisch'],  // Käse hat zu komplexe Sortenvarianz für einfache Vererbung — nutzt bestehenden ehrlichen Unsicherheits-Text
         [/\bvanillin\b|\bvanilin\b/gi, 'vanillin'],  // synthetisch → eigener Token S0
         [/\bpfefferminzöl\b|\bpepperminöl\b|\bpfefferminzextrakt\b/gi, 'pfefferminze'],
         [/\bbeta-?carotin\b|e160a\b/gi, 'e160a'],
@@ -5537,7 +5562,8 @@ function parseIngredients(inputText) {
         [/\berbsenprotein(?:isolat)?\b|\bpea\s+protein\b|\berbsenisolat\b/gi, 'erbsenprotein'],  // S2 — eigene Klassifizierung!
         [/\breisprotein(?:isolat)?\b|\brice\s+protein\b/gi, 'reis'],
         [/\bkakaopulver\b|\bkakaopulver\s+(?:stark\s+)?entölt\b/gi, 'kakao'],
-        [/\bkaramellfarbstoff\b|\bkaramellsirup\b/gi, 'e150'],
+        // karamellsirup → e150 entfernt: war Kollision mit 2 anderen Regeln — Karamellsirup ist ein Speiseprodukt, kein deklarierter E150-Zusatzstoff
+        [/\bkaramellfarbstoff\b/gi, 'e150'],
         [/\bkaramellzuckersirup\b|\bkaramellisierter\s+zucker\b/gi, 'e150'],  // → dao_blocker!
         // ── Waffelblätter / Süßwaren-Spezifika ──
         [/\bwaffelblätter?\b|\bwaffelteig\b|\bwaffelkeks\b/gi, 'keks'],
@@ -5731,7 +5757,7 @@ function parseIngredients(inputText) {
         [/^konservierungsstoff\s*(?:en?)?\s*$/gi, ''],
         [/^farbstoff\s*$/gi, ''],
         [/^antioxidationsmittel\s*$/gi, ''],
-        [/^trennmittel\s*$/gi, ''],
+        // trennmittel-Löschregel entfernt — war bereits korrekt registriert (safe_hints), wurde aber vorher gelöscht statt angezeigt zu werden
         // [/^süßungsmittel\s*$/gi, '']  // deaktiviert — würde standalone löschen,                      // isoliert → nicht als Inhalt
         [/^geschmacksverstärker\s*$/gi, ''],
         // ── aber wenn mit Inhalt: Kategorie-Prefix strippen ──
@@ -5819,7 +5845,7 @@ function parseIngredients(inputText) {
         [/\b(\w+)-mix\b/gi, '$1'],              // "Paprika-Mix" → "Paprika"
         [/\b(\w+)-sticks?\b/gi, '$1'],           // "Mozzarella-Sticks" → "Mozzarella"
         [/\bsüßkartoffel-\w+\b/gi, 'süßkartoffel'],  // "Süßkartoffel-Pommes" → "Süßkartoffel"
-        [/\blasagne\b|\blasagna\b/gi, 'nudeln'], // Lasagne = Nudelgericht S0
+        // lasagne/lasagna → jetzt Sperrliste (komplettes Gericht wie Ratatouille, keine einfache Nudel), siehe NICHT_ZUTAT_BLOCKLIST
         [/\baufback-?(\w+)\b/gi, '$1'],          // "Aufback-Baguette" → "Baguette"
         [/\baufback\b/gi, ''],                    // "Aufback " prefix → entfernen
         [/\btiefkühl-/gi, ''],               // "Tiefkühl-Brokkoli" → "Brokkoli"
@@ -5877,7 +5903,7 @@ function parseIngredients(inputText) {
         [/\baspartam-acesulfam\b/gi, 'süßungsmittel'],
         [/\bnatriumsaccharin\b/gi, 'süßungsmittel'],
         [/\bkokosblüten(?:zucker|nektar|sirup)?\b/gi, 'kokosblütenzucker'],  // S1 eigener Token
-        [/\bzitronensäure\b/gi, 'citronensäure'],   // → E330 (citronensäure = korrekt)
+        // zitronensäure→citronensäure entfernt — pingpongte mit anderer Regel, Ziel jetzt einheitlich 'zitronensäure'
         [/\bgrüntee(?:-aroma|-extrakt|-pulver)?\b|\bgrüner?\s+tee\s*-?extrakt\b/gi, 'grüntee'],
         [/\bschwarz?tee-?extrakt\b|\bschwarz?er?\s+tee\s*-?extrakt\b/gi, 'schwarztee'],
         [/\bhibiskus(?:tee)?-?extrakt\b/gi, 'hibiskustee'],
@@ -5951,7 +5977,7 @@ function parseIngredients(inputText) {
         [/\bmais-?cracker\b|\bmaiskeks\b/gi, 'keks'],
         [/\bquinoa-?cracker\b/gi, 'keks'],
         // ── Gebäck / Salziges ──
-        [/\bkäsegebäck\b|\bkäsestangen?\b|\bkäsekräcker\b/gi, 'keks'],      // Käse = S2 → lib
+        [/\bkäsegebäck\b|\bkäsestangen?\b|\bkäsekräcker\b/gi, 'käsegebäck'],      // eigener Token statt generischem Keks — herzhaftes Käsegebäck, nicht süßes Gebäck
         [/\bsalzletten?\b|\bsalzgebäck\b/gi, 'keks'],
         // ── Nuss-Varianten ──
         [/\bnussmischung\b|\bgemischte?\s+nüsse?\b/gi, 'nussmix'],
@@ -6118,7 +6144,7 @@ function parseIngredients(inputText) {
         [/butterflöckchen/gi,            'butter'],
         [/butterstückchen/gi,            'butter'],
         [/olivenölzum\w*/gi,             'olivenöl'],
-        [/lasagneplatte[n]?/gi,          'lasagne'],
+        [/lasagneplatte[n]?/gi,          'nudeln'],  // Lasagneplatten = reine Nudelblätter, nicht das fertige Gericht
         [/parmesanspäne/gi,              'parmesan'],
         [/tomaten[,\s]*(geschält[e]?|gehackt[e]?|gestückt[e]?|dose[n]?)/gi, 'tomaten'],
         [/\bschältomaten?\b|\bgeschälte\s+tomaten?\b/gi, 'tomate'],
@@ -6158,8 +6184,8 @@ function parseIngredients(inputText) {
         [/\baceto\s*balsamico\b|\bcrème\s+de\s+balsamique?\b/gi, 'balsamico'],
         // Gewürzmischung: Markenname wegkürzen
         [/gewürzmischung\s+[\w\s]+/gi,   'gewürzmischung'],
-        // Sojasoße → sojasauce
-        [/sojasoße\b/gi,                 'sojasauce'],
+        // Sojasoße-Ziel vereinheitlicht (war Sojasauce, pingpongte mit anderen Regeln)
+        [/sojasoße\b/gi,                 'sojasoße'],
         [/(\w{3,})füllung\b/gi,          '$1'],
         // Diverses
         [/lauchzwiebel[n]?\b/gi,         'frühlingszwiebel'],
@@ -6177,7 +6203,7 @@ function parseIngredients(inputText) {
         [/spitzpaprika\b/gi,             'paprika'],
         [/woknudeln\b/gi,                'nudeln'],
         [/kräuterbutter\b/gi,            'butter'],
-        [/lasagneplatte[n]?\b/gi,        'lasagne'],
+        [/lasagneplatte[n]?\b/gi,        'nudeln'],  // Lasagneplatten = reine Nudelblätter, nicht das fertige Gericht
         [/sahnesteif\b/gi,               ''],  // Kein Lebensmittel
         [/blätterteig\w*/gi,             'blätterteig'],
         // Stuck-Suffix 'mit': staudenselleriemit → staudensellerie
@@ -6257,7 +6283,7 @@ function parseIngredients(inputText) {
         [/erbsenfasern?\b/gi,                 ''],  // Ballaststoff
                 [/\binulin\b/gi, 'inulin'],  // S0 Präbiotischer Ballaststoff
         [/tarakernmehl\b|e417\b/gi,          'e417'],  // mit E417 vereinheitlichen, nicht löschen!
-        [/(?<!gouda )(?<!gouda-)\bjung\b(?!\s*gouda)/gi, ''],  // reines Zustands-Adjektiv (z.B. aus "Gouda (jung/gereift)" abgespalten), keine eigenständige Zutat — Gouda-jung-Sonderfall bleibt unangetastet
+        [/(?<!gouda )(?<!gouda-)(?<!käse )(?<!käse-)\bjung\b(?!\s*gouda)(?!\s*käse)/gi, ''],  // reines Zustands-Adjektiv (z.B. aus "Gouda (jung/gereift)" abgespalten), keine eigenständige Zutat — Gouda-jung UND generisches Käse-jung bleiben unangetastet (sonst greift fälschlich der Parmesan-Fallback)
         [/jodiertes?\s*kochsalz\b/gi,       'jodsalz'],  // S2 L!
         [/eisensulfat\b/gi,                  ''],  // Nährstoff → skip
         [/geräuchertes?\s*maltodextrin\b/gi, 'maltodextrin'],
@@ -6275,7 +6301,7 @@ function parseIngredients(inputText) {
         // [/gerstenmalzextrakt\b/gi, 'malz'],  // DEAKTIVIERT — eigener Token
 
         [/malzextrakt\b/gi,                    'malz'],
-        [/weizenkeim(?:mehl|öl|extrakt)?\b/gi,                   'weizenkeime'],  // S2! biogene Amine: Putrescin, Spermin...
+        [/weizenkeim(?:mehl|extrakt)?\b(?!öl)/gi,                   'weizenkeime'],  // öl ausgenommen — eigener Token (Ölextraktion lässt wasserlösliche Polyamine größtenteils zurück)
         [/weizenkleie\b/gi,                    'weizen'],
         [/maisgrieß\b/gi,                      'mais'],
         [/hafermehl\b/gi,                      'haferflocken'],
@@ -6295,7 +6321,7 @@ function parseIngredients(inputText) {
         [/calciumacetat\b/gi, 'e263'],
         [/apfelsinenaroma\b/gi, 'orangearoma'],
         [/natürliches butteraroma\b/gi, 'butteraroma'],
-        [/butter.{0,3}aroma\b/gi, 'butteraroma'],
+        // butter.{0,3}aroma → generischer Aroma-Mechanismus (SPECIAL_AROMA_MAP entfernt)
         // sojalecithin/lecithin → consolidated to e322 above
 
         [/karamellisierter\s+zucker\b/gi, 'karamell'],
@@ -6379,7 +6405,7 @@ function parseIngredients(inputText) {
         [/phenylalanin\b/gi,              ''],
         [/glyzerin?\w*/gi,                 ''],
         [/weißmischung\b/gi,               ''],
-        [/maltit\b(?!-[A-ZÄÖÜ])/gi,                     'maltitol'],
+        // Regel entfernt — redundant/zirkulär mit obiger Regel, die bereits alles auf 'maltitol' vereinheitlicht
         [/fruchtsaft(?:\s+aus\s+\w+)?(?:konzentrat)\b\s*:?/gi,  ''],
         [/aus\s*:\s*/gi,  ''],   // Reste wie 'aus :' entfernen
 
@@ -6392,9 +6418,9 @@ function parseIngredients(inputText) {
         [/magerer\s+kakao\b/gi,           'kakao'],
         [/kakaopulver\b/gi,               'kakao'],
         [/karamellpulver\b/gi,            'karamell'],
-        [/karamellaroma\b/gi,             'karamell'],
+        // karamellaroma → generischer Aroma-Mechanismus
         [/s[uü][sß]sholz\w*/gi,           'süßholz'],
-        [/lakritz\w*/gi,                   'süßholz'],
+        [/lakritz(?!aroma)\w*/gi,                   'süßholz'],
         [/süßholzwurzel\w*/gi,              'süßholz'],
         [/suessholz\w*/gi,                  'süßholz'],
         [/liquorice\w*/gi,                'süßholz'],
@@ -6462,7 +6488,7 @@ function parseIngredients(inputText) {
         [/schokoglasur\b/gi,              'schokolade'],
         [/schokoriegel\b/gi,              'schokolade'],
         // Ingwer-Varianten → ingwer
-        [/\bingwer(?:(?!tee|tea)[\wäöüÄÖÜß]*)?\b/gi, 'ingwer'],  // not ingwertee!
+        [/\bingwer(?:(?!tee|tea|aroma)[\wäöüÄÖÜß]*)?\b/gi, 'ingwer'],  // not ingwertee/ingweraroma!
         // kl. Bund / kl. Glas als Maßpräfix
         [/^kl\.?\s+(?:bund|glas|dose)\s+/gi, ''],
 
@@ -6541,7 +6567,7 @@ function parseIngredients(inputText) {
         [/hefepulver/gi,                 'hefeextrakt'],
         // Käse-Varianten
         [/käsepulver/gi,                 'käseprodukt'],  // eigener Token statt bloßem 'Käse' — vermeidet Parmesan-Fallback
-        [/käsezubereitung/gi,            'käseprodukt'],  // eigener Token statt bloßem 'Käse'
+        [/(?<!schmelz)käsezubereitung/gi,            'käseprodukt'],  // eigener Token statt bloßem 'Käse'; schmelzkäsezubereitung ausgenommen (eigener Token)
         // Milch-Varianten
         [/molkenerzeugnis/gi,            'molke'],
         [/süßmolkenpulver/gi,            'molke'],
@@ -6592,12 +6618,12 @@ function parseIngredients(inputText) {
         [/^öl$/gi,                        'pflanzenöl'],  // generisches Öl
         [/rapsfett/gi,          'pflanzenöl'],  // palmfett bereits oben zu palmöl normiert
         [/hefeautolysat|hefepulver/gi,   'hefeextrakt'],
-        [/käsepulver|käsezubereitung/gi, 'käseprodukt'],  // eigener Token statt bloßem 'Käse'
+        [/käsepulver|(?<!schmelz)käsezubereitung|käseprodukte?\b/gi, 'käseprodukt'],  // eigener Token statt bloßem 'Käse', Singular+Plural; schmelzkäsezubereitung ausgenommen
         [/glukosesirup|glucosesirup|\bdextrose\b/gi, 'zucker'],
         [/zwiebelpulver|zwiebelgranulat/gi, 'zwiebel'],
         [/tomatenpüree\b/gi,             'tomatenmark'],
         [/sojaeiweiß|sojaprotein/gi,     'soja'],
-        [/sojasauce|sojasoße/gi,         'sojasauce'],
+        [/sojasauce|sojasoße/gi,         'sojasoße'],  // Ziel vereinheitlicht (war sojasauce, pingpongte)
         [/volleipulver|eipulver|vollei/gi, 'ei'],
         [/molkenerzeugnis|süßmolkenpulver/gi, 'molke'],
         [/kondensmagermilch|vollmilch\b/gi, 'milch'],  // magermilchpulver raus — eigener Token
@@ -6632,7 +6658,7 @@ function parseIngredients(inputText) {
         [/cayennepfeffer\b/gi, 'cayenne'],
         [/\s+(?:für die form|zum frittieren|zum braten|zum backen|zum aufschlagen|zum würzen|zum kochen|zum garnieren|zum belegen|zum bestreuen)\s*[.,]*$/gi, ''],
         [/schinkenwürfel|schinkenwürfeln/gi, 'schinken'],
-        [/karamellsirup|karamelisirup/gi, 'karamellsirup'],
+        [/karamelisirup/gi, 'karamellsirup'],  // Tippfehler-Variante, karamellsirup selbst mergt bereits zu karamell (siehe oben)
         // süßmolkenpulver → molke (consolidated)
         [/stickstoff\b|e941\b/gi, 'stickstoff'],
         [/meerrettichzubereitung/gi, 'meerrettich'],
@@ -6654,8 +6680,8 @@ function parseIngredients(inputText) {
         [/\bkokosnussmilch(?:pulver)?\b/gi, 'kokos'],
         [/\bkokosnuss(?:raspel|flocken|öl|milch|mehl|pulver)\b/gi, 'kokos'],
         [/zitronenschalen\w*\b/gi, 'zitronenschale'],
-        [/\bjohannisbeer(?:saft|stücke?|püree|mark|konzentrat|extrakt|pulver)?\w*\b/gi, 'johannisbeere'],  // alle Komposita
-        [/\bweizenkeime?\b|\bweizenkeim(?:mehl|öl|extrakt)?\b/gi, 'weizenkeime'],    // Weizenkeime → safe S0 (wie Hafer)
+        [/\bjohannisbeer(?:saft|stücke?|püree|mark|konzentrat|extrakt|pulver)?(?!aroma)\w*\b/gi, 'johannisbeere'],  // alle Komposita außer -aroma
+        [/\bweizenkeime?\b(?!öl)|\bweizenkeim(?:mehl|extrakt)?\b(?!öl)/gi, 'weizenkeime'],    // SIGHI 2024: S2 A L (Kommentar "S0" war veraltet/falsch), öl ausgenommen
         [/\bgezuckerte?\b\s*/gi, ''],                                            // Adjektiv "gezuckert" → strip
         [/\blösliche?\b\s*/gi, ''],                                              // "lösliche Haferflocken" → strip Adjektiv
         [/\bbirnen?\b/gi, 'birne'],
@@ -6714,7 +6740,7 @@ function parseIngredients(inputText) {
         [/carotin\b|beta.?carotin\b|e160a\b|e160\b/gi, 'e160a'],
         [/\bcarotine\b|\bkarotine\b/gi, 'e160a'],                               // Plural "Carotine" → e160a → safe
         [/\bwildlachsfilet\b|\bwildlachs(?:filet|stück)?\b/gi, 'fischfilet'],  // Kompositum
-        [/\bmaltitsirup\b|\bmaltit(?:ol)?sirup\b/gi, 'maltit'],                 // → safe Zuckeralkohol
+        [/\bmaltitsirup\b|\bmaltit(?:ol)?sirup\b/gi, 'maltitol'],                 // → safe Zuckeralkohol, vereinheitlicht
         [/\bweinbeeren?\b/gi, 'rosinen'],                                        // Weinbeeren = Rosinen → dao_blocker
         [/\bshea(?:butter)?\b/gi, 'sheabutter'],                                 // standalone 'shea' → safe
         [/\bglycer(?:in|ol)\b|e422\b/gi, 'e422'],                               // Glycerin → safe Feuchthaltemittel
@@ -6790,33 +6816,56 @@ function parseIngredients(inputText) {
         // ── Glukose-Fruktosesirup ──
         [/glukose-?fruktose-?sirup\b|fruktose-?glukose-?sirup\b/gi, 'glukosesirup'],
         // ── Aromazusätze ohne Klammer ──
-        [/\b([\wäöü]{3,})aroma\b/gi, (m, fruit, offset, fullString) => {
+        [/\b([\wäöü]{3,}(?:-[\wäöü]+)?)aroma\b/gi, (m, fruit, offset, fullString) => {
             const FRUIT_MAP = {
                 'zitronen':'zitrone','zitrone':'zitrone','limetten':'limette','limette':'limette',
                 'orangen':'orange','orange':'orange','zitrus':'orange',
-                'kirsch':'kirsche','kirschen':'kirsche',
+                'kirsch':'kirsche','kirschen':'kirsche','sauerkirsch':'kirsche',
                 'erdbeer':'erdbeere','erdbeeren':'erdbeere','himbeer':'himbeere','himbeeren':'himbeere',
                 'johannisbeer':'johannisbeere','johannisbeeren':'johannisbeere',
+                'brombeer':'brombeere','brombeeren':'brombeere','heidelbeer':'heidelbeere','heidelbeeren':'heidelbeere',
                 'apfel':'apfel','äpfel':'apfel','banane':'banane','bananen':'banane',
                 'pfirsich':'pfirsich','aprikose':'aprikose','aprikosen':'aprikose',
                 'ananas':'ananas','mango':'mango','birne':'birne','birnen':'birne',
-                'pflaume':'pflaume','pflaumen':'pflaume','traube':'traube','trauben':'traube',
+                'pflaume':'pflaume','pflaumen':'pflaume','zwetschge':'zwetschge','zwetschgen':'zwetschge','traube':'traube','trauben':'traube',
                 'holunder':'holunderbeere','preiselbeer':'preiselbeere','cranberry':'cranberry',
                 'granatapfel':'granatapfel','maracuja':'maracuja','papaya':'papaya',
+                'mandarinen':'mandarine','mandarine':'mandarine','grapefruit':'grapefruit',
+                'kiwi':'kiwi','litschi':'litschi','guave':'guave',
+                'melonen':'melone','melone':'melone','wassermelonen':'wassermelone','wassermelone':'wassermelone',
+                'honigmelonen':'honigmelone','honigmelone':'honigmelone',
+                // Gewürze/Kräuter (nicht Frucht, aber gleiches Prinzip: natürlich vs. synthetisch)
+                'nelken':'nelke','nelke':'nelke','zimt':'zimt','ingwer':'ingwer',
+                'muskat':'muskatnuss','muskatnuss':'muskatnuss','kardamom':'kardamom',
+                'anis':'anis','minz':'minze','minze':'minze','pfefferminz':'minze','kokos':'kokos',
+                'kaffee':'kaffee','rum':'rum','mandel':'mandel','mandeln':'mandel',
+                'fleisch':'fleisch','pilz':'pilz','pilze':'pilz','obst':'obst','frucht':'frucht',
+                'zitronengras':'zitronengras','rosmarin':'rosmarin','basilikum':'basilikum',
+                'thymian':'thymian','salbei':'salbei','lavendel':'lavendel','hibiskus':'hibiskus',
+                'holunderblüte':'holunderblüte','holunderblüten':'holunderblüte','kamille':'kamille',
+                'rhabarber':'rhabarber','menthol':'menthol','eukalyptus':'eukalyptus',
+                'rose':'rose','rosen':'rose','waldmeister':'waldmeister',
+                'sahne':'sahne','zwiebel':'zwiebel','zwiebeln':'zwiebel','knoblauch':'knoblauch',
+                'champignon':'champignon','champignons':'champignon','pfefferminze':'pfefferminze',
+                'butter':'butter','schokolade':'schokolade','schokoladen':'schokolade',
+                'süßholz':'süßholz','lakritz':'süßholz','vanille':'vanille',
+                'kakao':'kakao','speck':'speck','kokosnuss':'kokosnuss','nougat':'nougat','amaretto':'amaretto',
+                'karamell':'karamell','honig':'honig','malz':'malz','fenchel':'fenchel',
+                'marzipan':'marzipan',
+                // Nüsse
+                'haselnuss':'haselnuss','haselnüsse':'haselnuss','walnuss':'walnuss','walnüsse':'walnuss',
+                'erdnuss':'erdnuss','erdnüsse':'erdnuss','pistazien':'pistazie','pistazie':'pistazie',
+                // Alkohol/Heißgetränke
+                'whisky':'whisky','weinbrand':'weinbrand','champagner':'champagner','sekt':'sekt',
+                'espresso':'kaffee','cappuccino':'kaffee','mokka':'kaffee',
+                'tee':'tee','grüntee':'grüntee','joghurt':'joghurt',
             };
             const key = fruit.toLowerCase();
-            // Nicht-Frucht-Aromen mit eigener, bekannter Einstufung — unabhängig von natürlich/künstlich
-            const SPECIAL_AROMA_MAP = { 'butter':'butter', 'schokolade':'schokolade', 'schokoladen':'schokolade' };
-            if (SPECIAL_AROMA_MAP[key]) return SPECIAL_AROMA_MAP[key];
             const target = FRUIT_MAP[key];
             if (!target) return 'aroma';
-            // EU-Kennzeichnungsrecht: "natürliches Aroma" darf nur stehen, wenn es echt aus der
-            // Frucht stammt. Fehlt dieser Zusatz (künstlich oder unbezeichnet), ist es meist
-            // synthetisch — ohne die biologische Matrix der Frucht. Nur bei "natürlich" die
-            // fruchtspezifische Einstufung übernehmen, sonst generisches (sicheres) Aroma.
-            const before = fullString.slice(Math.max(0, offset - 20), offset).toLowerCase();
-            if (/natürlich\w*\s*$/.test(before)) return target + 'aroma';
-            return 'aroma';
+            // Nutzerentscheidung: fruchtspezifische Zuordnung IMMER anzeigen (auch ohne "natürlich"),
+            // aber Unsicherheitshinweis ergänzen wenn "natürlich" fehlt (dann ggf. synthetisch, ohne Fruchtmatrix)
+            return target + 'aroma';
         }],
         [/\bvanillearoma\b/gi, 'vanillin'],
         // ── Backzutaten ──
@@ -7280,7 +7329,7 @@ function parseIngredients(inputText) {
         [/\bpecorino(?:\s+romano|\s+sardo|\s+toscano)?\b/gi, 'pecorino'],
         [/\bparmesan(?:käse|kase)?\b|\bhartkäse\b|\bgrana\b|\bparmigiano\b/gi, 'parmesan'],  // Parmigiano (italienischer Name) ergänzt
         [/parmesankäse\b/gi, 'parmesan'],
-        [/\bburrata\b|\bstracciatella\b/gi, 'mozzarella'],  // S0 Frischkäse
+        [/\bburrata\b/gi, 'burrata'],  // eigener Token statt Mozzarella-Verschmelzung
         // ── Pasta / Getreide ──
         [/\borzo\b|\brisoni\b/gi, 'nudeln'],
         [/\bperlencouscous\b|\bgottschobbel\b/gi, 'couscous'],
@@ -7369,7 +7418,8 @@ function parseIngredients(inputText) {
         // Zuckeralkohole (Tagatose/Erythrit/Xylit/Isomalt/Sorbit/Mannitol/Lactit/Maltit) haben
         // bereits eigene, vollständige Registrierung mit E-Nummer — keine Sammelbecken-Regel nötig.
         [/\bstevioglycoside\b|\bstevia\b|\bsteviolglycosid\b/gi, 'stevia'],
-        [/\bneohesperidin\b|\bthaumatin\b|\bsaccharin\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, sucralose→eigener Token, nicht süßungsmittel!
+        [/\bneohesperidin\b|\bthaumatin\b/gi, 'süßungsmittel'],  // acesulfam→dao_blocker, sucralose/saccharin→eigene Tokens, nicht süßungsmittel!
+        [/\bsaccharin\b|\be954\b/gi, 'saccharin'],
         [/\bethyl[- ]?vanillin\b/gi, 'vanillin'],  // Ethylvanillin stärker als Vanillin, S1-2   // stärker als Vanillin, gleiches Problem S1
         // ── Proteine / Ballaststoffe ──
         [/\bseitan\b|\bvitalweizengluten\b/gi, 'seitan'],  // S3 — fertige Seitan-Produkte
@@ -7467,7 +7517,7 @@ function parseIngredients(inputText) {
         [/\bsalzs[äa]ure\b|e507\b/gi, 'e507'],
         [/\bweizengluten\b|\bgluten\b(?!\s*frei)/gi, 'gluten'],  // S0 — Klebereiweiß ≠ Seitan
         // ── Käse / Milch-Varianten ──
-        [/\bkäsereikulturen\b|\bmilchsäurekulturen\b|\bfermentationskulturen?\b|\bfermentationskultur\b/gi, 'milchsäurekulturen'],
+        [/\bkäsereikulturen\b|\bmilchsäurekultur(?:en)?\b|\bfermentationskultur(?:en)?\b/gi, 'milchsäurekulturen'],
         [/\b(?:mikrobielles?|tierisches?|veganes?|lammlab|kalbslab)\s*lab\b|\blab\b(?!\s*\w)/gi, 'lab'],
         [/\blabaustauschstoff\b|\bmikrobieller\s+labaustauschstoff\b/gi, 'lab'],  // S0 Enzym
         [/\bschafsmilch\b|\bstutenmilch\b|\bschafsmilchkäse\b/gi, 'milch'],
@@ -7475,7 +7525,7 @@ function parseIngredients(inputText) {
         [/\bjunger?\s+\w{4,}käse\b/gi, 'edamer'],  // junger Käse S1-2, Edamer als Prototyp-Name
         [/\bcheddar\b|\bgauda\b/gi, 'cheddar'],
         [/\btomatenpulpe\b|\btomatenp[üu]ree\b|\bpassierte\s+tomaten\b/gi, 'tomatenmark'],  // konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
-        [/\bschmelzkäse\w*\b/gi, 'schmelzkäse'],  // DAO-hemmend S3
+        [/\bschmelzkäse\w*\b(?<!zubereitung)/gi, 'schmelzkäse'],  // DAO-hemmend S3, zubereitung ausgenommen (eigener Token)
         [/\bpanko\s*paniermehl\b|\bpaniermehl\b|\bsemmelbrös[e]?l\b/gi, 'brot'],  // Semmelbrösel/Paniermehl sind Brotprodukte (gebacken, Hefe) — nicht rohes Mehl
         // ── Fleisch-Varianten ──
         [/\bhühnerbrustfleisch\b|\bhühnerfleisch\b|\bhühnerbrust\b/gi, 'hähnchen'],
@@ -7516,7 +7566,7 @@ function parseIngredients(inputText) {
         [/\bsenfsaat\b|\bsenfkörner?\b|\bsenfsamen\b/gi, 'senf'],
         [/\bgerstenmalzessig\b|\bmalzessig\b/gi, 'weinessig'],  // Malzessig: fermentiert
         [/\bgepuffert(?:e[mnrs]?)?\s+(?=essig\b)/gi, ''],  // rein technischer Deskriptor (pH-Pufferung), keine HIT-Relevanz — Essig-Typ-Erkennung soll trotzdem greifen
-        [/(?<!apfel|obst|branntwein|tisch|weißwein|rotwein|wein|balsamico|synthetisch|sherry|reis|bier|malz|gerstenmalz)\bessig\b(?!\s*(?:essenz|säure))/gi, 'weinessig'],  // bare 'Essig' → weinessig S3
+        [/(?<!apfel|obst|branntwein|tisch|weißwein|rotwein|wein|balsamico|synthetisch|sherry|reis|bier|malz|gerstenmalz)\bessig\b(?!\s*(?:essenz|säure))/gi, 'essig'],  // bare 'Essig' bleibt eigener Token — nicht automatisch Weinessig annehmen (könnte auch harmloser Branntweinessig sein)
         // weißweinessig/apfelessig/reisessig/branntweinessig → bereits durch spezifische Normen oben behandelt
         // dinkelmehl → eigener Token (bereits oben)
         [/\bbockshornklee(?:samen|extrakt)?\b/gi, 'bockshornklee'],
@@ -7547,7 +7597,8 @@ function parseIngredients(inputText) {
         [/\bpecorino\s+sardo(?:\s+käse)?(?:\s+g\.u\.)?/gi, 'pecorino'],
         [/\b(pecorino|camembert|brie|halloumi|feta|mozzarella|ricotta)\s+parmesan\b/gi,
             (m,n) => n],  // 'X parmesan' Artefakt → 'X'
-        [/(?<!ricotta-)(?<!ricotta\s)(?<!pecorino )(?<!pecorino\s)(?<!camembert )(?<!brie )(?<!halloumi )(?<!feta )(?<!mozzarella )\bkäse\b(?!\s*rei|-?sorten?|-?pulver|-?kulturen?|-?kalt|-?warm|-?reife)/gi, 'parmesan'],
+        [/(?<=^|,\s)(?<!ricotta-)(?<!ricotta\s)(?<!pecorino )(?<!pecorino\s)(?<!camembert )(?<!brie )(?<!halloumi )(?<!feta )(?<!mozzarella )käse(?!\s*rei|-?sorten?|-?pulver|-?kulturen?|-?kalt|-?warm|-?reife|\s*jung)(?:\s*[,\-(]?\s*(?:würzig|pikant|kräftig|herzhaft|cremig|aromatisch)(?:e[mnrs]?)?\)?)?(?=\s*(?:,|$))/gi, 'käse unspezifisch'],
+        [/(?<=^|,\s)(?:würzig|pikant|kräftig|herzhaft|cremig|aromatisch)(?:e[mnrs]?)?\s+käse(?=\s*(?:,|$))/gi, 'käse unspezifisch'],  // NUR wenn 'Käse' + höchstens ein generisches Geschmacks-Adjektiv den GESAMTEN Eintrag bildet (keine unbekannte Sorte/Zusatz) — eigener, ehrlicher Token statt falscher Sortenbehauptung "Parmesan"
         [/\b(pecorino|camembert|brie|halloumi|feta|mozzarella|ricotta|parmesan)\s+(?:parmesan|käse)\b/gi,
             (m,n) => n],  // 'X käse/parmesan' Duplikat-Artefakt bereinigen
         [/[\s.]+$/g, ''],  // trailing dots/spaces cleanup  // Käse → high (gereifter Käse)
@@ -7710,7 +7761,7 @@ function parseIngredients(inputText) {
         [/\bkräuterextrakte?\b|\bkräuteressig\b/gi, 'essig'],       // Kräuteressig = Essig S3
         [/\bliebstöckelwurzel\b/gi, 'liebstöckel'],
         [/\bmuskatnussöl\b|\bmuskatöl\b/gi, 'muskat'],
-        [/\bzuckerrübensirup\b|\brübensirup\b|\bmelasse\b/gi, 'zucker'],
+        [/\bzuckerrübensirup\b|\brübensirup\b/gi, 'zucker'],  // melasse entfernt — eigenständige Zutat mit anderem Profil (biogene Amine), siehe eigener Text
         // ── Speck / Rauch ──
         [/\brückenspeck\b|\bschweinespeck\b|\bbachspeck\b|\bschweinebauch\b|\bschweinebacke\b/gi, 'speck'],
         [/\bschweinebauchspeck\b/gi, 'speck'],                                   // Kompositum
@@ -7724,7 +7775,8 @@ function parseIngredients(inputText) {
         // ── Sauerrahm ──
         [/\bsauerrahm\b|\bsaure\s+sahne\b|\bsauersahne\b/gi, 'sauerrahm'],
         // ── Edamer ──
-        [/\bappenzeller\b|\bgruyère\b/gi, 'gruyère'],  // echter Produktname statt erfundenem Sammelbegriff
+        [/\bgruyère\b|\bgruyere\b/gi, 'gruyère'],  // echter Produktname statt erfundenem Sammelbegriff
+        [/\bappenzeller\b/gi, 'appenzeller'],  // eigener Name statt fälschlicher Gruyère-Gleichsetzung — beide Schweizer Hartkäse, aber unterschiedliche Sorten
         // ── Pflanzliche Fette (Compound) ──
         [/pflanzliche\s+fette?\s+(palm|kokos|raps)/gi, '$1öl'],
         [/\bfrittierte?\s+kartoffeln?\b/gi, 'kartoffel'],
@@ -7812,6 +7864,7 @@ function parseIngredients(inputText) {
         [/\brote?\s+beet?e?\b|\branden?\b|\bvergissmeinnicht\b/gi, 'rote bete'],
         // ── Käse-Varianten ──
         [/\bpaneer\b|\bhüttenkäse\b|\bcottage\s*cheese\b/gi, 'frischkäse'],  // S0 frischer Käse
+        [/\bschafskäse\s+feta\b|\bfeta\s+schafskäse\b/gi, 'feta'],  // redundante Doppelbenennung → sauber zu 'feta', verhindert "feta Feta"-Verstümmelung
         [/\bhirtenkäse\b|\bschafskäse\b/gi, 'feta'],   // ähnlich Feta
         // ── Fleisch-Gerichte/-Produkte ──
         [/\brinderroulade[n]?\b|\broulade[n]?\b/gi, 'rindfleisch'],  // gekocht, S2
@@ -8003,7 +8056,7 @@ function parseIngredients(inputText) {
         [/\bsahnejoghurt\b|\bsahne-?joghurt\b/gi, 'joghurt'],                   // → safe S0
         [/\bbiotin\b|vitamin\s*h\b|vitamin\s*b7\b|e640\b/gi, 'vitaminb7'],                       // Biotin = Vitamin H = Vitamin B7
         [/\bnatrium-?phosphate?\b|\bnatriumphosphat\b(?!\w)/gi, 'e339'],         // Natriumphosphat → safe
-        [/\blamm(?:gewürz|mix)?\b/gi, 'gewürze'],
+        [/\blamm(?:gewürz|mix)\b/gi, 'gewürze'],  // Suffix jetzt Pflicht — bloßes 'Lamm' (das Fleisch) wurde fälschlich zu 'Gewürze'
         [/\bwild(?:gewürz|mix)\b/gi, 'gewürze'],
         [/\bsauerbraten(?:gewürz|mix)?\b/gi, 'gewürze'],
         [/\beinmach(?:gewürz|mix)?\b|\bpökel(?:gewürz|mix|salz)?\b/gi, 'gewürze'],
@@ -8036,7 +8089,7 @@ function parseIngredients(inputText) {
         [/\bpaprikamark\b|\bpaprikapaste\b/gi, 'paprika'],
         [/\btomatenconfit\b|\bgetrocknete\s+tomaten\b/gi, 'tomatenmark'],  // getrocknet = konzentriert → S3, NICHT bare 'tomate' (jetzt S2)
         // ── Gewürz-Öle ──
-        [/\bknoblauch(?:granulat|pulver|öl)?\b/gi, 'knoblauch'],
+        [/(?<!schwarzer\s)\bknoblauch(?:granulat|pulver|öl)?\b/gi, 'knoblauch'],
         [/\bzwiebel(?:granulat|pulver|öl)?\b/gi, 'zwiebel'],
         [/\bbärlauch(?:öl|pesto|butter)?\b/gi, 'bärlauch'],
         [/\bbasilikum(?:öl|pesto)?\b/gi, 'basilikum'],
@@ -8154,7 +8207,7 @@ function parseIngredients(inputText) {
         [/\bkaramellbonbons?\b|\bkaramellzucker\b/gi, 'karamell'],
         [/\bsahnebonbons?\b|\bmilchbonbons?\b/gi, 'bonbon'],
         [/\beukalyptus\s*bonbons?\b|\bhustenbonbons?\b|\bkamillentropfen\b/gi, 'bonbon'],
-        [/\bzitronat\b|\borangeat\b|\bsukkade\b/gi, 'zitronat'],  // kandierte Zitrusschale
+        [/\bzitronat\b|\bsukkade\b/gi, 'zitronat'],  // orangeat entfernt — eigenständig, siehe eigener Token/Text (Orangenschale-Basis statt Zitronenschale)
         [/\bingwer\s*(?:kandiert|in\s+sirup)\b/gi, 'ingwer'],
         [/\bkandiszucker\b|\bkandis\b/gi, 'zucker'],
         // ── Kokos-Produkte ──
@@ -8217,11 +8270,18 @@ function parseIngredients(inputText) {
         [/\bhähnchen(?:schinken|aufschnitt|brust\s*aufschnitt)?\b/gi, 'hähnchen'],
         [/\bputen(?:aufschnitt|brust\s*aufschnitt)?\b/gi, 'pute'],
         // ── Käsesorten → Reifegrad-Klassifikation ──
-        [/\bmünsterkäse\b|\bmünster\b(?!\s*mai)/gi, 'camembert'],   // Weichkäse S2
+        [/\bmünsterkäse\b|\bmünster\b(?!\s*mai)|\bmunster\b(?!\s*mai)/gi, 'münster'],   // eigener Token statt Camembert-Verschmelzung
         [/\bobatzda\b|\bobazda\b/gi, 'camembert'],   // Bayerische Käsespezialität aus langgereiftem Camembert
         [/\bbutterkäse\b/gi, 'butterkäse'],  // eigener Name statt Sammelbegriff, milder Schnittkäse S1-2
-        [/\bvacherin\b(?!\s*mont)/gi, 'camembert'],                  // Weichkäse S2
-        [/\btaleggio\b|\bfontina\b|\basiago\b|\bsbrinz\b/gi, 'parmesan'],  // Hartkäse S2-3 (provolone entfernt — eigener Token S2)
+        [/\bvacherin\s*mont\s*d['’]?\s*or\b/gi, 'vacherin mont d or'],
+        [/\bvacherin\b(?!\s*mont)/gi, 'vacherin'],                  // eigener Name statt Camembert-Gleichsetzung — beide Weichkäse, aber unterschiedliche Sorten
+        [/\btaleggio\b/gi, 'taleggio'],  // eigener Token statt Parmesan-Verschmelzung
+        [/\bpont[\s-]*l['’]?[\s-]*évêque\b/gi, 'pont l evêque'],
+        [/\bfourme\s*d['’]?\s*ambert\b/gi, 'fourme dambert'],
+        [/\bformaggio\s*d['’]?\s*alpe\b/gi, 'formaggio d alpe'],
+        [/\bbleu\s*d['’]?\s*auvergne\b/gi, 'bleu dauvergne'],
+        [/\basiago\b/gi, 'asiago'],  // eigener Token statt Parmesan-Verschmelzung
+        [/\bsbrinz\b/gi, 'sbrinz'],  // eigener Token statt Parmesan-Verschmelzung
         [/\bgouda\s+(?:mittelalt|mittel|alt|extra\s*alt)\b/gi, 'gouda'],
         [/\bgouda\s+jung\b|\bjunger?\s+gouda\b/gi, 'gouda jung'],
         [/\bedam\s+alt\b/gi, 'parmesan'],
@@ -8231,7 +8291,7 @@ function parseIngredients(inputText) {
         [/\bmozzarella\s+(?:light|mager|mini|cherry)\b/gi, 'mozzarella'],
         // ── Quark / Frischkäse ──
         [/\bspeisequark\b|\btopfen\b|\bquark\s+(?:mager|fett|40%|20%)?\b/gi, 'frischkäse'],
-        [/\bgervais\b|\bphiladelphia\b|\bfrischkäse\s+(?:natur|kräuter|light)?\b/gi, 'frischkäse'],
+        [/\bgervais\b|\bphiladelphia\b|\bfrischkäse\s+(?:natur|kräutern?|light)\b/gi, 'frischkäse'],
         // ── Milchvarianten ──
         [/\bkondensmilch\b|\bevaporated\s+milk\b|\bdosenmilch\b/gi, 'kondensmilch'],
         [/\bkaffeesahne\b|\bkoffiesahne\b|\bcoffemate\b/gi, 'sahne'],
@@ -8430,11 +8490,11 @@ function parseIngredients(inputText) {
         [/\bhemp\s+protein\b|\bhanfprotein\b/gi, 'hanf'],
         // ── Nahrungsergänzung → alle 'supplement' ──
         [/\bbranched\s+chain\b/gi, 'bcaa'],
-        [/\bkreatin(?:\s*(?:monohydrat|hcl|ethyl))?\b/gi, 'supplement'],
+        [/\bkreatin(?:\s*(?:monohydrat|hcl|ethyl))?\b/gi, 'kreatin'],
         [/\bmagnesium(?:citrat|glycinat|oxid|sulfat)?\s+(?:pulver|kapseln?)\b/gi, 'supplement'],
         [/\bvitamin\s+[cde](?!\w)\s*(?:pulver|kapseln?|tabletten?|tropfen)?\b/gi, 'supplement'],  // \s+ verhindert 'vitamine'
         [/\bomega.?3[\s-]*(?:kapseln?|öl|fettsäuren)?\b/gi, 'fischöl'],
-        [/\bkollagen(?:\s*(?:pulver|peptide|hydrolysat))?\b/gi, 'supplement'],
+        [/\bkollagen(?:\s*(?:pulver|peptide|hydrolysat))?\b/gi, 'kollagen'],
         [/\bhyaluron(?:\s*(?:kapseln?|pulver))?\b/gi, 'supplement'],
         [/\bcurcumin(?:\s*(?:kapseln?|extrakt))?\b/gi, 'kurkuma'],
         [/\bashwagandha(?:\s*(?:kapseln?|extrakt|pulver))?\b/gi, 'ashwagandha'],
@@ -9028,7 +9088,7 @@ function parseIngredients(inputText) {
             _protectedENumbers.push(m);
             return `\u0001${_protectedENumbers.length - 1}\u0001`;
         });
-        line = line.replace(/(\p{L})\d+[,.]?\d*\s*(?:g|kg|ml|l|cl)\b/gu, '$1');
+        line = line.replace(/(?<!\bro)(\p{L})\d+[,.]?\d*\s*(?:g|kg|ml|l|cl)\b/gu, '$1');  // 'rot2g' ausgenommen (Farbstoff-Eigenname E128, keine Mengenangabe)
         line = line.replace(/\u0001(\d+)\u0001/g, (m, idx) => _protectedENumbers[Number(idx)]);
 
         // Klammern aufklappen oder entfernen
@@ -9128,9 +9188,21 @@ function parseIngredients(inputText) {
         // Descriptor-Adjektive nach Hauptzutat entfernen
         // "rote bete" ist ein Kompositum — "rote" NICHT als Farb-Adjektiv strippen!
         // "braun ht/fk", "rot 2g" etc. sind Farbstoff-Eigennamen (E153-155, E128) — kein Farb-Adjektiv!
-        if (!/^rote\s+bete$/i.test(line.trim()) && !/^(?:braun\s+(?:ht|fk)|rot\s+2g|gelb\s+\d+|grün\s+[fs])$/i.test(line.trim())) {
-            line = line.replace(DESCRIPTOR_RE, '').trim();
-        }
+        // "schwarzer knoblauch" ist eine eigene, fermentierte Zutat (S3) — "schwarzer" NICHT als Farb-Adjektiv strippen!
+        // Platzhalter-Schutz statt Ganzzeilen-Anker (der brach bei kommagetrennten Listen, dem Normalfall!)
+        line = line.replace(/\brote\s+bete\b/gi, '\u0002ROTEBETE\u0002')
+                   .replace(/\bbraun\s+(ht|fk)\b/gi, '\u0002BRAUN$1\u0002')
+                   .replace(/\brot\s+2g\b/gi, '\u0002ROT2G\u0002')
+                   .replace(/\bgelb\s+(\d+)\b/gi, '\u0002GELB$1\u0002')
+                   .replace(/\bgrün\s+([fs])\b/gi, '\u0002GRUEN$1\u0002')
+                   .replace(/\bschwarzer?\s+knoblauch\b/gi, '\u0002SCHWARZERKNOBLAUCH\u0002');
+        line = line.replace(DESCRIPTOR_RE, '').trim();
+        line = line.replace(/\u0002ROTEBETE\u0002/g, 'rote bete')
+                   .replace(/\u0002BRAUN(HT|FK|ht|fk)\u0002/g, 'braun $1')
+                   .replace(/\u0002ROT2G\u0002/g, 'rot 2g')
+                   .replace(/\u0002GELB(\d+)\u0002/g, 'gelb $1')
+                   .replace(/\u0002GRUEN([FSfs])\u0002/g, 'grün $1')
+                   .replace(/\u0002SCHWARZERKNOBLAUCH\u0002/g, 'schwarzer knoblauch');
                 // Strip "oder X" / "und X" leftover from nested paren splitting
                 line = line.replace(/^(?:oder|und(?:\s*\/\s*oder)?)\s+/i, '').trim();
                 // Strip dangling "öl und" / "fett und" suffixes
@@ -9273,6 +9345,7 @@ function parseIngredients(inputText) {
         'makrele':  /räucherfisch|hering/i,
         'sardine':  /sardelle/i,
         'sardinen': /sardelle/i,
+        'sherryessig': /weinessig/i,  // Sherryessig → weinessig (S3), korrekt zusammengeführt
         'miso':     /misopaste/i,
         'champagner': /sekt/i,       // Sekt/Champagner → sekt
         'prosecco': /sekt/i,         // Prosecco → sekt
@@ -9307,7 +9380,16 @@ function parseIngredients(inputText) {
 // ═══════════════════════════════════════════════════════════
 const KNOWN_AROMA_FRUITS = ['erdbeere','himbeere','johannisbeere','holunderbeere','preiselbeere',
     'zitrone','limette','orange','kirsche','apfel','banane','pfirsich','aprikose','ananas',
-    'mango','birne','pflaume','traube','cranberry','granatapfel','maracuja','papaya'];
+    'mango','birne','pflaume','traube','cranberry','granatapfel','maracuja','papaya',
+    'nelke','zimt','ingwer','muskatnuss','kardamom','anis','minze','kokos','kaffee','rum','mandel','karamell','honig','malz',
+    'brombeere','heidelbeere','zwetschge','mandarine','grapefruit','kiwi','litschi','guave',
+    'melone','wassermelone','honigmelone','fenchel','marzipan',
+    'haselnuss','walnuss','erdnuss','pistazie',
+    'whisky','weinbrand','champagner','sekt','tee','grüntee','joghurt','fleisch','pilz','obst','frucht',
+    'zitronengras','rosmarin','basilikum','thymian','salbei','lavendel','hibiskus','holunderblüte','kamille','rhabarber',
+    'menthol','eukalyptus','rose','waldmeister',
+    'sahne','zwiebel','knoblauch','champignon','pfefferminze','butter','schokolade','süßholz','vanille',
+    'kakao','speck','kokosnuss','nougat','amaretto'];
 function _extractAromaFruit(n) {
     if (!n.endsWith('aroma')) return null;
     const prefix = n.slice(0, -5);
@@ -9375,11 +9457,12 @@ function classifyIngredient(name) {
     if (em) {
         const num = parseInt(em[1]);
         const sulfites   = [220,221,222,223,224,225,226,227,228];
-        const nitrites   = [249,250,251,252];
+        const nitrites   = [251,252];  // E249/E250 entfernt (Nutzerentscheidung: reine Additive S0, siehe safe_hints) — nur Nitrat bleibt hier
         const benzoates  = [210,211,212,213];
         if (benzoates.includes(num)) return 'liberator';  // E210-213: Benzoate = Mastzell-Liberator (SIGHI S2 L, NICHT dao_blocker!)
         if (sulfites.includes(num)) return 'liberator';  // E220-228: Sulfite = Mastzell-Liberator, kein direkter DAO-Hemmer
-        if (nitrites.includes(num)) return 'high';  // E249/E250 Nitrit = S3 Pökelsalz!
+        if (num === 249 || num === 250) return 'safe';  // Nutzerentscheidung: Natriumnitrit/Kaliumnitrit S0 (kochenOHNE bestätigt geeignet)
+        if (nitrites.includes(num)) return 'high';  // E251/E252 Nitrat = weiterhin konservativ (Pökelsalz-Signal)
         if (num === 621) return 'liberator';  // MSG = Liberator (SIGHI S2 L, NICHT high!)
         if (num === 120) return 'liberator'; // Karmin
     }
@@ -9475,11 +9558,7 @@ function findFuzzyMatch(term) {
     }
     if (!bestMatch) return null;
     const bestSighi = getSIGHI(bestMatch);
-    let displayCat = bestCat;
-    if (bestSighi !== null) {
-        if (displayCat === 'safe' && bestSighi >= 2) displayCat = bestSighi >= 3 ? 'high' : 'liberator';
-        else if (displayCat === 'safe' && bestSighi === 1) displayCat = 'liberator';
-    }
+    const displayCat = bestCat;  // Auto-Upgrade-Duplikat entfernt (safe+S1/S2 → zwangsweise liberator/high) — derselbe Bug wurde an anderer Stelle bereits als systemisch fehlerhaft erkannt und entfernt
     const catLabel = { high: 'Histaminreich', liberator: 'Liberator', dao_blocker: 'DAO-hemmend', safe: 'Unbedenklich' }[displayCat];
     return {
         cat: displayCat,
@@ -9633,6 +9712,8 @@ function calcScore(analyzed) {
 // ═══════════════════════════════════════════════════════════
 const SIGHI_DB = {
     3: [
+        'schwarzer knoblauch','schwarzknoblauch',  // Von SIGHI nicht separat geführt — wochenlange Fermentation bei hoher Temperatur, vorsichtshalber wie andere stark fermentierte Produkte S3
+        // käse unspezifisch → jetzt S0 mit Warntext (siehe safe_hints/Level 0), Nutzerentscheidung: volle Bandbreite Mozzarella bis Parmesan macht jede feste Stufe irreführend
         'amaretto',  // S3 — Batch1-Check: fehlte in SIGHI_DB
         'alkoholhaltige getränke',  // SIGHI 2024: explizit "3 H A L B" — höchste Stufe, alle vier Mechanismen
         'balsamico','condimento bianco',  // SIGHI 2024: S3 ("3 H ? Essig: Aceto Balsamico"), war fälschlich S2
@@ -9643,7 +9724,7 @@ const SIGHI_DB = {
         'muschel','miesmuschel',  // S3
         // ── Histaminreiche Lebensmittel ──
         'tomatenmark','tomatensoße','tomatensauce',  // S3 H+L (Tomatenmark/-soße = konzentriert, NICHT frische Tomate — siehe SIGHI_DB[2] für 'tomate')
-        'parmesan','gran padano','grana padano','granapadano','pecorino','pecorino sardo','emmentaler','bergkäse','gruyère','harzer','asiago','manchego',  // brie/tilsiter entfernt — passen nicht zu Hartkäse S3, siehe dort für korrekte Einstufung
+        'parmesan','gran padano','grana padano','granapadano','pecorino','pecorino sardo','emmentaler','bergkäse','gruyère','harzer','manchego',  // brie/tilsiter entfernt — passen nicht zu Hartkäse S3, siehe dort für korrekte Einstufung; asiago entfernt — jetzt korrekt S2
         'käse gereift',
         // salami/chorizo/rohschinken/landjäger/mettwurst/etc. → high[] S3! (waren fälschlich hier)
         'bresaola','schinken roh','tiroler speck','osso collo',
@@ -9712,20 +9793,29 @@ const SIGHI_DB = {
     ],
 
     2: [
-        'wurstwaren',  // SIGHI 2024: explizit "2 H ? ?" (war fälschlich ohne Stufe, Fallback wäre 3 gewesen)
+        'fontina',  // SIGHI 2024: explizit "2 H A"
+        'orangeat',  // Kandierte Orangenschale — Basis Orangenschale ist SIGHI S3 L, vorsichtig etwas niedriger wegen Zuckerung/Verdünnung
+        'zitronat','citronat',  // Mehrere zusammenwirkende Faktoren: Liberator-Zitrusschale + konkurrierende biogene Amine + starke Zuckerung/Verarbeitung
+        // melasse verschoben nach Level 1 (siehe unten) — Basis meist histaminarm, DAO/Kupfer-Mechanismus individuell variabel
+        'jodsalz','iodsalz',  // SIGHI 2024: explizit "2 L" bestätigt (war zufällig nur über Liberator-Fallback korrekt, jetzt robust registriert)
+        'wurstwaren','wurst',  // SIGHI 2024: explizit "2 H ? ?" (war fälschlich ohne Stufe, Fallback wäre 3 gewesen) — "wurst" als Synonym gleich behandelt
         'spirituosen',  // Mindeststufe (SIGHI: "2 klar" bis "3 nicht klar") — NIE S0, daher Mindestwert statt irreführendem S0-Fallback
         'erdmandelgeröstet',  // SIGHI 2024: "2 ? Erdmandel, geröstet" — andere Stufe als rohe Erdmandel (S0)
         'benzoesäure','e210','natriumbenzoat','e211','kaliumbenzoat','e212','calciumbenzoat','e213',  // SIGHI 2024: S2, nicht S3
         'zitronenschale',  // SIGHI 2024: S2 (mit L-Marker, war fälschlich S1 in safe)
         'e214','ethyl-p-hydroxybenzoat','e215','natriumethyl-p-hydroxybenzoat',  // SIGHI 2024: S2, nicht S3
         'e218','methyl-p-hydroxybenzoat','e219','natriummethyl-p-hydroxybenzoat',  // SIGHI 2024: S2, nicht S3
-        'cheddar','gouda gereift','gouda','camembert','roquefort','schimmelkäse','schmelzkäse','stilton','gorgonzola','brie','tilsiter','limburger','provolone',  // SIGHI 2024: S2, nicht S3 (brie/tilsiter/limburger/provolone: nicht namentlich in SIGHI, Analogie zu Camembert/Gouda gereift)
+        'cheddar','gouda gereift','gouda','camembert','roquefort','schimmelkäse','schmelzkäse','stilton','gorgonzola','brie','tilsiter','limburger','provolone','vacherin','jarlsberg','caciocavallo','cambozola','reblochon','danish blue','taleggio','münster','asiago','chester','cheshire','mimolette','cotija','bavaria blu','bergader','graviera','colby','crottin de chavignol','crottin','schmelzkäsezubereitung',
+        'weinbergkäse','romadur','backsteinkäse','steinbuscher','quargel','chiemgauer','frühstückskäse','weißlacker','bierkäse',
+        'saint-nectaire','époisses','morbier','chaource','livarot','cantal','tomme de savoie','saint marcellin','saint félicien','coulommiers','rocamadour','valençay','selles-sur-cher','banon','pont l evêque','fourme dambert','bleu dauvergne',
+        'schabziger','sapsago','tomme vaudoise','belper knolle','bloderkäse','werdenberger sauerkäse','bündnerkäse','toggenburger','schüttelkäse','vacherin fribourgeois','vacherin mont d or',
+        // SIGHI 2024: S2, nicht S3 (analog zu Camembert/Gouda gereift/Limburger/Gorgonzola/Crottin, jeweils nicht namentlich in SIGHI)
         'e160b','bixin','norbixin',  // SIGHI 2024: S2 L (Farbstoff aus Orleanstrauch) — explizit statt nur Kategorie-Fallback
         'bha','e320','butylhydroxyanisol','bht','e321','butylhydroxytoluol',  // SIGHI 2024: S2, nicht S3
         'braun ht','e155',  // SIGHI 2024: S2, nicht S3 (E142/Grün S bewusst nicht klassifiziert — Quelle selbst unklar "??")
         'azorubin','e122','carmoisin','amaranth','e123','cochenillerot','e124','ponceau 4r','allurarot','e129','allura red',  // SIGHI 2024: alle S2, nicht S3
         'patentblau v','e131','indigokarmin','e132',  // SIGHI 2024: S2, nicht S3
-        'mandel','mandeln','mandelmus',  // S2 L — Histaminliberator, siehe Hint-Text (DEA 2025)
+        // mandel/mandeln/mandelmus entfernt — SIGHI bestätigt "1" ohne Marker, siehe Level 1
         'tomate',  // S2 H L — Frische Tomate (siehe getIngredientInfo-Text), Tomatenmark/-soße/-sauce/Dosentomaten bleiben S3
         // sonnenblumenöl → S0 (siehe SIGHI_DB[0] und safe_hints[])
         'milder cheddar','mild cheddar',  // S2 — Batch-Check: deutlich weniger Histamin als gereifter Cheddar, aber nicht sicher
@@ -9859,6 +9949,11 @@ const SIGHI_DB = {
         'nicht-ionische kontrastmittel',
     ],
     1: [
+        'weizenkeimöl',  // Basis (Weizenkeime) ist SIGHI S2, aber wasserlösliche Polyamine gehen kaum ins Öl über — vorsichtig niedriger angesetzt
+        // zitronat/citronat verschoben nach Level 2 (siehe unten) — mehrere zusammenwirkende Faktoren rechtfertigen höhere Stufe
+        'melasse',  // Basis meist histaminarm, DAO/Kupfer-Mechanismus + individuelle Verträglichkeit wie bei Honig/Ahornsirup
+        'mandel','mandeln','mandelmus',  // SIGHI 2024: explizit "1" ohne Marker (war fälschlich S2)
+        'marzipan','persipan','marzipanrohmasse','marzipanmasse',  // SIGHI 2024: explizit "1" ohne Marker (war fälschlich S2 via Liberator-Fallback)
         'e340','kaliumphosphate','e341','calciumphosphate','phosphate',  // SIGHI 2024: Stufe 1 ("?", unklar) — war fälschlich S2, "DAO-Blocker"-Zuschreibung nicht SIGHI-belegt (nur "histaminta")
         'feige','frische feige',  // SIGHI 2024: S1 (Liberator), war fälschlich S0 registriert
         'feta','feta-käse','schafskäse feta',  // SIGHI 2024: S1 ("1 H A Feta"), war fälschlich S2
@@ -10013,6 +10108,8 @@ const SIGHI_DB = {
         'ranitidin','cimetidin','h2-blocker',
     ],
     0: [
+        'e250','e249','natriumnitrit','kaliumnitrit',  // Nutzerentscheidung: kochenOHNE bestätigt Natriumnitrit als geeignet/histaminarm — reiner Zusatzstoff
+        'käse unspezifisch',  // Nutzerentscheidung: volle Bandbreite (Mozzarella bis Parmesan) macht jede feste Stufe irreführend — S0 mit deutlichem Warntext statt Rateversuch
         'erythorbinsäure','e315','natriumerythorbat','e316',  // SIGHI 2024: S0 bestätigt (war fälschlich S1)
         'e150b','e150c','e150d',  // SIGHI 2024 bestätigt explizit Stufe 0 (war fälschlich bei Stufe 1), nur Vorsichtshinweis "möglicherweise etwas weniger verträglich" im Text
         'hefe','backhefe','trockenhefe','frischhefe','bäckerhefe','instanthefe','dry yeast','bierhefe','gest','germ',  // SIGHI 2024: S0 ("Gest, Germ, Hefe" + "Backhefe, Bäckerhefe" + "Bierhefe", alle S0 bei hygienischer Produktion), war fälschlich S1
@@ -10020,7 +10117,7 @@ const SIGHI_DB = {
         'kamut','khorasan','khorasan-weizen',  // SIGHI 2024: S0 ("KAMUT®, Khorasan-Weizen"), war fälschlich S1
         'majoran','marjoram','estragon','tarragon','chicorée','chicoree','chicory','radicchio','chinakohl','chinese cabbage',  // S0 (Batch 15-17 Nachtrag)
         'entkoffeinierter kaffee','entkoffeiniert',  // S0
-        'gouda jung','junger gouda',  // S0 SIGHI
+        'gouda jung','junger gouda','käse jung',  // S0 SIGHI
         // ── Alkoholfreie Getränke (explizit S0) ──
         'alkoholfreier wein','alkoholfreier sekt','alkoholfrei',
         // ── Sicher: Frisches Fleisch ──
@@ -10231,6 +10328,12 @@ function getSIGHI(name) {
         if (DB.high.some(k => sighiKeyMatch(k, n))) return 3;
         return 1;
     }
+    // Exakte Treffer haben IMMER Vorrang vor Fuzzy-Prefix-Matches — sonst würde z.B.
+    // "gouda jung" (exakt S0) fälschlich durch das bloße "gouda" (S2, Fuzzy-Präfix-Match
+    // "gouda " am Wortanfang) überschrieben, weil Level 2 vor Level 0 geprüft wird.
+    for (const level of [3, 2, 1, 0]) {
+        if (SIGHI_DB[level].includes(n)) return level;
+    }
     for (const level of [3, 2, 1, 0]) {
         if (SIGHI_DB[level].some(k => sighiKeyMatch(k, n))) return level;
     }
@@ -10405,8 +10508,10 @@ function getIngredientInfo(name, cat, aiGuess) {
             const fruitSighi = getSIGHI(fruit);
             const fruitText = getIngredientInfo(fruit, fruitCat, false);
             const fruitLabel = fruit.charAt(0).toUpperCase() + fruit.slice(1);
-            const sighiNote = fruitSighi !== null ? ` (SIGHI ${fruitSighi})` : '';
-            return `Aromaextrakt aus ${fruitLabel}. In deutlich geringerer Menge als Saft/ganze Frucht enthalten. Zur Frucht selbst: ${fruitText} Das konzentrierte Aroma dürfte in der Praxis milder wirken als die ganze Frucht/Saft.`;
+            const _origLower = (window._reliableOriginMap && window._reliableOriginMap[n] || '').toLowerCase();
+            const _isNatural = /natürlich/.test(_origLower);
+            const _uncertaintyNote = _isNatural ? '' : ' ⚠️ Ohne Kennzeichnung "natürlich" evtl. synthetisch — dann fehlt ggf. die biologische Matrix der Ausgangszutat, Einschätzung entsprechend unsicherer.';
+            return `Aromaextrakt aus ${fruitLabel}. In deutlich geringerer Menge als die ganze Zutat enthalten. Zur Ausgangszutat selbst: ${fruitText} Das konzentrierte Aroma dürfte in der Praxis milder wirken als die ganze Zutat.${_uncertaintyNote}`;
         }
         if (n === 'e173')
             return 'Aluminium als Farbstoff (E173), meist zur Dekoration von Konditoreiwaren. Metallisch, inert — histaminfrei.';
@@ -10604,6 +10709,52 @@ function getIngredientInfo(name, cat, aiGuess) {
             return '⚠️ Keine Einschätzung möglich: "Säuerungsmittel" ohne Angabe der konkreten Säure kann von unbedenklich (z.B. Citronensäure) bis reizend variieren. Zutatenliste auf die konkrete Säure in Klammern prüfen.';
         if (n === 'stärke' || n === 'starch')
             return '⚠️ Nicht näher spezifiziert. Auf deutschen Zutatenlisten ist damit fast immer Mais- oder Kartoffelstärke gemeint — beide sind histaminfrei. Bei Unsicherheit die Verpackung genauer prüfen.';
+        if (n.match(/^mandel$|^mandeln$|^mandelmus$/i))
+            return 'SIGHI 1 — Mandeln: Mäßig verträglich, kleine Mengen meist gut vertragen. Laut SIGHI nicht primär wegen Histamingehalts kritisch, sondern wegen des biogenen Amins Spermin — kann u.a. Schlafprobleme verursachen. In größeren Mengen problematischer.';
+        if (n.match(/^marzipan$|^persipan$|^marzipanrohmasse$|^marzipanmasse$/i))
+            return 'SIGHI 1 — Marzipan/Persipan: Basiert auf Mandeln bzw. Aprikosenkernen. Mäßig verträglich, kleine Mengen meist gut vertragen — wie bei Mandeln in größeren Mengen problematischer.';
+        if (n === 'mandelöl')
+            return 'Mandelöl, aus Mandeln gepresstes Speiseöl. Enthält kaum Protein/biogene Amine der ganzen Mandel — meist deutlich unproblematischer als ganze Mandeln, individuell aber möglich.';
+        if (n === 'e250' || n === 'e249' || n === 'natriumnitrit' || n === 'kaliumnitrit')
+            return 'Natriumnitrit/Kaliumnitrit (E250/E249), Konservierungsstoff. Als reiner Zusatzstoff histaminarm/unproblematisch — anders als "Pökelsalz"/"Nitritpökelsalz", das auf gepökeltes/geräuchertes Fleisch hindeutet und dort weiterhin vorsichtig eingestuft wird.';
+        if (n === 'mehlbehandlungsmittel')
+            return 'Mehlbehandlungsmittel, Sammelbegriff für EU-zugelassene Zusatzstoffe zur Verbesserung der Backeigenschaften (v.a. Ascorbinsäure/Vitamin C, daneben Lecithin, Guarkernmehl, Mono-/Diglyceride, L-Cystein u.a.). Laut Fachliteratur gelten sie als unbedenklich, in großen Mengen teils leicht abführend.';
+        if (n.match(/^rote bete$|^rote bete frisch$|^rote beete$|^randen$|^beetroot$|^ringelbete$/i))
+            return 'SIGHI 2024: Stufe 0, ohne Liberator-Marker — Rote Bete/Randen. Manche Quellen nennen sie zusätzlich als möglichen milden Liberator (Betain), in kleinen Mengen aber meist gut verträglich.';
+        if (n === 'sellerie')
+            return 'SIGHI 2024: Stufe 0, kein Liberator-Marker — Sellerie (Knollen-/Stauden-/Schnittsellerie). Chemisch histaminarm, aber hohes allergenes Potenzial (Hauptallergen) — ohne Sellerieallergie meist gut verträglich.';
+        if (n === 'sesam')
+            return 'SIGHI 2024: Stufe 1, kein Liberator-Marker — Sesam. Kann in manchen Fällen Durchfall verursachen, wird aber oft gut vertragen. Mechanismus laut Quelle nicht näher spezifiziert.';
+        if (n === 'trüffel')
+            return 'Trüffel (frisch): Wie andere frische Pilze histaminarm, sofern zügig verarbeitet. Wird von SIGHI nicht separat geführt.';
+        if (n === 'weizenkeimöl')
+            return 'Weizenkeimöl: Die von SIGHI genannten biogenen Amine (Putrescin, Spermin, Spermidin, Cadaverin) in Weizenkeimen (S2) sind wasserlöslich und gehen bei der Ölpressung kaum ins Öl über — vorsichtig milder eingestuft als die ganzen Keime.';
+        if (n === 'zitrus' || n === 'citrus')
+            return '⚠️ "Zitrus" ohne genaue Sortenangabe: Die Bandbreite ist relevant — Zitrone/Limette (SIGHI S2), Orange (S3) oder Grapefruit (S2 A) haben unterschiedliche Stufen. Genaue Sorte auf der Verpackung/Zutatenliste prüfen.';
+        if (n === 'essig')
+            return '⚠️ Keine Einschätzung möglich: "Essig" ohne genaue Sortenangabe — die Bandbreite ist enorm: Branntweinessig (destilliert, proteinfrei) gilt als unbedenklich, während fermentierte Essige (Weinessig, Apfelessig u.a.) bis zu 500 µg/l Histamin enthalten können (SIGHI S3). Zutatenliste auf die genaue Essigsorte prüfen.';
+        if (n === 'geheimratskäse')
+            return 'SIGHI 2024: "0" — Geheimratskäse: milder deutscher Schnittkäse (ähnlich Gouda/Edamer), kurze Reifung. Histaminarm.';
+        if (n === 'kräuterfrischkäse' || n === 'frischkäse mit kräutern' || n === 'boursin')
+            return 'Frischkäsezubereitung mit Kräutern (z.B. Boursin). Reift nicht — histaminarm, frisch verzehrt meist gut verträglich. Bei hoher Empfindlichkeit auf die Kräuter/Gewürze selbst achten.';
+        if (n === 'burrata')
+            return 'Frischer italienischer Mozzarella mit cremiger Sahne-/Rahmfüllung, keine Reifung. Histaminarm.';
+        if (n === 'neufchâtel')
+            return 'Französischer Frischkäse (cremecheese-ähnlich), keine Reifung. Histaminarm.';
+        if (n === 'monterey jack')
+            return 'Amerikanischer milder Schnittkäse, kurze Reifung. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Butterkäse/Edamer (Stufe 0).';
+        if (n === 'panela')
+            return 'Mexikanischer frischer Käse, keine Reifung. Histaminarm, ähnlich Ricotta/Mozzarella.';
+        if (n === 'queso blanco')
+            return 'Frischer lateinamerikanischer Käse, keine Reifung. Histaminarm, ähnlich Paneer/Frischkäse.';
+        if (n === 'havarti')
+            return 'Dänischer milder Schnittkäse, kurze Reifung (wenige Wochen). SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Butterkäse/Edamer (Stufe 0).';
+        if (n === 'leerdammer')
+            return 'Niederländischer milder Schnittkäse (Markenname), Gouda-ähnlich, kurze Reifung. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu jungem Gouda/Edamer (Stufe 0).';
+        if (n === 'babybel')
+            return 'Milder, in Wachs verpackter Rundkäse (Markenname), sehr kurze Reifung. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu jungem Gouda/Edamer (Stufe 0).';
+        if (n === 'käse unspezifisch')
+            return '⚠️ "Käse" ohne genaue Sortenangabe: Die Bandbreite ist riesig — von Frischkäse/Mozzarella (histaminarm, S0) bis zu lange gereiftem Hartkäse wie Parmesan (sehr histaminreich, S3). Genaue Sorte auf der Verpackung/Zutatenliste prüfen.';
         if (n === 'fisch' || n === 'fleisch' || n === 'extrakt')
             return '⚠️ Keine Einschätzung möglich: Zu unspezifisch ohne nähere Angabe (Sorte/Art) — Verträglichkeit kann stark variieren. Bitte genauere Bezeichnung von der Verpackung verwenden.';
         if (n === 'aroma' || n === 'natürliches aroma' || n === 'aromen' || n === 'natürliche aromen' || n === 'künstliches aroma' || n === 'künstliche aromen')
@@ -10625,7 +10776,7 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n.match(/\bkefir\b/i))
             return 'SIGHI 2 — Kefir: Hefe- und Bakterienfermentation bildet erheblich Histamin und Alkohol. Absolut ungeeignet.';
         if (n.match(/\bschafskäse\b|\bfeta\b/i))
-            return 'SIGHI 2-3 — Schafskäse/Feta: Mehrmonatige Reifung in Salzlake — hohe Histamin- und Tyraminmengen. Unverträglich.';
+            return 'SIGHI 2024: "1 H A" — Feta/Schafskäse: Reifung in Salzlake über mehrere Wochen führt zu mildem Histamingehalt und anderen biogenen Aminen. Kleine Mengen oft verträglich.';
         if (n.match(/\btofu.*geräuch|geräucherter.*tofu/i))
             return 'SIGHI 2-3 — Geräucherter Tofu: Räucherung + Lagerung + Soja-Liberator. Absolut ungeeignet.';
         if (n.match(/\bsurimi\b/i))
@@ -10658,7 +10809,7 @@ function getIngredientInfo(name, cat, aiGuess) {
             if (n.match(/balsamico(?!.*essig)|aceto balsamico/i))
             return 'SIGHI 3 — Balsamico-Essig: Jahrelanger Reifungsprozess in Holzfässern, extrem histaminreich. Branntweinessig als Alternative.';
         if (n.match(/\bmelasse\b|molasses/i))
-            return 'SIGHI 1-2 — Melasse: Nebenprodukt der Zuckerproduktion mit biogenen Aminen durch Lagerungseffekte. Deutlich kritischer als raffinierter Zucker.';
+            return 'Melasse wird von SIGHI nicht separat geführt. Als Nebenprodukt der Zuckerproduktion meist histaminarm — die Hauptsorge betrifft den hohen Kupfergehalt, der die kupferabhängige DAO beeinträchtigen kann. Manche Berater nennen zusätzlich konzentrierte Sirupe als möglichen milden Liberator. Verträglichkeit individuell (ähnlich Honig/Ahornsirup) — in kleinen Mengen testen.';
         if (n.match(/dorschleber|entenleber/i))
             return 'SIGHI 3 — Innereien/Leber: Bauen nach der Schlachtung rasant Histamin auf. Konservierte Lebern (Dose) extrem histaminreich. Meiden.';
         if (n.match(/gereifter ziegenkäse|ziegenkäse(?!.*frisch)/i))
@@ -10686,12 +10837,128 @@ function getIngredientInfo(name, cat, aiGuess) {
         if (n.match(/^roséwein$/i))
             return 'SIGHI 2 — Roséwein (inkl. Schilcherwein): Kurzer Schalenkontakt mit roten Trauben, weniger Histamin als Rotwein, aber mehr als reiner Weißwein. Alkohol blockiert dennoch den Abbau.';
 if (cat === 'high') {
+        if (n.match(/^fontina$/i))
+            return 'SIGHI 2024: "2 H A" — Fontina: Halbfester italienischer Käse mit mehrmonatiger Reifung, enthält relevante Mengen Histamin. Weniger kritisch als lange gereifte Hartkäse (S3).';
+        if (n.match(/^taleggio$/i))
+            return 'Italienischer Rotschmiere-Weichkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert/Limburger (Stufe 2).';
+        if (n.match(/^asiago$/i))
+            return 'Italienischer Käse mit stark variierendem Reifegrad (Pressato=jung bis d\'Allevo=lange gereift). SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift (Stufe 2). Bei langer Reifung (d\'Allevo) kann der Histamingehalt höher liegen.';
+        if (n.match(/^sbrinz$/i))
+            return 'Schweizer Hartkäse, sehr lange gereift (meist über 18 Monate) — ähnlich Parmesan. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^münster$/i))
+            return 'Französischer Rotschmiere-Weichkäse (Munster/Munster-Géromé), kräftig im Geschmack, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger/Camembert (Stufe 2).';
+        if (n.match(/^mimolette$/i))
+            return 'Französischer Hartkäse (auffällig orange, Edamer-verwandt), mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift (Stufe 2).';
+        if (n.match(/^cotija$/i))
+            return 'Mexikanischer krümeliger Hartkäse, gereift und stark gesalzen. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Parmesan (Stufe 2).';
+        if (n.match(/^bavaria blu$|^bergader$/i))
+            return 'Deutscher Doppelrahm-Blauschimmelkäse (Markenname), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gorgonzola/Blauschimmelkäse (Stufe 2).';
+        if (n.match(/^graviera$/i))
+            return 'Griechischer Hartkäse (Gruyère-Stil), mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gruyère/Emmentaler (Stufe 2).';
+        if (n.match(/^colby$/i))
+            return 'Amerikanischer Cheddar-ähnlicher Käse, milder und kürzer gereift als Cheddar. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Cheddar/Gouda gereift (Stufe 2).';
+        if (n.match(/^crottin de chavignol$|^crottin$/i))
+            return 'Französischer gereifter Ziegenkäse (kleine runde Form), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu gereiftem Ziegenkäse (Stufe 2).';
+        if (n.match(/^weinbergkäse$/i))
+            return 'Deutscher Rotschmiere-Käse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^romadur$/i))
+            return 'Deutscher Rotschmiere-Käse (milder als Limburger), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^backsteinkäse$/i))
+            return 'Deutscher Rotschmiere-Käse (Backsteinform), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^steinbuscher$/i))
+            return 'Deutscher Rotschmiere-Käse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger/Romadur (Stufe 2).';
+        if (n.match(/^quargel$/i))
+            return 'Österreichischer/deutscher kleiner Sauermilchkäse, gereift und würzig. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^chiemgauer$/i))
+            return 'Bayerischer Schnittkäse (Markenname), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Tilsiter/Gouda gereift (Stufe 2).';
+        if (n.match(/^frühstückskäse$/i))
+            return 'Deutscher milder Rotschmiere-Käse, kürzer gereift als Romadur/Limburger. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^weißlacker$/i))
+            return 'Bayerischer würziger Rotschmiere-Käse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^bierkäse$/i))
+            return 'Deutscher Rotschmiere-Käse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^saint-nectaire$/i))
+            return 'Französischer Rotschmiere-Halbfestkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Munster/Limburger (Stufe 2).';
+        if (n.match(/^époisses$/i))
+            return 'Französischer sehr würziger Rotschmiere-Weichkäse, mehrwöchig gereift und mit Branntwein gewaschen. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Munster/Limburger (Stufe 2).';
+        if (n.match(/^morbier$/i))
+            return 'Französischer Halbfestkäse mit Ascheschicht, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Tilsiter/Gouda gereift (Stufe 2).';
+        if (n.match(/^chaource$/i))
+            return 'Französischer Weichkäse mit weißem Edelschimmel, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert/Brie (Stufe 2).';
+        if (n.match(/^livarot$/i))
+            return 'Französischer sehr würziger Rotschmiere-Weichkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Munster/Époisses (Stufe 2).';
+        if (n.match(/^pont l evêque$/i))
+            return 'Französischer Rotschmiere-Weichkäse (rechteckige Form), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Munster (Stufe 2).';
+        if (n.match(/^cantal$/i))
+            return 'Französischer Hartkäse, mehrmonatig gereift (jeune bis vieux). SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Cheddar/Gouda gereift (Stufe 2).';
+        if (n.match(/^tomme de savoie$/i))
+            return 'Französischer Halbfestkäse aus den Alpen, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Tilsiter (Stufe 2).';
+        if (n.match(/^fourme dambert$/i))
+            return 'Französischer Blauschimmelkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Roquefort/Gorgonzola (Stufe 2).';
+        if (n.match(/^bleu dauvergne$/i))
+            return 'Französischer Blauschimmelkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Roquefort/Gorgonzola (Stufe 2).';
+        if (n.match(/^saint marcellin$/i))
+            return 'Französischer kleiner Weichkäse, mehrwöchig gereift (mild bis cremig-reif). SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^saint félicien$/i))
+            return 'Französischer kleiner Doppelrahm-Weichkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^coulommiers$/i))
+            return 'Französischer Weichkäse (kleiner Brie), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Brie/Camembert (Stufe 2).';
+        if (n.match(/^rocamadour$/i))
+            return 'Französischer kleiner Ziegenkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu gereiftem Ziegenkäse/Crottin (Stufe 2).';
+        if (n.match(/^valençay$/i))
+            return 'Französischer Ziegenkäse (Pyramidenform, aschebestäubt), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu gereiftem Ziegenkäse/Crottin (Stufe 2).';
+        if (n.match(/^selles-sur-cher$/i))
+            return 'Französischer Ziegenkäse (aschebestäubt), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu gereiftem Ziegenkäse/Crottin (Stufe 2).';
+        if (n.match(/^banon$/i))
+            return 'Französischer Ziegenkäse (in Kastanienblätter gewickelt), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu gereiftem Ziegenkäse/Crottin (Stufe 2).';
+        if (n.match(/^schabziger$|^sapsago$/i))
+            return 'Schweizer Kräuterkäse aus dem Glarnerland (mit Schabzigerklee gewürzt), stark entrahmt und gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^tomme vaudoise$/i))
+            return 'Schweizer Weichkäse aus der Waadt, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^belper knolle$/i))
+            return 'Schweizer kleiner Hartkäse-Trüffel (Kugelform, mit Pfeffer/Kräutern), gereift und getrocknet. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Parmesan (Stufe 2).';
+        if (n.match(/^bloderkäse$/i))
+            return 'Schweizer Sauermilchkäse (Vorarlberg/Ostschweiz), gereift und würzig. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^werdenberger sauerkäse$/i))
+            return 'Schweizer Sauermilchkäse aus dem Werdenberg, gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Limburger (Stufe 2).';
+        if (n.match(/^bündnerkäse$/i))
+            return 'Schweizer Halbhartkäse aus Graubünden, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Tilsiter (Stufe 2).';
+        if (n.match(/^toggenburger$/i))
+            return 'Schweizer Halbhartkäse aus dem Toggenburg, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Tilsiter (Stufe 2).';
+        if (n.match(/^schüttelkäse$/i))
+            return 'Schweizer Halbhartkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Tilsiter (Stufe 2).';
+        if (n.match(/^vacherin fribourgeois$/i))
+            return 'Schweizer Halbhartkäse aus Freiburg (Fondue-Zutat), mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gouda gereift/Raclette (Stufe 2).';
+        if (n.match(/^vacherin mont d or$/i))
+            return 'Schweizer Saison-Weichkäse (Winter, mit Fichtenrinde), mehrwöchig gereift, cremig-flüssige Konsistenz. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^schmelzkäse$/i))
+            return 'SIGHI 2024: "2 H A" — Schmelzkäse: direkt namentlich gelistet, enthält Histamin und andere biogene Amine durch die verarbeiteten Käsesorten.';
+        if (n.match(/^schimmelkäse$/i))
+            return 'SIGHI 2024: "2 H A ?" — Schimmelkäse: direkt namentlich gelistet (Mechanismus laut Quelle unklar markiert), enthält Histamin und andere biogene Amine durch Schimmelreifung.';
+        if (n.match(/^edelschimmelkäse$/i))
+            return 'SIGHI 2024: "2 H A ?" — Edelschimmelkäse: direkt namentlich gelistet (Mechanismus laut Quelle unklar markiert), enthält Histamin und andere biogene Amine durch Edelschimmelreifung.';
+        if (n.match(/^schmelzkäsezubereitung$/i))
+            return 'Schmelzkäsezubereitung: Verarbeitetes Käseprodukt (enthält u.a. Schmelzsalze wie E450), ähnlich wie Schmelzkäse. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Schmelzkäse/Camembert (Stufe 2).';
+        if (n.match(/^caciocavallo$/i))
+            return 'Süditalienischer Hartkäse (Kürbisform), mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Provolone/Gouda gereift (Stufe 2).';
+        if (n.match(/^vacherin$/i))
+            return 'Cremiger Schweizer/Französischer Weichkäse mit Rotschmiere, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^cambozola$/i))
+            return 'Doppelrahm-Weichkäse mit Blauschimmel (Camembert-Gorgonzola-Mischform), gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert/Blauschimmelkäse (Stufe 2).';
+        if (n.match(/^reblochon$/i))
+            return 'Französischer Rotschmiere-Weichkäse, mehrwöchig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Camembert (Stufe 2).';
+        if (n.match(/^danish blue$/i))
+            return 'Dänischer Blauschimmelkäse, kürzer gereift als Roquefort/Gorgonzola. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Gorgonzola/Blauschimmelkäse (Stufe 2).';
+        if (n.match(/^jarlsberg$/i))
+            return 'Norwegischer Schweizer-Stil-Käse mit großen Löchern, milder als Emmentaler, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Emmentaler (Stufe 2).';
+        if (n.match(/^wurstwaren$|^wurstwaren generisch$/i))
+            return 'SIGHI 2024: "2 H ? ?" — Wurstwaren allgemein: Reifung, Räucherung und Verarbeitung erzeugen relevante Mengen Histamin und biogene Amine. Frische, unverarbeitete Fleischsorten sind meist verträglicher.';
         if (n.match(/^alkoholhaltige getränke$/i))
             return 'SIGHI 2024: Stufe 3 (sehr schlecht verträglich) — höchste Stufe, mit allen vier Mechanismen (Histamin, andere Amine, Liberator, DAO-Blocker). Strikt meiden.';
         if (n.match(/^vanilleextrakt$/i))
             return 'SIGHI 2 — Vanilleextrakt: Alkoholhaltig und fermentiert, dadurch deutlich kritischer als Vanilleschote (S1) oder synthetisches Vanillin (S0). Meiden oder durch Vanillezucker ersetzen.';
         // e142/grün s → jetzt safe-Kategorie (S0), Text im safe-Zweig (siehe dort)
-        if (n.match(/^mahon$/i))
+        if (n.match(/^mahon$|^mahón$/i))
             return 'Spanischer Schnittkäse. Traditionell lange gereift — hoher Histamingehalt.';
         if (n.match(/^wermut$/i))
             return 'Alkoholisch angereicherter Wein.';
@@ -10837,6 +11104,12 @@ if (cat === 'high') {
             return 'Gewürzpaste aus Schalentieren. Fischanteil und Verarbeitung machen sie sehr histaminreich.';
         if (n.match(/^kasseler$|^kasselerfleisch$|^kassler$/i))
             return 'Gepökeltes und geräuchertes Schweinefleisch. Lange Reifung und Rauchprozess machen es sehr histaminreich.';
+        if (n.match(/^schwarzer?\s*knoblauch$/i))
+            return 'Schwarzer Knoblauch wird von SIGHI nicht separat geführt. Durch wochenlange Fermentation/Reifung bei hoher Temperatur entstanden — deutlich histaminreicher als frischer Knoblauch (dort S1), vorsichtshalber wie andere stark fermentierte Produkte eingestuft. Meiden.';
+        if (n.match(/^mettenden$/i))
+            return 'Norddeutsche geräucherte Grünkohlwurst (grobe Mettwurst-Enden). Räuchern und Reifung machen sie histaminreich, wie andere Rohwurst-Sorten.';
+        if (n.match(/^pinkelwurst$/i))
+            return 'Norddeutsche (Bremen/Oldenburg) geräucherte Grützwurst, traditionell zu Grünkohl. Räuchern und Reifung machen sie histaminreich, wie andere Rohwurst-Sorten.';
         if (n.match(/^katsuobushi$/i))
             return 'Getrocknete, gehobelte Bonitoflocken. Der monatelange Fermentationsprozess macht sie extrem histaminreich.';
         if (n.match(/^kippers$/i))
@@ -10895,8 +11168,7 @@ if (cat === 'high') {
             return 'Fermentierte Würzsauce aus Fisch — eines der histaminreichsten Lebensmittel überhaupt.';
         if (n.match(/^eintopf\b.*fleisch|^eintopf$/i))
             return 'Eintopf: Langes Kochen, Warmhalten und Wiederaufwärmen sowie ggf. gereiftes Fleisch machen Eintöpfe oft histaminreich.';
-        if (n.match(/^e249$|^e250$/i))
-            return 'Nitritpökelsalz (Kalium-/Natriumnitrit). SIGHI selbst markiert die Datenlage als unklar ("?", nur Natriumnitrit explizit mit "0"). Nitrit wirkt sofort als Pökelmittel und kommt praktisch nie isoliert vor, sondern signalisiert stark gepökeltes/geräuchertes Fleisch (Salami, Schinken, Speck) — deshalb hier bewusst konservativ eingestuft.';
+        // e249/e250-Text nach safe-Verzweigung verschoben (Kategorie-Korrektur, Nutzerentscheidung), siehe dort
         if (n.match(/^e251$|^e252$/i))
             return 'Nitratpökelsalz (Kalium-/Natriumnitrat). SIGHI markiert die Datenlage als unklar ("?"). Nitrat muss erst bakteriell zu Nitrit umgewandelt werden — dadurch langsamer wirksam als Nitrit, aber ebenfalls ein Signal für Pökelware.';
         if (n.match(/^e133$/i))
@@ -10935,8 +11207,7 @@ if (cat === 'high') {
             return 'Getrocknete Flocken dieser Makrelenart enthalten durch den Verarbeitungsprozess sehr viel Histamin.';
         if (n.match(/\bbouillabaisse\b/i))
             return 'Fischsuppe aus verschiedenen Meeresfrüchten mit langer Kochzeit. Das führt zu erheblicher Histaminbildung.';
-        if (n.match(/\bboursin\b/i))
-            return 'Frischkäsezubereitung mit Kräutern. Frisch verzehrt meist verträglich, bei hoher Empfindlichkeit auf die Kräuter/Gewürze achten.';
+        // boursin-Text verschoben in safe-Zweig (siehe dort) — war hier fälschlich im high-Zweig
         if (n.match(/\bbraun ht\b/i))
             return 'Synthetischer brauner Farbstoff (E155). Kann pseudoallergische Reaktionen auslösen.';
         if (n.match(/\bbrisling\b/i))
@@ -10971,8 +11242,29 @@ if (cat === 'high') {
             return 'Spanischer Hartkäse aus Schafmilch, lange gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
         if (n.match(/^limburger$/i))
             return 'Kräftiger Rotschmiere-Käse, gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Schimmelkäse/Camembert (Stufe 2).';
+        if (n.match(/^zamorano$/i))
+            return 'Spanischer Hartkäse aus Schafmilch, mindestens 6 Monate gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^kefalotyri$/i))
+            return 'Griechischer Hartkäse aus Schaf-/Ziegenmilch, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^tête de moine$|^tete de moine$/i))
+            return 'Schweizer Hartkäse (Rosettenform), mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^etivaz$/i))
+            return 'Schweizer AOP-Alpkäse (Greyerzer-verwandt), im Sommer in Kupferkesseln hergestellt und mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^alpkäse$/i))
+            return 'Schweizer Bergkäse allgemein (Sammelbegriff für Alpsommer-Käse), mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^berner alpkäse$/i))
+            return 'Schweizer Alpkäse aus dem Berner Oberland, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^urner alpkäse$/i))
+            return 'Schweizer Alpkäse aus dem Kanton Uri, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^glarner alpkäse$/i))
+            return 'Schweizer Alpkäse aus dem Kanton Glarus, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^hobelkäse$/i))
+            return 'Schweizer sehr harter, extra lange gereifter Käse zum Hobeln (oft Sbrinz-Basis). SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
+        if (n.match(/^formaggio d alpe$/i))
+            return 'Tessiner/Schweizer Alpkäse, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3).';
         if (n.match(/greyerzer|gruyère|gruyere|bergkäse|allgäuer|emmentaler|appenzeller|sbrinz|comté/))
             return 'Hartkäse/Schnittkäse, lange gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zur SIGHI-Kategorie "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3, Beispiel dort: Emmentaler). Alternativen: Frischkäse (S0).';
+        // käse unspezifisch-Text nach safe-Verzweigung verschoben (Kategorie-Änderung), siehe dort
                 if (n.match(/\bparmesan\b|gran padano|grana padano|parmigiano/i))
             return 'SIGHI nennt "Parmesan" nicht namentlich, ordnet aber unter "Käse: lange gereifte Sorten und Hartkäse" (Stufe 3) ein — Parmesan ist der bekannteste Vertreter dieser Kategorie. Extrem lange Reifezeit, massive Mengen Histamin und Tyramin.';
         if (n.match(/käse|parmesan|cheddar|camembert|brie|gorgonzola|roquefort|emmental|gruyère|greyerzer|manchego|pecorino|harzer|limburger|bergkäse|raclette|tilsiter|appenzeller|sbrinz|comté|asiago|provolone/))
@@ -10990,7 +11282,9 @@ if (cat === 'high') {
             return 'SIGHI 3 — Makrele: Fettreicher Fisch, bildet extrem schnell Histamin. Selbst frisch für HIT-Betroffene hochgradig riskant!';
         if (n.match(/\bkaviar\b|\broe\b|fischrogen/))
             return 'SIGHI 3 — Kaviar/Fischrogen: Salzkonserviert, sehr hoher Histamingehalt durch Reifung. Für HIT-Betroffene ungeeignet!';
-        if (n.match(/\bräucherfisch\b|\bräucherhering\b|\bräucherlachs\b|\bräuchermakrele\b|smoked|bückling|matjes|\bhering\b|sardelle|anchovis|anchovy|makrele|sardine|ölsardin/))
+        if (n.match(/\bsardelle\b|anchovis|anchovy/))
+            return 'SIGHI 3 H A — Anchovis/Sardellen-Konserven: Durch Salzung/Reifung extrem hoher Histamingehalt. Für HIT-Betroffene ungeeignet!';
+        if (n.match(/\bräucherfisch\b|\bräucherhering\b|\bräucherlachs\b|\bräuchermakrele\b|smoked|bückling|matjes|\bhering\b|sardine|ölsardin/))
             return 'SIGHI 3 — Hering/Matjes: Durch Reifung in Salzlake oder Räucherung extrem hohe Histaminwerte. Für HIT-Betroffene ungeeignet!';
         if (n.match(/\bgarnele[ns]?\b|shrimp|prawn|hummer|krabben|muscheln|austern|tintenfisch|calamari/i))
             return 'SIGHI 2-3 — Meeresfrüchte/Garnelen: Verderben extrem schnell und bilden rasch biogene Amine. Nur absolut frische Ware, sofort zubereiten!';
@@ -10998,7 +11292,7 @@ if (cat === 'high') {
             return 'SIGHI 3 H — Salami/Rohwurst: sehr hoher Histamingehalt durch lange Reifung/Fermentation (bis 300 mg/kg). Absolut meiden!';
         if (n.match(/leberwurst|blutwurst/))
             return 'SIGHI 3 — Leber-/Blutwurst: Innereien und Blut sind von Natur aus histaminreich, unabhängig von Reifung. Absolut meiden.';
-        if (n.match(/räucherschinken|schinken|ham|speck|bacon/))
+        if (n.match(/räucherschinken|schinken|\bham\b|speck|bacon/))
             return 'Räuchern und Pökeln erhöhen den Histamingehalt und Tyramingehalt stark';
         if (n.match(/\bmiso\b/i))
             return 'SIGHI 3 — Miso: Traditionell fermentierte Sojapaste. Der lange mikrobielle Herstellungsprozess sorgt für eine sehr hohe Histaminbelastung. Für eine histaminarme Ernährung nicht geeignet.';
@@ -11023,9 +11317,9 @@ if (cat === 'high') {
             return 'S3 — Likörwein/Weinalkohol: Marsala, Sherry, Portwein, Vermouth enthalten sehr hohe Histaminmengen (Gärung + Oxidation + Alkohol). Vollständig meiden!';
         if (n.match(/\brotwein\b|red wine|spätburgunder|merlot|cabernet/i))
             return 'SIGHI 3 — Rotwein: Extrem histaminhaltig durch lange Fermentation. Alkohol blockiert zusätzlich die DAO massiv. Absolut meiden bei HIT!';
-        if (n.match(/\bsekt\b|champagner|prosecco|crémant|cava|schaumwein|sparkling wine/i))
+        if (n.match(/\bsekt\b|champagner|prosecco|crémant|\bcava\b|schaumwein|sparkling wine/i))
             return 'SIGHI 3 — Sekt/Champagner: bis 670 µg/l Histamin! Kohlensäure beschleunigt die Alkoholaufnahme → DAO-Hemmung noch schneller. Komplett meiden!';
-        if (n.match(/\bweißwein\b|\bwein\b(?!.*rot)|white wine|riesling|chardonnay|grauburgunder/i))
+        if (n.match(/\bweißwein\b|white wine|riesling|chardonnay|grauburgunder/i))
             return 'SIGHI 2-3 — Weißwein: Weniger Histamin als Rotwein, aber Alkohol hemmt trotzdem die DAO. Individuell sehr unterschiedlich verträglich.';
         if (n.match(/wein\b|wine\b/i))
             return 'SIGHI 2-3 — Wein: Histaminhaltig durch Fermentation, Alkohol hemmt DAO. Rotwein > Weißwein > Rosé was den Histamingehalt betrifft.';;
@@ -11045,6 +11339,8 @@ if (cat === 'high') {
             return 'SIGHI 1 — Apfelessig: Milder als Weinessig, aber trotzdem fermentiert. In kleinen Mengen oft toleriert.';
         if (n.match(/rotweinessig|weißweinessig|weinessig(?!.*branntwein)/i))
             return 'SIGHI 3 — Weinessig: Durch Fermentation entstehen bis zu 500 µg/l Histamin. Alle fermentierten Essige meiden. Erlaubt: Branntweinessig (destilliert, proteinfrei)';
+        if (n.match(/umeessig|ume\s*su|umeboshi/i))
+            return 'Ume-Essig (Ume Su) ist kein klassischer Essigsäure-Essig, sondern der salzig-fruchtige Saft aus der Umeboshi-Fermentation (Ume-Früchte mit Meersalz/Shiso). Enthält Milch-, Zitronen- und Apfelsäure statt Essigsäure. Wie bei anderen fermentierten Würzsäften vorsichtshalber meiden — biogene Amine durch die Fermentation möglich.';
         if (n.match(/essig|vinegar/))
             return 'SIGHI 3 — Essig (fermentiert): Enthält biogene Amine durch Fermentation. Nur Branntweinessig (destilliert) ist erlaubt.';
         if (n.match(/sojasoße|soy sauce|tamari|shoyu|worcester|teriyaki|hoisin|austernsauce|oyster sauce/))
@@ -11101,7 +11397,9 @@ if (cat === 'high') {
             return 'Konzentrierter Fleischextrakt mit hohem Histamin- und Tyramingehalt';
         if (n.match(/dry aged|bündnerfleisch|trockenfleisch/))
             return 'Trockenreifung erhöht den Histamingehalt erheblich';
-        if (n.match(/edamer|chester|cheshire/))
+        if (n.match(/^chester$|^cheshire$/))
+            return 'Englischer Cheddar-ähnlicher Hartkäse, mehrmonatig gereift. SIGHI nennt diese Sorte nicht namentlich — Einstufung per Analogie zu Cheddar/Gouda gereift (Stufe 2).';
+        if (n.match(/edamer/))
             return 'Edamer: Junger Edamer (Blockform, <4 Wo.) = S0-1 oft ok! Gereifter Edamer von der Theke = S2-3. Immer nach Reifezeit fragen!';
         if (n.match(/\bmorcheln?\b|\bmorel\b/))
             return 'Morcheln gehören laut SIGHI zu den zu meidenden Pilzarten';
@@ -11201,7 +11499,7 @@ if (cat === 'high') {
         if (n.match(/döner|gyros|kebab|shawarma/))
             return 'Warm gehaltenes gegrilltes Fleisch: Histamingehalt steigt mit Warmhaltezeit erheblich';
         if (n.match(/grillfleisch|grillwurst|grillhähnchen/))
-            return 'Grillen und langes Warmhalten erhöhen den Histamingehalt — NDR empfiehlt meiden';
+            return 'Grillen und langes Warmhalten erhöhen den Histamingehalt — laut NDR "Die Ernährungs-Docs" (Stand 06.12.2024) zählt Grillfleisch zu den nicht empfehlenswerten Speisen bei Histamin-Unverträglichkeit.';
         if (n.match(/aufgewärmte speisen|kantinenessen/))
             return 'Wieder aufgewärmte Speisen mit Eiweiß sind laut NDR/DKV hochproblematisch';
         if (n.match(/handkäse|sauermilchkäse/))
@@ -11220,6 +11518,14 @@ if (cat === 'high') {
     }
 
     if (cat === 'liberator') {
+        if (n.match(/^sonnenblumenkerne?$/i))
+            return 'SIGHI 2 L — Sonnenblumenkerne: Histaminliberator laut offizieller SIGHI-Liste. In kleinen Mengen individuell testen.';
+        if (n.match(/^biphenyl$/i))
+            return 'Biphenyl (als E230 in der EU/Schweiz aktuell nicht mehr als Lebensmittelzusatzstoff zugelassen), Konservierungsmittel für Zitrusschalen. Regt die körpereigene Histaminfreisetzung aus Mastzellen an.';
+        if (n.match(/^orthophenylphenol$/i))
+            return 'Orthophenylphenol (als E231 in der EU/Schweiz aktuell nicht mehr als Lebensmittelzusatzstoff zugelassen), Konservierungsmittel für Zitrusschalen. Regt die körpereigene Histaminfreisetzung aus Mastzellen an.';
+        if (n.match(/^natriumorthophenylphenol(?:at)?$|^sopp$/i))
+            return 'Natriumorthophenylphenol (als E232 in der EU/Schweiz aktuell nicht mehr als Lebensmittelzusatzstoff zugelassen), Konservierungsmittel für Zitrusschalen. Regt die körpereigene Histaminfreisetzung aus Mastzellen an.';
         if (n.match(/^e620$/i))
             return 'SIGHI 2 L — Glutaminsäure (E620): Geschmacksverstärker, gilt als Liberator.';
         if (n.match(/glutamat|msg|e621|e622|e623|e624|e625|mononatrium/))
@@ -11248,7 +11554,7 @@ if (cat === 'high') {
         if (n.match(/^roggen$/i))
             return 'Glutenhaltiges Getreide. Gilt als milder Liberator — verträgt sich individuell unterschiedlich.';
         if (n.match(/^rohmilchkäse$/i))
-            return 'Käse aus unpasteurisierter Milch. Die natürliche Bakterienflora kann zu höherem Histamingehalt führen.';
+            return 'SIGHI 2024: "2 H A" — Rohmilchkäse: direkt namentlich gelistet. Käse aus unpasteurisierter Milch — Risiko höher als bei Käse aus pasteurisierter Milch, abhängig von Hygiene.';
         if (n.match(/^bete\s+eingelegt$/i))
             return 'Rote Bete aus dem Glas. Essigaufguss und Lagerung machen sie kritischer als frische Rote Bete.';
         if (n.match(/^saure gurke$/i))
@@ -11303,8 +11609,6 @@ if (cat === 'high') {
             return 'Litholrubin BK, künstlicher Azofarbstoff für Käserinden. Starkes Pseudoallergen.';
         if (n.match(/^ovomaltine$/i))
             return 'Getränkepulver aus Gerstenmalz und Kakao — beide Hauptzutaten sind kritisch.';
-        if (n.match(/^wurstwaren$|^wurstwaren generisch$/i))
-        // wurstwaren → jetzt safe[]-Kategorie (Unsicherheits-Hinweis-Muster), Text im safe-Zweig ergänzen
         if (n.match(/^zuckermelone$/i))
             return 'Melone. Wie manche Melonensorten ein möglicher milder Liberator.';
         if (n.match(/^überreifes obst$/i))
@@ -11405,7 +11709,7 @@ if (cat === 'high') {
         if (n.match(/^nettle$/i))
             return 'Englisch für Brennnessel. Frisch histaminhaltig — getrocknet als Tee oft gut verträglich.';
         if (n.match(/^piment$/i))
-            return 'Neugewürz. Scharfe Öle können den Magen reizen und als Liberator wirken.';
+            return 'Piment/Neugewürz: In haushaltsüblichen Mengen meist gut verträglich, enthält selbst kein Histamin. Ätherische Öle können bei manchen als Liberator wirken und die Darmschleimhaut reizen. Als Myrtengewächs bei Birkenpollenallergie vereinzelt Kreuzreaktionen möglich. Ganze Körner/reine Bio-Ware bevorzugen — Gewürzmischungen enthalten oft versteckte Zusätze wie Glutamat oder Hefeextrakt.';
         // edamer/butterkäse → jetzt safe-Zweig (siehe dort)
         if (n.match(/^milchpulver$/i))
             return 'Getrocknete Voll-/Magermilch. Industrielle Hitzebehandlung kann Histamin bilden.';
@@ -11542,8 +11846,8 @@ if (cat === 'high') {
             return 'Cochenillerot A, synthetischer Azofarbstoff. Kann Mastzellen aktivieren und Histamin freisetzen.';
         if (n.match(/^e127$/i))
             return 'Erythrosin, künstlicher roter Farbstoff. Wirkt als Liberator und kann Pseudoallergien auslösen.';
-        if (n.match(/^e128$/i))
-            return 'Rot 2G, synthetischer Farbstoff. Gilt als starkes Pseudoallergen.';
+        if (n.match(/^e128$|^rot2g$|^azophloxin$/i))
+            return 'Rot 2G (als E128 in der EU/Schweiz aktuell nicht mehr als Lebensmittelzusatzstoff zugelassen), synthetischer Azofarbstoff. Gilt als starkes Pseudoallergen.';
         if (n.match(/^e131$/i))
             return 'Patentblau V, synthetischer Farbstoff. Bekanntes Pseudoallergen.';
         if (n.match(/^e132$/i))
@@ -11571,7 +11875,7 @@ if (cat === 'high') {
         if (n.match(/^propylgallat$|^e310$/i))
             return 'Künstliches Antioxidationsmittel (E310), vor allem für Fette. Kann Reaktionen der Mastzellen auslösen.';
         if (n.match(/^octylgallat$|^e311$/i))
-            return 'Künstliches Antioxidationsmittel (E311). Kann die Mastzellen reizen.';
+            return 'Octylgallat (als E311 aktuell nicht mehr als Lebensmittelzusatzstoff zugelassen), künstliches Antioxidationsmittel. Kann die Mastzellen reizen.';
         if (n.match(/\bagar(?:-agar)?\b|^e406$/i))
             return 'SIGHI 1 — Agar-Agar (E406): Pflanzliches Geliermittel aus Rotalgen. Gilt laut SIGHI 2024 als milder Liberator, sonst histaminarm.';
         if (n.match(/\bdosenmilch\b|\bkondensmilch\b/i))
@@ -11794,7 +12098,7 @@ if (cat === 'high') {
             return 'SIGHI 2 — Erbsenprotein/-isolat: Konzentriertes Pflanzenprotein, problematischer als frische Erbsen. Kann als Histaminliberator wirken. Individuell testen.';
         // paranuss → jetzt safe-Zweig (siehe dort)
         if (n.match(/lupinenmehl|\blupine[n]?\b|lupin/i))
-            return 'SIGHI 2 — Lupinenmehl: Vegane Proteinquelle, gilt aber bei HIT oft als Histaminliberator. Verzehr vorab vorsichtig testen.';
+            return 'Lupine/Lupinenmehl wird von SIGHI nicht separat geführt. Andere fachlich geprüfte Quellen (u.a. kochenOHNE, mit SIGHI als Referenz) führen Lupinen aber explizit in der Hülsenfrucht-Gruppe (mit Bohnen, Linsen, Kichererbsen) als histaminreich/kritisch. Vegane Proteinquelle, vorab vorsichtig testen.';
         if (n.match(/\bgelatine\b|gelatin/i))
             return 'SIGHI 1-2 — Gelatine: Verträglichkeit variiert je nach Rohstoffquelle und Herstellungsverfahren stark. Vorsichtig testen.';
         if (n.match(/mandelmilch|almond milk/i))
@@ -11832,7 +12136,7 @@ if (cat === 'high') {
             return 'SIGHI 2 — Himbeere: Klassischer Histaminliberator — setzt körpereigenes Histamin aus Mastzellen frei. Heidelbeeren (S0) sind eine gute Alternative.';
         if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/zitrone|lemon|zitrus|citrus/))
             return 'SIGHI 2 L — Zitrone: Potenter Liberator. Saft wirkt stärker als Schale. Als Saft meiden, Zeste in kleinen Mengen manchmal toleriert.';
-        if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/orange|pomelo/))
+        if (!n.match(/zitronensäure|citric acid|e330/) && n.match(/\borange\b|\bpomelo\b/))
             return 'SIGHI 3 A L — Orange/Zitrusfrüchte: Histaminliberator + Tyramin (DAO-Blocker). SIGHI 2024: S3. Als Saft noch stärker. Alternative: Apfel, Birne, Mango.';
         if (n.match(/grapefruit/))
             return 'SIGHI 2 A L — Grapefruit: Histaminliberator + enthält biogene Amine + hemmt CYP3A4-Enzyme (Wechselwirkungen mit Medikamenten!). Meiden.';
@@ -11857,7 +12161,7 @@ if (cat === 'high') {
         if (n.match(/walnuss|walnut/)) return 'SIGHI 2 — Walnuss: problematischste Nuss bei HIT! Enthält biogene Amine (Spermin), hemmt DAO. Auch Pekannuss, Cashew, Haselnuss meiden';
         if (n.match(/cashew/))         return 'Cashewkerne: mehrere Quellen bestätigen Liberatorwirkung — meiden';
         // erdnuss → eigener Block weiter unten
-        if (n.match(/\bmandel\b|almond/))  return 'SIGHI 2 — Mandel: Histaminliberator. DEA 2025 stuft sie als safe ein — individuell testen. In größeren Mengen problematischer.';
+        // mandel-Text nach safe-Verzweigung verschoben (Kategorie-Korrektur), siehe dort
         if (n.match(/haselnuss|hazelnut/)) return 'Wirkt als Histaminliberator';
         if (n.match(/pistazie|pistachio/)) return 'Pistazien: laut 2025-Tabelle safe — früher als Liberator, aktueller Stand spricht für gute Verträglichkeit';
         if (n.match(/sesam|tahini/))   return 'SIGHI 2024: Stufe 1. Kann in manchen Fällen Durchfall verursachen, wird aber oft gut vertragen. Mechanismus laut Quelle nicht näher spezifiziert.';
@@ -11890,7 +12194,7 @@ if (cat === 'high') {
         if (n.match(/muskat|nutmeg/))
             return 'SIGHI 1 — Muskatnuss: Gilt in größeren Mengen als Liberator. In haushaltsüblichen Mengen (kleine Prise) meist gut toleriert.';
         if (n.match(/kreuzkümmel|cumin|kummin/))
-            return 'Kreuzkümmel: NDR Ernährungs-Docs warnen explizit vor diesem Gewürz bei HIT';
+            return 'SIGHI 2 L — Kreuzkümmel (Cuminum cyminum): Gilt als Liberator. Auch NDR "Die Ernährungs-Docs" (Stand 06.12.2024) warnt explizit: "Vorsicht mit Kreuzkümmel (Kumin), Paprikagewürz und Pfeffer!". Nicht mit "Cumin" (englisch/französisch für Kreuzkümmel) verwechseln.';
         if (n.match(/gluten|getreidegluten|weizengluten/))
             return 'Getreidegluten kann laut Biogena die Histaminfreisetzung begünstigen — individuell unterschiedlich';
         if (n.match(/casein|kasein/))
@@ -11910,7 +12214,7 @@ if (cat === 'high') {
         if (n.match(/\bghee\b/))
             return 'SIGHI 1 — Je nach Herstellungsmethode histaminarm bis leicht histaminhaltig';
         if (n.match(/\bhalloumi\b|grillkäse\b/))
-            return 'SIGHI 1 individuell — Halloumi: in Salzlake, kaum gereift. Pur (ohne Kräuter/Chili!) oft gut verträglich. Kleine Mengen testen. Rinde großzügig abschneiden';
+            return 'Halloumi wird von SIGHI nicht separat geführt. In Salzlake, kaum gereift — pur (ohne Kräuter/Chili!) oft gut verträglich. Kleine Mengen individuell testen, Rinde großzügig abschneiden.';
         if (n.match(/hirtenkäse|hirtenk[äa]se/))
             return 'SIGHI 1 individuell — Hirtenkäse: milder als Feta, jünger. Variiert je nach Hersteller. Kleine Mengen testen';
         if (n.match(/\bfeta\b|fetakäse/))
@@ -11973,7 +12277,6 @@ if (cat === 'high') {
         if (n.match(/\bhaselnuss\b|\bhaselnüsse\b|\bhazelnut\b|haselnussmus|haselnussmilch|haselnusskrokant|\bkrokant\b/))
             return 'SIGHI 1 — Haselnuss: Mäßig verträglich. Liberatorwirkung (L). Kleine Mengen werden gelegentlich toleriert.';
         if (n.match(/\bmandel\b|\bmandeln\b|\balmond\b|mandelmus|mandelmehl|mandelbutter|blanchierte mandeln/))
-            return 'SIGHI 2 — Mandel: Histaminliberator. DEA 2025 stuft sie als safe ein — individuell testen. In größeren Mengen problematischer.';
         if (n.match(/sonnenblumenkerne|sunflower seed/))
             return 'SIGHI 2 — Sonnenblumenkerne: Liberatorwirkung (L). Bei üblicher Verzehrmenge deutliche Symptome möglich.';
 
@@ -11991,8 +12294,10 @@ if (cat === 'high') {
             return 'SIGHI 3 — Tartrazin (E102): Aggressiver Azo-Farbstoff. Bekannt für massive pseudoallergische Reaktionen und direkte Mastzell-Degranulation.';
         if (n.match(/^e104$/i))
             return 'SIGHI 3 — Chinolingelb (E104): Künstlicher Farbstoff, bekanntes Pseudoallergen aus derselben Azofarbstoff-Familie wie Tartrazin.';
-        if (n.match(/orangeat|zitronat|sukkade/))
-            return 'SIGHI 1 — Kandierte Zitrusfruchtschalen: Enthält hochkonzentrierte, liberierende ätherische Öle.';
+        if (n.match(/^orangeat$/))
+            return 'Kandierte Orangenschale. Die rohe Orangenschale ist laut SIGHI 2024 explizit als starker Liberator (S3) eingestuft — durch das Kandieren/die Zuckerverdünnung vorsichtig etwas niedriger angesetzt, aber weiterhin die konzentrierten ätherischen Öle enthalten. Zusätzlich starke Zuckerung.';
+        if (n.match(/^zitronat$|^citronat$|^sukkade$/))
+            return 'Zitronat/kandierte Zitrusfruchtschalen wird von SIGHI nicht separat geführt. Besondere Vorsicht: konzentrierte ätherische Öle der Schale wirken als Liberator, zusätzlich enthaltene biogene Amine konkurrieren um den DAO-Abbau, und die starke Zuckerung/Verarbeitung kann die Verträglichkeit weiter verschlechtern.';
         if (n.match(/\bmozzarella\b(?!.*sticks)/i))
             return 'SIGHI 0 — Mozzarella: Frischer Brühkäse ohne lange Reifung — kaum Histamin, meist sehr gut bekömmlich.';
         if (n.match(/mozzarella sticks/))
@@ -12010,7 +12315,7 @@ if (cat === 'high') {
         if (n.match(/rhabarber|rhubarb/))
             return 'SIGHI 1 — Rhabarber: Hoher Oxalsäuregehalt kann die Schleimhäute reizen und indirekt Mastzellen aktivieren.';
         if (n.match(/tamarinde/))
-            return 'SIGHI 1 — Tamarinde: Leicht histaminbildende Fruchtsäure-Matrix aus der Reifung.';
+            return 'Tamarinde wird von SIGHI nicht separat geführt. Fruchtsäure-Matrix aus der Reifung kann leicht histaminbildend wirken — häufig in Worcestersauce/Chutneys, dort auf Gesamtzusammensetzung achten.';
         if (n.match(/\bbaobab\b/))
             return 'SIGHI 1 — Baobab: Hohe Konzentration organischer Säuren, klinisch als milder Trigger eingestuft.';
         if (n.match(/\bshiitake\b/))
@@ -12022,7 +12327,7 @@ if (cat === 'high') {
         if (n.match(/cayenne|cayennepfeffer|jalapeñ|jalapen|chiliflocken|pul biber|\bchili\b|chilischote|habanero|peperoni/))
             return 'SIGHI 1-2 — Scharfe Gewürze (Capsaicin): Wirkt als Schleimhautirritant und Histaminliberator. Erhöht die Darmpermeabilität (Tight Junctions).';
         if (n.match(/\bmarzipan\b|persipan|marzipanrohmasse|marzipanmasse/))
-            return 'SIGHI 1 — Marzipan: Basiert auf Mandeln (bzw. Aprikosenkernen bei Persipan), die als Liberatoren agieren können. In großen Mengen kritisch.';
+        // marzipan-Text nach safe-Verzweigung verschoben (Kategorie-Korrektur), siehe dort
         if (n.match(/\bnougat\b/))
             return 'SIGHI 2 — Nougat: Enthält Haselnüsse (starke Allergene/Liberatoren) und Kakaobestandteile (DAO-Blocker).';
         if (n.match(/gebrannte mandel|karamellnüsse/))
@@ -12031,6 +12336,8 @@ if (cat === 'high') {
             return 'SIGHI 2 H L — Senf/Senfsaat: Enthält scharfe Isothiocyanate (Senföle), die als Liberator wirken und Mastzellen reizen können. Zudem meist mit Essig versetzt.';
         if (n.match(/meerrettich|\bkren\b|horseradish|meerrettichcreme/))
             return 'SIGHI 1 — Meerrettich/Kren: Reich an Senfölen. Wirkt stark schleimhautreizend und triggert bei sensiblen Anwendern die Histaminausschüttung.';
+        if (n.match(/^kaliumsulfit$/i))
+            return 'SIGHI 2 — Sulfite/Schwefeldioxid: Potenter Histaminliberator! Triggert Mastzell-Degranulation und kann schwere pseudoallergische Reaktionen auslösen (Sulfit-Asthma, Weinkopfschmerz). Hinweis: Kaliumsulfit als E225 gilt laut einer Quelle in der EU/Schweiz als Lebensmittelzusatzstoff nicht mehr zugelassen (andere Quellen widersprechen dem) — als Sulfit-Verbindung aber ohnehin unabhängig von der E-Nummer relevant.';
         if (n.match(/\be22[0-8]\b|schwefeldioxid|schweflige säure|sulfite|sulphit|sulfit|sulphite|natriumsulfit|kaliumsulfit|natriumdisulfit|kaliumdisulfit|natriummetabisulfit|kaliummetabisulfit|calciumsulfit|calciumhydrogensulfit|kaliumhydrogensulfit/))
             return 'SIGHI 2 — Sulfite/Schwefeldioxid: Potenter Histaminliberator! Triggert Mastzell-Degranulation und kann schwere pseudoallergische Reaktionen auslösen (Sulfit-Asthma, Weinkopfschmerz). Häufig in Wein und Trockenfrüchten.';
         if (n.match(/^natriumjodat$/i))
@@ -12087,7 +12394,7 @@ if (cat === 'high') {
             return 'Geschmacksverstärker (E627). Kann asthmatische oder allergische Symptome verstärken.';
         if (n.match(/^ribonucleotide$|^ribonukleotid$/i))
             return 'Geschmacksverstärker (E627/E631). Kann bei empfindlichen Personen die Histaminfreisetzung triggern.';
-        if (n.match(/^schmelzkäsezubereitung$|^e450$/i))
+        if (n.match(/^e450$/i))
             return 'Diphosphate (E450), z.B. in Schmelzsalzen. SIGHI führt einen Liberator-Verdacht bei MCAS.';
         if (n.match(/^yakonsirup$/i))
             return 'Sirup aus der Yaconwurzel. Enthält Fruktane, die ähnlich wie Inulin wirken.';
@@ -12282,7 +12589,7 @@ if (cat === 'high') {
         if (n.match(/schwarzer tee|black tea/))
             return 'Enthält Methylxanthine, die das DAO-Enzym hemmen';
         if (n.match(/kaffee|coffee|espresso/))
-            return 'SIGHI 2 B — Koffein blockiert DAO UND wirkt als Liberator. Espresso besser verträglich (weniger Koffein+Säure). Alternative: Zichorienkaffee (S0)';
+            return 'SIGHI 1 — Kaffee: Koffein regt Nerven und Darm an, was mastzellaktivierend wirkt. Espresso etwas besser verträglich als Filterkaffee. Alternative: Zichorienkaffee (S0)';
         if (n.match(/energy|energydrink|red bull|monster/))
             return 'SIGHI 3 — Energy Drinks: Massive Koffeinmengen + Taurin + Theobromin hemmen die DAO synergistisch. Extrem histaminbelastend — strikt meiden!';
         if (n.match(/taurin|taurine/))
@@ -12344,6 +12651,14 @@ if (cat === 'high') {
             return 'Apfelsäure (E296), natürlicher Säureregulator. Histaminfrei, in geringen Mengen gut verträglich.';
         if (n.match(/^fruchtmark$/i))
             return '⚠️ Fruchtmark: Verträglichkeit hängt komplett von der Obstsorte ab — Apfel/Birne meist unkritisch, Zitrusfrüchte/Erdbeere/exotische Früchte eher meiden.';
+        if (n.match(/^getreide$/i))
+            return '⚠️ Getreide ohne Sortenangabe: Verträglichkeit hängt stark von der Sorte ab — Hafer meist sehr gut verträglich, Weizen individuell unterschiedlich (Zöliakie/Sensitivität unabhängig vom Histamingehalt beachten). Genaue Sorte prüfen.';
+        if (n.match(/^kaliumsilicat$/i))
+            return 'Kaliumsilicat, technisches Trennmittel. Histaminfrei.';
+        if (n.match(/^kreatin$/i))
+            return 'Kreatin (Nahrungsergänzung), körpereigenes Stoffwechselprodukt aus Aminosäuren. Histaminneutral.';
+        if (n.match(/^kollagen$/i))
+            return 'Kollagen (Nahrungsergänzung), Strukturprotein. Histaminneutral — bei starker Verarbeitung/Hydrolyse theoretisch geringe Mengen biogener Amine möglich, in der Praxis meist unproblematisch.';
         if (n.match(/^käseprodukt$/i))
             return '⚠️ Käsepulver/-zubereitung/-geraspelt: Meist aus mildem Schnittkäse, kann aber je nach Rezeptur variieren. Bei genauerer Sortenangabe (z.B. "Parmesan") diese verwenden.';
         if (n.match(/^e150$|^e150a$|^e150b$|^e150c$|^e150d$/i))
@@ -12402,7 +12717,7 @@ if (cat === 'high') {
         if (n.match(/granatapfel|pomegranate/i))
             return 'SIGHI 0 — Granatapfel: Reich an Antioxidantien. Laut SIGHI 2024 als unbedenklich eingestuft.';
         if (n.match(/\brosinen\b|sultaninen|korinthen|raisins/))
-            return 'SIGHI 0 — Rosinen/Sultaninen/Korinthen: getrocknete Trauben. Laut SIGHI 2024 als unbedenklich eingestuft.';
+            return 'SIGHI 0 — Rosinen/Sultaninen/Korinthen: getrocknete Trauben. SIGHI betont ausdrücklich: NUR wenn ungeschwefelt (ohne Konservierungsstoffe)! Konventionelle, geschwefelte Ware fällt nicht unter diese Einstufung — Schwefeldioxid kann den Histaminabbau blockieren. Ungeschwefelte Bio-Ware bevorzugen.';
         if (n.match(/sauerkirsche/))
             return 'SIGHI 0 — Sauerkirsche: Wie Süßkirsche als unbedenklich eingestuft. Histaminarm.';
         if (n.match(/^xantangummi$/i))
@@ -12495,7 +12810,7 @@ if (cat === 'high') {
             return 'Englisch für Karpfen. Fangfrisch oder schockgefroren histaminarm.';
         if (n.match(/^chervil$/i))
             return 'Englisch für Kerbel. Mildes Küchenkraut, histaminarm.';
-        if (n.match(/^chevre$/i))
+        if (n.match(/^chevre$|^chèvre$/i))
             return 'Ziegenfrischkäse. Ungereift histaminarm, anders als gereifter Ziegenkäse.';
         if (n.match(/^chewing gum$/i))
             return 'Englisch für Kaugummi. Basismasse neutral, auf verträgliche Aromastoffe achten.';
@@ -12553,6 +12868,8 @@ if (cat === 'high') {
             return 'Ohne weitere Angabe unklarer Herkunft — reine Pflanzenöle sind meist eiweißfrei und histaminfrei.';
         if (n.match(/^überzugsmittel$/i))
             return 'Sammelbegriff. Meist unbedenkliche Stoffe — Zutatenliste prüfen.';
+        if (n.match(/^trennmittel$/i))
+            return 'Sammelbegriff für Zusätze, die das Verkleben von Lebensmitteln verhindern (z.B. Siliciumdioxid, Talkum, Calciumcarbonat). Meist unbedenkliche Stoffe — Zutatenliste prüfen.';
         if (n.match(/^bambussprossen$/i))
             return 'Bambussprossen: Histaminarm, mild im Geschmack. Gut verträgliches Gemüse.';
         if (n.match(/^wasserkastanie$/i))
@@ -12632,7 +12949,7 @@ if (cat === 'high') {
         if (n.match(/^sunflower proteinriegel$/i))
             return 'Sonnenblumenprotein. Pflanzliche Konzentrate können bei empfindlichen Personen den Magen belasten.';
         if (n.match(/^suppe$/i))
-            return 'Meist lang gekochte Brühe. Proteinabbau kann viel Histamin erzeugen.';
+            return '⚠️ Keine Einschätzung möglich: "Suppe" ohne nähere Angabe kann von kurz gekochter Gemüsebrühe (histaminarm) bis langgekochter Knochen-/Fleischbrühe (Proteinabbau erzeugt viel Histamin) stark variieren. Zutatenliste auf die genaue Suppenart prüfen.';
         if (n.match(/^suppennudeln$/i))
             return 'Kleinteilige Teigwaren. Bestehen oft aus Weizen und Ei.';
         if (n.match(/^sweet paprika$/i))
@@ -12714,7 +13031,7 @@ if (cat === 'high') {
         if (n.match(/^schweinskeule$/i))
             return 'Fleischstück. Frisch verarbeitet histaminarm.';
         if (n.match(/^kulturen$/i))
-            return 'Bakterien-/Hefekulturen zur Fermentation (z.B. Joghurt-, Kefir- oder Milchsäurekulturen). Manche Stämme können Histamin bilden — mit Vorsicht genießen.';
+            return '⚠️ Keine Einschätzung möglich: "Kulturen" (Bakterien-/Hefekulturen zur Fermentation, z.B. Joghurt-, Kefir- oder Milchsäurekulturen) ohne genaue Stammangabe — manche Stämme können Histamin bilden, andere nicht. Zutatenliste auf genauere Angaben prüfen.';
         if (n.match(/^scorzonera$/i))
             return 'Schwarzwurzel. Frisches Gemüse histaminarm.';
         if (n.match(/^seehecht$|^seehechts$/i))
@@ -12857,7 +13174,7 @@ if (cat === 'high') {
         if (n.match(/^paprika powder$/i))
             return 'Englisch für Paprikapulver. Edelsüße Sorten meist gut bekömmlich, scharfe Sorten belastender.';
         if (n.match(/^paprikaextrakt$/i))
-            return 'Konzentrierter Auszug aus Paprika. Durch Verarbeitung/Schärfe oft ein Reizstoff.';
+            return 'SIGHI 0 — Paprikaextrakt/Capsanthin (E160c): Farbstoff aus Paprika, histaminfrei.';
         if (n.match(/^passionsblume$/i))
             return 'Heilpflanze für Beruhigungstees. Histaminarm.';
         if (n.match(/^pasta$/i))
@@ -12895,7 +13212,7 @@ if (cat === 'high') {
         if (n.match(/^obergärig$/i))
             return 'Brauart für Bier (z.B. Weizenbier). Hefe und Alkohol machen es kritisch.';
         if (n.match(/^obst$/i))
-            return 'Früchte allgemein. Verträglichkeit sehr unterschiedlich — Zitrusfrüchte eher meiden, andere Sorten oft gut verträglich.';
+            return '⚠️ Keine Einschätzung möglich: "Obst" ohne genaue Sortenangabe — Verträglichkeit variiert stark (Zitrusfrüchte/Bananen eher meiden, Beeren/Kernobst oft gut verträglich). Zutatenliste auf die genaue Frucht prüfen.';
         if (n.match(/^oligofruktose$/i))
             return 'Pflanzlicher Ballaststoff. Kein Histamin, kann bei empfindlicher Darmflora Blähungen verursachen.';
         if (n.match(/^origanum$/i))
@@ -13208,8 +13525,13 @@ if (cat === 'high') {
             return 'Glucono-delta-lacton (E575), Säureregulator. Synthetisch hergestellt, histaminfrei.';
         if (n.match(/^ge$|^ges$/i))
             return 'Unvollständige Zutatenangabe — die genaue Bezeichnung sollte geprüft werden.';
-        if (n.match(/^keks$/i))
+        if (n.match(/^keks$/i)) {
+            const _origLower = (window._reliableOriginMap && window._reliableOriginMap['keks'] || '').toLowerCase();
+            if (/^(keks|kekse|gebäck)$/i.test(_origLower.trim()) || !_origLower) {
+                return '⚠️ Keks/Gebäck ohne nähere Angabe: Enorme Rezeptvielfalt möglich (Schokolade, Rosinen, Nüsse, verschiedenste Mehle/Gewürze) — Verträglichkeit hängt komplett von den tatsächlichen Zutaten ab. Zutatenliste genau prüfen.';
+            }
             return 'Feine Backwaren. Backtriebmittel, Hefe oder Weizenkleber können empfindliche Därme belasten.';
+        }
         if (n.match(/^geflügelextrakt$/i))
             return 'Hochkonzentrierte Fleischbrühe. Durch lange Koch-/Reduktionsprozesse reichern sich freie Aminosäuren und Histamin an.';
         if (n.match(/^pasta$/i))
@@ -13217,7 +13539,7 @@ if (cat === 'high') {
         if (n.match(/^gelatin$/i))
             return 'Gelatine. Kollagenes Protein tierischen Ursprungs, kann als Liberator wirken.';
         if (n.match(/^paprika$/i))
-            return 'Nachtschattengewächs. Wird individuell unterschiedlich vertragen — bei hoher Empfindlichkeit vorsichtig testen.';
+            return 'Nachtschattengewächs. Wird individuell unterschiedlich vertragen — NDR "Die Ernährungs-Docs" (Stand 06.12.2024) nennt Paprikagewürz explizit als Vorsichts-Gewürz bei Histamin-Unverträglichkeit, neben Kreuzkümmel und Pfeffer.';
         if (n.match(/^gelierzucker$/i))
             return 'Zucker mit Pektin und Zitronensäure. Die Säure kann die Darmschleimhaut reizen.';
         if (n.match(/^nussmix$/i))
@@ -13253,7 +13575,7 @@ if (cat === 'high') {
         if (n.match(/^fromage blanc$|^fromage frais$/i))
             return 'Französischer Frischkäse. Ungereift und mild, histaminarm.';
         if (n.match(/^frucht$/i))
-            return '⚠️ Obst allgemein. Verträglichkeit schwankt stark je Sorte — Zitrusfrüchte eher meiden, Heidelbeeren gut verträglich.';
+            return '⚠️ Keine Einschätzung möglich: "Frucht" ohne genaue Sortenangabe — Verträglichkeit variiert stark (Zitrusfrüchte/Bananen eher meiden, Beeren/Kernobst oft gut verträglich). Zutatenliste auf die genaue Frucht prüfen.';
         if (n.match(/^fruchtbonbons?$/i))
             return 'Zuckerware mit Fruchtaroma. Meist frei von Histamin, künstliche Aromen/Säuren können den Darm reizen.';
         if (n.match(/^fruchtzucker$/i))
@@ -14196,6 +14518,8 @@ if (cat === 'high') {
             return 'SIGHI 0 — Stevia (E960): Reines Extrakt histaminneutral. Bei Fertigprodukten auf Trägerstoffe achten.';
         if (n.match(/^sucralose$/i))
             return 'SIGHI 0 — Sucralose (E955): Künstlicher Süßstoff, laut SIGHI 2024 gut verträglich. Histaminneutral.';
+        if (n.match(/^saccharin$/i))
+            return 'Saccharin (E954) wird von SIGHI nicht separat geführt. Wie andere synthetische Süßstoffe (z.B. Sucralose, SIGHI S0) allgemein als histaminneutral eingestuft.';
         if (n.match(/steinsalz|meersalz(?!.*jod)/i))
             return 'SIGHI 0 — Steinsalz (unverarbeitet): Ohne Rieselhilfen/Zusätze vollkommen histaminneutral.';
         if (n.match(/heidelbeersaft|blueberry juice/i))
@@ -14256,6 +14580,8 @@ if (cat === 'high') {
             return 'Gut verträglich (SIGHI 0) — Datteln sind histaminarm, aber in großen Mengen wegen Fruchtzucker aufpassen';
         if (n.match(/frischkäse|hüttenkäse|hüttenkaese|cottage cheese|skyr/))
             return 'SIGHI 0 — Frischkäse: nicht gereift, kaum Histamin. Ricotta, Mascarpone, Hüttenkäse S0. Tipp: immer natur kaufen, frisch aufschneiden, Rinde abschneiden!';
+        if (n.match(/^käse jung$/i))
+            return '"Käse, jung" ohne genaue Sortenangabe. Analog zu jung/kurz gereiften Käsesorten (z.B. junger Gouda) — bei kurzer Reifezeit meist kaum Histamin gebildet, daher vorsorglich mild eingestuft. Genaue Sorte prüfen, falls verfügbar.';
         if (n.match(/\bgouda jung\b|\bjunger gouda\b|junger.*gouda/i))
             return 'SIGHI 0 — Junger Gouda: Nur wenige Wochen gereift — kaum Histamin gebildet. Sicherer, meist gut verträglicher Käse.';
         if (n.match(/\bzucchini\b|zucchetti/))
@@ -14586,6 +14912,7 @@ NAME_TO_E['hirschhornsalz'] = 'E503';  // eigenständiges Token, nicht über E_N
 NAME_TO_E['zitronensäure'] = 'E330';  // Token nutzt "Z", E_NAMES-Eintrag "Citronensäure" mit "C" — Reverse-Lookup verpasst das
 
 const TOKEN_DISPLAY_NAMES = {
+    'umeessig': 'Ume-Essig',
     'hefe': 'Hefe',  // verhindert Heidelbeeren-Label
     'piment': 'Piment',  // verhindert 'Kurkuma' im Label
     'braunfk': 'Braun FK',  // kein E-Nummer-Muster, E_NAMES-Lookup greift nicht automatisch
@@ -14604,7 +14931,7 @@ const TOKEN_DISPLAY_NAMES = {
     'stevia': 'Stevia <span class="e-fullname">(E960)</span>',
     'vitaminb3': 'Vitamin B3', 'vitaminb5': 'Vitamin B5', 'vitaminb6': 'Vitamin B6',
     'vitaminb7': 'Vitamin B7', 'vitaminb9': 'Vitamin B9', 'vitaminb12': 'Vitamin B12',
-    'vitamind': 'Vitamin D', 'vitamine': 'Vitamin E', 'vitamine2': 'Vitamin E',
+    'vitamind': 'Vitamin D', 'vitamine': 'Vitamine (unspezifisch)', 'vitamine2': 'Vitamin E',
     'molybdaen': 'Molybdän',
     'leucin': 'L-Leucin', 'isoleucin': 'L-Isoleucin', 'valin': 'L-Valin',
     'carnitin': 'L-Carnitin', 'glutamin': 'L-Glutamin', 'arginin': 'L-Arginin',
@@ -15191,7 +15518,7 @@ document.addEventListener('visibilitychange', () => {
             7. Schwermetallbelastung (verdrängt DAO-Cofaktoren)<br>
             8. MCAS (Mastzellaktivierungssyndrom) — 1–10% der Bevölkerung<br>
             9. Nahrungsmittelzusatzstoffe (Sulfite, Benzoate, Glutamat)<br>
-            10. Chemikalien (Natrium-Laurylsulfat, Duftstoffe, Abgase)
+            10. Chemikalien (Natrium-Laurylsulfat, Duftstoffe, Abgase, Amalgam, BPA)
             </p>
         </div>
 
